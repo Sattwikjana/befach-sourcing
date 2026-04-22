@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime / OS files
+.DS_Store
+Thumbs.db
+.env
+.env.local
+.env.*.local
+
+# Editor / IDE local config
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+.idea/
+
+# Puppeteer's persistent Chrome user-data directory (cookies, login state, etc.)
+.befach-sourcing-chrome/
+~/.befach-sourcing-chrome/
+
+# Build / test artifacts
+dist/
+coverage/
+*.tsbuildinfo
