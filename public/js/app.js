@@ -613,8 +613,8 @@ async function renderHome() {
 
         <section class="section">
           <div class="section-head">
-            <h2>Trending now</h2>
-            <a href="#/search?q=trending" class="section-link">See more →</a>
+            <h2>🔥 Trending tech &amp; gadgets</h2>
+            <a href="#/search?q=earbuds" class="section-link">See more →</a>
           </div>
           <div class="products-grid" id="trendingGrid">${productSkeleton(10)}</div>
         </section>
@@ -637,8 +637,19 @@ async function renderHome() {
         </section>
 
         <section class="section">
-          <div class="section-head"><h2>For you</h2></div>
+          <div class="section-head">
+            <h2>💎 Style &amp; jewellery picks</h2>
+            <a href="#/search?q=watch" class="section-link">See more →</a>
+          </div>
           <div class="products-grid" id="forYouGrid">${productSkeleton(10)}</div>
+        </section>
+
+        <section class="section">
+          <div class="section-head">
+            <h2>🏠 Home &amp; lifestyle</h2>
+            <a href="#/search?q=led light" class="section-link">See more →</a>
+          </div>
+          <div class="products-grid" id="homeLifestyleGrid">${productSkeleton(10)}</div>
         </section>
       </div>
 
@@ -754,43 +765,38 @@ function hideSidebarFlyout() {
 async function loadHomeProducts() {
   const trendingGrid = document.getElementById('trendingGrid');
   const forYouGrid = document.getElementById('forYouGrid');
+  const homeLifestyleGrid = document.getElementById('homeLifestyleGrid');
   const showErr = (el, msg) => { if (el) el.innerHTML = `<p class="muted">${esc(msg)}</p>`; };
 
-  const fetchOnce = async () => {
-    const res = await apiGet('/api/store/products?size=24&page=1');
-    return res.products || [];
-  };
+  // Three themed sections — each fires its own /api/store/products call with
+  // a different keyword, so the rows are visually distinct (different
+  // products, different vibes). Server-side cache means repeat visits
+  // return instantly. The keywords are picked because CJ has tons of
+  // results for each, all photogenic and price-friendly.
+  const sections = [
+    { grid: trendingGrid,       keyword: 'earbuds',   label: 'tech & gadgets' },
+    { grid: forYouGrid,         keyword: 'watch',     label: 'style & jewellery' },
+    { grid: homeLifestyleGrid,  keyword: 'led light', label: 'home & lifestyle' },
+  ];
 
-  let products;
-  try {
-    products = await fetchOnce();
-  } catch (err) {
-    // One retry after a short pause
+  // Fire all three in parallel (different endpoints don't share rate limit
+  // here — they're all on /product/listV2, which the server queue serialises,
+  // but the cache hit on subsequent loads makes this near-instant).
+  await Promise.all(sections.map(async (s) => {
+    if (!s.grid) return;
     try {
-      await new Promise(r => setTimeout(r, 1200));
-      products = await fetchOnce();
-    } catch (e2) {
-      showErr(trendingGrid, `Couldn't load products — refresh the page.`);
-      showErr(forYouGrid, '');
-      return;
+      const res = await apiGet(`/api/store/products?keyWord=${encodeURIComponent(s.keyword)}&size=12&page=1`);
+      const products = res.products || [];
+      if (!products.length) {
+        showErr(s.grid, `No ${s.label} products available right now.`);
+        return;
+      }
+      s.grid.innerHTML = products.map(productCard).join('');
+      backfillCardShipping(s.grid);
+    } catch (err) {
+      showErr(s.grid, `Couldn't load ${s.label} — refresh the page.`);
     }
-  }
-
-  if (!products.length) {
-    showErr(trendingGrid, 'No products available right now.');
-    showErr(forYouGrid, '');
-    return;
-  }
-
-  // Randomise the split so "Trending" and "For you" feel different each load,
-  // but keep them stable within a single visit.
-  const trending = products.slice(0, 12);
-  const forYou = products.slice(12, 24);
-  if (trendingGrid) trendingGrid.innerHTML = trending.map(productCard).join('');
-  if (forYouGrid) forYouGrid.innerHTML = forYou.length ? forYou.map(productCard).join('') : '';
-  // Backfill real CJPacket shipping for any cards that showed approximate prices
-  backfillCardShipping(trendingGrid);
-  backfillCardShipping(forYouGrid);
+  }));
 }
 
 // ══════════════════════════════════════════════════════════════
