@@ -1,0 +1,192 @@
+/**
+ * Order Manager — Local order storage + CJ order creation
+ */
+
+const fs = require('fs');
+const path = require('path');
+const cj = require('./cjApi');
+
+const DATA_DIR = path.join(__dirname, 'data');
+const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
+
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+function loadOrders() {
+  try {
+    if (fs.existsSync(ORDERS_FILE)) {
+      return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8'));
+    }
+  } catch {}
+  return [];
+}
+
+function saveOrders(orders) {
+  fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
+}
+
+function generateOrderId() {
+  const ts = Date.now().toString(36).toUpperCase();
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `BF-${ts}-${rand}`;
+}
+
+/**
+ * Create a consumer order and forward to CJ
+ * @param {Object} orderData - { customer, items, shippingAddress }
+ * customer: { name, phone, email }
+ * items: [{ pid, vid, quantity, retailPrice, cjPrice, productName }]
+ * shippingAddress: { address, address2, city, province, zip, country, countryCode }
+ */
+async function createOrder(orderData) {
+  const { customer, items, shippingAddress, logisticName, userId } = orderData;
+
+  // Totals:
+  //   productTotal    = what the customer paid  (sum of displayPrice × qty)
+  //   cjTotal         = product cost to us       (sum of cjPrice × qty)
+  //   shippingTotal   = shipping cost to us      (sum of shippingPerUnit × qty)
+  //   profit          = productTotal - cjTotal - shippingTotal
+  const productTotal = items.reduce((sum, i) =>
+    sum + (parseFloat(i.retailPrice) * i.quantity), 0);
+  const cjTotal = items.reduce((sum, i) =>
+    sum + (parseFloat(i.cjPrice) * i.quantity), 0);
+  const shippingTotal = items.reduce((sum, i) =>
+    sum + (parseFloat(i.shippingPerUnit || 0) * i.quantity), 0);
+  const profit = Math.round((productTotal - cjTotal - shippingTotal) * 100) / 100;
+
+  const orderId = generateOrderId();
+
+  // Build CJ order payload
+  const cjOrderPayload = {
+    orderNumber: orderId,
+    shippingZip: shippingAddress.zip || '',
+    shippingCountry: shippingAddress.country || '',
+    shippingCountryCode: shippingAddress.countryCode || 'IN',
+    shippingProvince: shippingAddress.province || '',
+    shippingCity: shippingAddress.city || '',
+    shippingPhone: customer.phone || '',
+    shippingCustomerName: customer.name || '',
+    shippingAddress: shippingAddress.address || '',
+    shippingAddress2: shippingAddress.address2 || '',
+    email: customer.email || '',
+    remark: `Befach Order ${orderId}`,
+    fromCountryCode: process.env.DEFAULT_SHIP_FROM || 'CN',
+    logisticName: logisticName || '',
+    payType: 1, // returns cjPayUrl for you to pay
+    products: items.map(item => ({
+      vid: item.vid,
+      quantity: item.quantity,
+    })),
+  };
+
+  let cjResponse = null;
+  let cjOrderId = null;
+  let cjPayUrl = null;
+  let cjError = null;
+
+  try {
+    cjResponse = await cj.createOrderV2(cjOrderPayload);
+    if (cjResponse.data) {
+      cjOrderId = cjResponse.data.orderId;
+      cjPayUrl = cjResponse.data.cjPayUrl;
+    }
+  } catch (err) {
+    cjError = err.message;
+    console.error('[OrderManager] CJ order creation failed:', err.message);
+  }
+
+  // Save local order
+  const order = {
+    id: orderId,
+    userId: userId || null,
+    customer,
+    items,
+    shippingAddress,
+    logisticName: logisticName || null,
+    productTotal: productTotal.toFixed(2),
+    cjTotal: cjTotal.toFixed(2),
+    shippingTotal: shippingTotal.toFixed(2),
+    profit: profit.toFixed(2),
+    cjOrderId,
+    cjPayUrl,
+    cjError,
+    status: cjOrderId ? 'CJ_CREATED' : 'PENDING',
+    trackNumber: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const orders = loadOrders();
+  orders.unshift(order);
+  saveOrders(orders);
+
+  return order;
+}
+
+/**
+ * Get order by ID
+ */
+function getOrder(orderId) {
+  const orders = loadOrders();
+  return orders.find(o => o.id === orderId);
+}
+
+/**
+ * Get all orders (with optional pagination)
+ */
+function getAllOrders({ page = 1, pageSize = 20 } = {}) {
+  const orders = loadOrders();
+  const start = (page - 1) * pageSize;
+  return {
+    total: orders.length,
+    page,
+    pageSize,
+    orders: orders.slice(start, start + pageSize),
+  };
+}
+
+/**
+ * Update order status
+ */
+function updateOrderStatus(orderId, status, extra = {}) {
+  const orders = loadOrders();
+  const idx = orders.findIndex(o => o.id === orderId);
+  if (idx === -1) return null;
+  orders[idx] = { ...orders[idx], status, ...extra, updatedAt: new Date().toISOString() };
+  saveOrders(orders);
+  return orders[idx];
+}
+
+/**
+ * Get dashboard stats
+ */
+function getDashboardStats() {
+  const orders = loadOrders();
+  const totalOrders = orders.length;
+  const totalRevenue = orders.reduce((s, o) => s + parseFloat(o.productTotal || 0), 0);
+  const totalProductCost = orders.reduce((s, o) => s + parseFloat(o.cjTotal || 0), 0);
+  const totalShipping = orders.reduce((s, o) => s + parseFloat(o.shippingTotal || 0), 0);
+  const totalCost = totalProductCost + totalShipping;
+  const totalProfit = orders.reduce((s, o) => s + parseFloat(o.profit || 0), 0);
+  const statusCounts = {};
+  orders.forEach(o => { statusCounts[o.status] = (statusCounts[o.status] || 0) + 1; });
+
+  return {
+    totalOrders,
+    totalRevenue: totalRevenue.toFixed(2),
+    totalProductCost: totalProductCost.toFixed(2),
+    totalShipping: totalShipping.toFixed(2),
+    totalCost: totalCost.toFixed(2),
+    totalProfit: totalProfit.toFixed(2),
+    profitMargin: totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(1) + '%' : '0%',
+    statusCounts,
+    recentOrders: orders.slice(0, 5),
+  };
+}
+
+module.exports = {
+  createOrder,
+  getOrder,
+  getAllOrders,
+  updateOrderStatus,
+  getDashboardStats,
+};

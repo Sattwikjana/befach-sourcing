@@ -1,0 +1,848 @@
+/**
+ * Befach Store — Cart, Checkout, Order, Track, Admin, FAQ pages.
+ * Loaded after app.js; shares its globals (esc, fmtINR, apiGet, apiPost, state, cart helpers, etc.).
+ */
+
+'use strict';
+
+// ══════════════════════════════════════════════════════════════
+//  CART PAGE
+// ══════════════════════════════════════════════════════════════
+function renderCart() {
+  const items = state.cart;
+
+  if (!items.length) {
+    app.innerHTML = `
+      <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Cart</span></div>
+      <div class="empty-state">
+        <div class="empty-icon">🛒</div>
+        <h3>Your cart is empty</h3>
+        <p class="muted">Add some products to get started.</p>
+        <a class="btn btn-primary" href="#/">Shop now</a>
+      </div>`;
+    return;
+  }
+
+  app.innerHTML = `
+    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Cart</span></div>
+    <h1 class="page-title">Your Cart</h1>
+    <div class="cart-layout">
+      <div class="cart-items" id="cartItems"></div>
+      <aside class="cart-summary" id="cartSummary"></aside>
+    </div>
+  `;
+  renderCartItems();
+  renderCartSummary();
+}
+
+function renderCartItems() {
+  const container = document.getElementById('cartItems');
+  if (!container) return;
+  container.innerHTML = state.cart.map((item, idx) => `
+    <div class="cart-item fade-in" data-idx="${idx}">
+      <a href="#/product/${encodeURIComponent(item.pid)}" class="cart-item-img-wrap">
+        <img src="${imgProxy(item.image)}" alt="${esc(item.productName)}" onerror="this.src='/img/befach_logo.png'"/>
+      </a>
+      <div class="cart-item-info">
+        <a class="cart-item-title" href="#/product/${encodeURIComponent(item.pid)}">${esc(item.productName)}</a>
+        ${item.variantName ? `<div class="cart-item-variant">${esc(item.variantName)}</div>` : ''}
+        <div class="cart-item-price">${fmtINR(item.priceUsd)}</div>
+      </div>
+      <div class="cart-item-qty">
+        <button type="button" class="cart-qty-btn" onclick="cartAdjust('${esc(item.pid)}','${esc(item.vid)}',-1)">−</button>
+        <input type="number" min="1" value="${item.quantity}" onchange="cartSetQty('${esc(item.pid)}','${esc(item.vid)}', this.value)"/>
+        <button type="button" class="cart-qty-btn" onclick="cartAdjust('${esc(item.pid)}','${esc(item.vid)}',1)">+</button>
+      </div>
+      <div class="cart-item-line">${fmtINR(parseFloat(item.priceUsd) * item.quantity)}</div>
+      <button class="cart-item-remove" title="Remove" onclick="cartRemove('${esc(item.pid)}','${esc(item.vid)}')">✕</button>
+    </div>
+  `).join('');
+}
+
+function renderCartSummary() {
+  const sub = cartSubtotalUsd();
+
+  const el = document.getElementById('cartSummary');
+  if (!el) return;
+  el.innerHTML = `
+    <h3>Order summary</h3>
+    <div class="summary-row"><span>Subtotal (${state.cart.length} ${state.cart.length === 1 ? 'item' : 'items'})</span><strong>${fmtINR(sub)}</strong></div>
+    <div class="summary-row muted"><span>Shipping</span><span>Calculated at checkout</span></div>
+    <div class="summary-row muted"><span>Taxes</span><span>Included</span></div>
+    <hr/>
+    <div class="summary-row summary-total"><span>Total</span><strong>${fmtINR(sub)}</strong></div>
+
+    <button class="btn btn-primary btn-lg btn-full" onclick="navigate('/checkout')">Proceed to Checkout →</button>
+    <a class="btn btn-ghost btn-full" href="#/">Continue shopping</a>
+    <button class="btn-link" onclick="if(confirm('Empty cart?')){clearCart();renderCart();}">Clear cart</button>
+  `;
+}
+
+window.cartAdjust = function(pid, vid, delta) {
+  const item = state.cart.find(i => i.pid === pid && i.vid === vid);
+  if (!item) return;
+  const newQty = item.quantity + delta;
+  if (newQty <= 0) { removeFromCart(pid, vid); }
+  else { updateCartQuantity(pid, vid, newQty); }
+  renderCartItems(); renderCartSummary();
+};
+window.cartSetQty = function(pid, vid, qty) {
+  updateCartQuantity(pid, vid, qty); renderCartItems(); renderCartSummary();
+};
+window.cartRemove = function(pid, vid) {
+  removeFromCart(pid, vid); renderCart();
+};
+
+// ══════════════════════════════════════════════════════════════
+//  CHECKOUT PAGE
+// ══════════════════════════════════════════════════════════════
+async function renderCheckout() {
+  if (!state.cart.length) return renderCart();
+
+  // Restore any previous address so customers don't re-type
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('befach_address') || '{}'); } catch {}
+  // If signed in, prefer the user's profile fields and saved address
+  if (state.user) {
+    saved = {
+      name: saved.name || state.user.name || '',
+      email: saved.email || state.user.email || '',
+      phone: saved.phone || state.user.phone || '',
+      ...(state.user.address || {}),
+      ...saved,
+    };
+  }
+
+  app.innerHTML = `
+    <div class="breadcrumb">
+      <a href="#/">Home</a> <span>›</span>
+      <a href="#/cart">Cart</a> <span>›</span>
+      <span class="current">Checkout</span>
+    </div>
+    <h1 class="page-title">Checkout</h1>
+
+    <div class="checkout-layout">
+      <div class="checkout-main">
+        <!-- Step 1: Address -->
+        <section class="checkout-step">
+          <h2><span class="step-num">1</span> Contact & shipping address</h2>
+          <form id="checkoutForm" class="checkout-form">
+            <div class="form-row">
+              <label>Full name *<input name="name" required value="${esc(saved.name || '')}" /></label>
+              <label>Phone *<input name="phone" type="tel" required value="${esc(saved.phone || '')}" /></label>
+            </div>
+            <label>Email *<input name="email" type="email" required value="${esc(saved.email || '')}" /></label>
+            <label>Address line 1 *<input name="address" required value="${esc(saved.address || '')}" /></label>
+            <label>Address line 2<input name="address2" value="${esc(saved.address2 || '')}" /></label>
+            <div class="form-row form-row-3">
+              <label>City *<input name="city" required value="${esc(saved.city || '')}" /></label>
+              <label>State / Province *<input name="province" required value="${esc(saved.province || '')}" /></label>
+              <label>PIN / ZIP *<input name="zip" required value="${esc(saved.zip || '')}" /></label>
+            </div>
+            <label>Country *
+              <select name="countryCode" required>
+                <option value="IN" ${(saved.countryCode || state.config.shipTo) === 'IN' ? 'selected' : ''}>India</option>
+                <option value="US" ${saved.countryCode === 'US' ? 'selected' : ''}>United States</option>
+                <option value="GB" ${saved.countryCode === 'GB' ? 'selected' : ''}>United Kingdom</option>
+                <option value="AE" ${saved.countryCode === 'AE' ? 'selected' : ''}>United Arab Emirates</option>
+                <option value="AU" ${saved.countryCode === 'AU' ? 'selected' : ''}>Australia</option>
+                <option value="CA" ${saved.countryCode === 'CA' ? 'selected' : ''}>Canada</option>
+                <option value="DE" ${saved.countryCode === 'DE' ? 'selected' : ''}>Germany</option>
+                <option value="SG" ${saved.countryCode === 'SG' ? 'selected' : ''}>Singapore</option>
+              </select>
+            </label>
+          </form>
+        </section>
+
+        <!-- Step 2: Payment -->
+        <section class="checkout-step">
+          <h2><span class="step-num">2</span> Payment</h2>
+          <div class="payment-note">
+            <strong>Pay on delivery / Pay offline</strong>
+            <p class="muted small">Online payment is not enabled yet. We will contact you after placing the order to arrange payment.</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- Order summary sidebar -->
+      <aside class="cart-summary">
+        <h3>Order summary</h3>
+        <div class="checkout-items" id="checkoutItems"></div>
+        <hr/>
+        <div class="summary-row"><span>Subtotal (${state.cart.length} ${state.cart.length === 1 ? 'item' : 'items'})</span><strong>${fmtINR(cartSubtotalUsd())}</strong></div>
+        <div class="summary-row muted"><span>Shipping</span><span>Included</span></div>
+        <div class="summary-row muted"><span>Taxes</span><span>Included</span></div>
+        <hr/>
+        <div class="summary-row summary-total"><span>Total</span><strong id="sumTotal">${fmtINR(cartSubtotalUsd())}</strong></div>
+        <button class="btn btn-primary btn-lg btn-full" id="placeOrderBtn">Place order</button>
+        <p class="muted small" style="text-align:center">By placing this order you agree to our terms.</p>
+      </aside>
+    </div>
+  `;
+
+  // Render order summary items
+  document.getElementById('checkoutItems').innerHTML = state.cart.map(item => `
+    <div class="checkout-item">
+      <img src="${imgProxy(item.image)}" alt="" onerror="this.src='/img/befach_logo.png'"/>
+      <div class="checkout-item-info">
+        <div class="checkout-item-title">${esc(item.productName.slice(0, 50))}${item.productName.length > 50 ? '…' : ''}</div>
+        <div class="checkout-item-qty">Qty ${item.quantity}${item.variantName ? ' · ' + esc(item.variantName) : ''}</div>
+      </div>
+      <div class="checkout-item-price">${fmtINR(parseFloat(item.priceUsd) * item.quantity)}</div>
+    </div>
+  `).join('');
+
+  // Persist address as user types
+  const form = document.getElementById('checkoutForm');
+  form.addEventListener('input', () => {
+    const fd = Object.fromEntries(new FormData(form).entries());
+    localStorage.setItem('befach_address', JSON.stringify(fd));
+  });
+
+  // Place order — shipping is already included in each item's price
+  // (CJPacket Asia Ordinary), so no method picker and no extra shipping row.
+  document.getElementById('placeOrderBtn').onclick = async () => {
+    if (!form.reportValidity()) return;
+    const fd = Object.fromEntries(new FormData(form).entries());
+
+    const btn = document.getElementById('placeOrderBtn');
+    btn.disabled = true;
+    btn.textContent = 'Placing order…';
+
+    try {
+      const res = await apiPost('/api/store/orders', {
+        customer: { name: fd.name, phone: fd.phone, email: fd.email },
+        items: state.cart.map(i => ({ pid: i.pid, vid: i.vid, quantity: i.quantity })),
+        shippingAddress: {
+          address: fd.address,
+          address2: fd.address2 || '',
+          city: fd.city,
+          province: fd.province,
+          zip: fd.zip,
+          country: countryName(fd.countryCode),
+          countryCode: fd.countryCode,
+        },
+        // Server overrides logisticName with SHIPPING_METHOD regardless;
+        // we send a placeholder just to be explicit.
+        logisticName: state.config.shippingMethod || 'CJPacket Asia Ordinary',
+      });
+      if (res.success && res.order) {
+        // If signed in, save the address to the user's profile so future
+        // checkouts auto-fill from the server, not just localStorage.
+        if (state.user) {
+          authPatch('/api/auth/me', {
+            phone: fd.phone,
+            address: {
+              address: fd.address,
+              address2: fd.address2 || '',
+              city: fd.city,
+              province: fd.province,
+              zip: fd.zip,
+              countryCode: fd.countryCode,
+            },
+          }).catch(() => {}); // best-effort, don't block checkout
+        }
+        clearCart();
+        navigate(`/order/${res.order.id}`);
+      } else {
+        throw new Error(res.error || 'Order failed');
+      }
+    } catch (err) {
+      showToast('Order failed: ' + err.message, 4500);
+      btn.disabled = false;
+      btn.textContent = 'Place order';
+    }
+  };
+}
+
+function countryName(code) {
+  const m = { IN: 'India', US: 'United States', GB: 'United Kingdom', AE: 'UAE', AU: 'Australia', CA: 'Canada', DE: 'Germany', SG: 'Singapore' };
+  return m[code] || code;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ORDER DETAIL / CONFIRMATION
+// ══════════════════════════════════════════════════════════════
+async function renderOrderDetail(orderId) {
+  app.innerHTML = `<div class="loading-wrap"><div class="spinner"></div><p>Loading order…</p></div>`;
+  try {
+    const r = await apiGet(`/api/store/orders/${encodeURIComponent(orderId)}`);
+    const o = r.order;
+    const tracking = r.tracking;
+    if (!o) throw new Error('Order not found');
+
+    app.innerHTML = `
+      <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Order ${esc(o.id)}</span></div>
+
+      <div class="order-success-banner">
+        <div class="order-success-icon">✅</div>
+        <div>
+          <h2>Thank you! Your order is placed.</h2>
+          <p class="muted">We'll email a confirmation to <strong>${esc(o.customer?.email || 'you')}</strong>. Save your order ID to track progress.</p>
+        </div>
+      </div>
+
+      <div class="order-detail">
+        <div class="order-detail-main">
+          <section class="card">
+            <h3>Order #${esc(o.id)}</h3>
+            <div class="order-status-row">
+              <span class="status-chip status-${esc((o.status || 'PENDING').toLowerCase())}">${esc(o.status)}</span>
+              ${o.cjStatus ? `<span class="muted">Supplier: ${esc(o.cjStatus)}</span>` : ''}
+            </div>
+            <div class="muted small">Placed ${new Date(o.createdAt).toLocaleString('en-IN')}</div>
+          </section>
+
+          <section class="card">
+            <h3>Items</h3>
+            ${o.items.map(i => {
+              const unit = parseFloat(i.unitPrice || i.retailPrice || 0);
+              return `
+              <div class="order-item">
+                <div class="order-item-info">
+                  <div class="order-item-title">${esc(i.productName)}</div>
+                  ${i.variantName ? `<div class="muted small">${esc(i.variantName)}</div>` : ''}
+                  <div class="muted small">Qty ${i.quantity}</div>
+                </div>
+                <div class="order-item-price">${fmtINR(unit * i.quantity)}</div>
+              </div>
+            `;}).join('')}
+            <hr/>
+            <div class="order-total-row"><span>Order total (incl. shipping)</span><strong>${fmtINR(o.grandTotal || o.productTotal)}</strong></div>
+          </section>
+
+          <section class="card">
+            <h3>Shipping address</h3>
+            <div>
+              ${esc(o.shippingAddress.address)}${o.shippingAddress.address2 ? '<br/>' + esc(o.shippingAddress.address2) : ''}<br/>
+              ${esc(o.shippingAddress.city)}, ${esc(o.shippingAddress.province)} ${esc(o.shippingAddress.zip)}<br/>
+              ${esc(o.shippingAddress.country)}
+            </div>
+            ${o.logisticName ? `<div class="muted small" style="margin-top:8px">Method: ${esc(o.logisticName)}</div>` : ''}
+          </section>
+
+          ${tracking && tracking.events?.length ? `
+            <section class="card">
+              <h3>Tracking — ${esc(tracking.trackNumber)}</h3>
+              <div class="tracking-timeline">
+                ${tracking.events.slice(0, 20).map((ev, i) => `
+                  <div class="tracking-event ${i === 0 ? 'first' : ''}">
+                    <div class="tracking-dot"></div>
+                    <div>
+                      <div>${esc(ev.description || ev.status || 'Update')}</div>
+                      <div class="muted small">${esc(ev.date || ev.eventTime || '')}${ev.location ? ' · ' + esc(ev.location) : ''}</div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </section>
+          ` : `
+            <section class="card">
+              <h3>Tracking</h3>
+              <p class="muted">Tracking information will appear here once your order ships.</p>
+            </section>
+          `}
+        </div>
+
+        <aside class="order-detail-side">
+          <div class="card">
+            <h3>Need help?</h3>
+            <a class="btn btn-ghost btn-full" href="mailto:support@befach.com">✉️ Email support</a>
+            <a class="btn btn-ghost btn-full" href="#/track">🔎 Track another order</a>
+            <a class="btn btn-primary btn-full" href="#/">Continue shopping</a>
+          </div>
+        </aside>
+      </div>
+    `;
+  } catch (err) {
+    app.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Order not found</h3><p class="muted">${esc(err.message)}</p><a class="btn btn-primary" href="#/">Home</a></div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TRACK PAGE (enter an order ID)
+// ══════════════════════════════════════════════════════════════
+function renderTrack() {
+  app.innerHTML = `
+    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Track order</span></div>
+    <div class="track-box">
+      <h1>Track your order</h1>
+      <p class="muted">Enter the order ID you received after checkout (e.g. BF-ABC123-XYZ9).</p>
+      <form id="trackForm" class="track-form">
+        <input type="text" name="id" placeholder="BF-..." required />
+        <button class="btn btn-primary" type="submit">Track</button>
+      </form>
+    </div>
+  `;
+  document.getElementById('trackForm').onsubmit = (e) => {
+    e.preventDefault();
+    const id = (new FormData(e.target).get('id') || '').toString().trim();
+    if (!id) return;
+    navigate(`/order/${encodeURIComponent(id)}`);
+  };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  FAQ / SHIPPING & RETURNS
+// ══════════════════════════════════════════════════════════════
+function renderFaq() {
+  app.innerHTML = `
+    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Shipping & FAQ</span></div>
+    <h1 class="page-title">Shipping, Returns & FAQ</h1>
+    <div class="faq">
+      <details open>
+        <summary>How long does shipping take?</summary>
+        <p>Delivery times vary by destination and shipping method. Most international orders arrive in 7–20 business days. You can see an estimate on the product page and during checkout.</p>
+      </details>
+      <details>
+        <summary>Do you ship worldwide?</summary>
+        <p>Yes. We ship to 200+ countries through multiple logistics partners. Available methods and rates are shown at checkout once you enter an address.</p>
+      </details>
+      <details>
+        <summary>How do I track my order?</summary>
+        <p>Go to <a href="#/track">Track order</a> and enter the order ID you received after checkout. Tracking updates appear automatically once your package ships.</p>
+      </details>
+      <details>
+        <summary>What is your return policy?</summary>
+        <p>If an item arrives damaged or not as described, email <a href="mailto:support@befach.com">support@befach.com</a> within 7 days of delivery with photos, and we'll arrange a replacement or refund.</p>
+      </details>
+      <details>
+        <summary>How does payment work?</summary>
+        <p>Online payment is not yet enabled. After you place an order, our team will contact you to arrange payment. Your order is not charged until confirmed.</p>
+      </details>
+      <details>
+        <summary>Are taxes and duties included?</summary>
+        <p>Prices are inclusive of GST where applicable. Import duties for international shipments may be collected by your local customs; those are the buyer's responsibility.</p>
+      </details>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ADMIN DASHBOARD
+// ══════════════════════════════════════════════════════════════
+const ADMIN_PW_KEY = 'befach_admin_pw';
+
+function getAdminPw() { try { return sessionStorage.getItem(ADMIN_PW_KEY) || ''; } catch { return ''; } }
+function setAdminPw(pw) { try { sessionStorage.setItem(ADMIN_PW_KEY, pw); } catch {} }
+function clearAdminPw() { try { sessionStorage.removeItem(ADMIN_PW_KEY); } catch {} }
+
+async function adminFetch(path) {
+  const pw = getAdminPw();
+  const res = await fetch(path, { headers: { 'x-admin-password': pw } });
+  if (res.status === 401) { clearAdminPw(); throw new Error('Unauthorized'); }
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json();
+}
+async function adminPost(path, body) {
+  const pw = getAdminPw();
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-password': pw },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) { clearAdminPw(); throw new Error('Unauthorized'); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `API ${res.status}`);
+  return data;
+}
+
+async function renderAdmin() {
+  if (!getAdminPw()) return renderAdminLogin();
+
+  app.innerHTML = `
+    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Admin</span></div>
+    <div class="admin-header">
+      <h1>Admin Dashboard</h1>
+      <button class="btn btn-ghost" onclick="adminLogout()">Sign out</button>
+    </div>
+    <div id="adminStats" class="admin-stats">Loading…</div>
+    <div class="admin-grid">
+      <section class="card">
+        <h2>Recent orders</h2>
+        <div id="adminOrders">Loading…</div>
+      </section>
+      <section class="card">
+        <h2>Pricing</h2>
+        <div id="adminPricing">Loading…</div>
+      </section>
+      <section class="card">
+        <h2>CJ Balance</h2>
+        <div id="adminBalance">Loading…</div>
+      </section>
+    </div>
+  `;
+
+  try {
+    const stats = await adminFetch('/api/admin/dashboard');
+    document.getElementById('adminStats').innerHTML = `
+      <div class="stat-card"><div class="stat-label">Orders</div><div class="stat-value">${stats.totalOrders}</div></div>
+      <div class="stat-card"><div class="stat-label">Revenue</div><div class="stat-value">${fmtINR(stats.totalRevenue)}</div></div>
+      <div class="stat-card"><div class="stat-label">CJ cost</div><div class="stat-value">${fmtINR(stats.totalCost)}</div></div>
+      <div class="stat-card stat-profit"><div class="stat-label">Profit</div><div class="stat-value">${fmtINR(stats.totalProfit)}</div><div class="stat-label">${esc(stats.profitMargin)} margin</div></div>
+    `;
+  } catch (err) {
+    if (err.message === 'Unauthorized') return renderAdminLogin();
+    document.getElementById('adminStats').innerHTML = `<p class="muted">Failed to load: ${esc(err.message)}</p>`;
+  }
+
+  try {
+    const data = await adminFetch('/api/admin/orders?page=1&pageSize=10');
+    const list = data.orders || [];
+    document.getElementById('adminOrders').innerHTML = list.length ? `
+      <table class="admin-table">
+        <thead><tr><th>Order</th><th>Customer</th><th>Status</th><th>Revenue</th><th>Profit</th><th></th></tr></thead>
+        <tbody>
+          ${list.map(o => `
+            <tr>
+              <td><code>${esc(o.id)}</code><div class="muted small">${new Date(o.createdAt).toLocaleDateString('en-IN')}</div></td>
+              <td>${esc(o.customer?.name || '')}<div class="muted small">${esc(o.customer?.phone || '')}</div></td>
+              <td><span class="status-chip status-${esc((o.status || '').toLowerCase())}">${esc(o.status)}</span></td>
+              <td>${fmtINR(o.productTotal)}</td>
+              <td><strong>${fmtINR(o.profit)}</strong></td>
+              <td><a class="btn-sm btn-ghost" href="#/order/${encodeURIComponent(o.id)}">View</a></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : '<p class="muted">No orders yet.</p>';
+  } catch (err) {
+    document.getElementById('adminOrders').innerHTML = `<p class="muted">Failed to load: ${esc(err.message)}</p>`;
+  }
+
+  try {
+    const p = await adminFetch('/api/admin/pricing');
+    const overrides = p.overrides || {};
+    const overrideCount = Object.keys(overrides).length;
+    document.getElementById('adminPricing').innerHTML = `
+      <div class="admin-pricing-row">
+        <label>Global markup
+          <div class="markup-row">
+            <input type="number" id="markupInput" value="${parseInt(p.globalMarkup)}" min="0" max="500" />
+            <span>%</span>
+            <button class="btn btn-primary btn-sm" onclick="adminSaveMarkup()">Save</button>
+          </div>
+        </label>
+      </div>
+      <div class="muted small">${overrideCount} per-product override${overrideCount === 1 ? '' : 's'}</div>
+    `;
+  } catch (err) {
+    document.getElementById('adminPricing').innerHTML = `<p class="muted">Failed to load: ${esc(err.message)}</p>`;
+  }
+
+  try {
+    const b = await adminFetch('/api/admin/balance');
+    const bal = b.data?.amount ?? b.data?.balance ?? '—';
+    document.getElementById('adminBalance').innerHTML = `
+      <div class="stat-value">$${esc(bal)}</div>
+      <p class="muted small">CJ wallet balance (USD). Top up at <a target="_blank" href="https://cjdropshipping.com">cjdropshipping.com</a>.</p>
+    `;
+  } catch (err) {
+    document.getElementById('adminBalance').innerHTML = `<p class="muted">${esc(err.message)}</p>`;
+  }
+}
+
+function renderAdminLogin() {
+  app.innerHTML = `
+    <div class="login-box">
+      <h1>Admin sign in</h1>
+      <p class="muted">Enter the admin password to view the dashboard.</p>
+      <form id="adminLoginForm">
+        <input type="password" id="adminPw" placeholder="Admin password" autofocus required />
+        <button class="btn btn-primary" type="submit">Sign in</button>
+      </form>
+    </div>
+  `;
+  document.getElementById('adminLoginForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const pw = document.getElementById('adminPw').value;
+    setAdminPw(pw);
+    try {
+      await adminFetch('/api/admin/dashboard');
+      renderAdmin();
+    } catch {
+      clearAdminPw();
+      showToast('Wrong password');
+    }
+  };
+}
+
+window.adminLogout = function() { clearAdminPw(); renderAdminLogin(); };
+window.adminSaveMarkup = async function() {
+  const v = parseFloat(document.getElementById('markupInput').value);
+  if (!isFinite(v) || v < 0) return showToast('Invalid markup');
+  try {
+    await adminPost('/api/admin/pricing', { globalMarkup: v });
+    showToast(`✅ Global markup set to ${v}%`);
+  } catch (err) { showToast('Failed: ' + err.message); }
+};
+
+// ══════════════════════════════════════════════════════════════
+//  AUTH — login / register / account / logout
+// ══════════════════════════════════════════════════════════════
+
+// Current user is fetched on boot via /api/auth/me. The session cookie is
+// httpOnly so the browser sends it automatically; no localStorage token.
+async function loadCurrentUser() {
+  try {
+    const res = await fetch('/api/auth/me', { credentials: 'include' });
+    if (res.ok) {
+      const data = await res.json();
+      state.user = data.user || null;
+    } else {
+      state.user = null;
+    }
+  } catch { state.user = null; }
+  updateAuthSlot();
+}
+
+function updateAuthSlot() {
+  const slot = document.getElementById('authSlot');
+  if (!slot) return;
+  if (state.user) {
+    const first = (state.user.name || state.user.email || 'You').split(' ')[0];
+    slot.innerHTML = `
+      <a href="#/account" class="nav-link nav-account" data-page="account" title="Your account">
+        <span class="nav-avatar">${esc(first.slice(0, 1).toUpperCase())}</span>
+        <span>Hi, ${esc(first)}</span>
+      </a>
+    `;
+  } else {
+    // Two visible CTAs: "Sign in" (text link) + "Register" (primary button)
+    slot.innerHTML = `
+      <a href="#/login" class="nav-link nav-signin" data-page="login">Sign in</a>
+      <a href="#/register" class="nav-link nav-register-btn" data-page="register">Create account</a>
+    `;
+  }
+}
+
+async function authPost(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+async function authPatch(path, body) {
+  const res = await fetch(path, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+function renderLogin() {
+  if (state.user) return navigate('/account');
+  app.innerHTML = `
+    <div class="auth-page">
+      <div class="auth-card">
+        <h1>Sign in to Befach</h1>
+        <p class="muted">New here? <a href="#/register">Create an account</a></p>
+        <form id="loginForm" class="auth-form">
+          <label>Email
+            <input type="email" name="email" required autocomplete="email" autofocus />
+          </label>
+          <label>Password
+            <input type="password" name="password" required autocomplete="current-password" />
+          </label>
+          <button class="btn btn-primary btn-lg btn-full" type="submit" id="loginBtn">Sign in</button>
+          <div class="auth-error" id="loginError"></div>
+        </form>
+        <p class="muted small" style="text-align:center">
+          Or <a href="#/checkout">continue as guest</a> to checkout without an account
+        </p>
+      </div>
+    </div>
+  `;
+  document.getElementById('loginForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target).entries());
+    const errEl = document.getElementById('loginError');
+    const btn = document.getElementById('loginBtn');
+    errEl.textContent = '';
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    try {
+      const { user } = await authPost('/api/auth/login', fd);
+      state.user = user;
+      updateAuthSlot();
+      showToast(`Welcome back, ${user.name.split(' ')[0]}`);
+      navigate('/account');
+    } catch (err) {
+      errEl.textContent = err.message;
+      btn.disabled = false; btn.textContent = 'Sign in';
+    }
+  };
+}
+
+function renderRegister() {
+  if (state.user) return navigate('/account');
+  app.innerHTML = `
+    <div class="auth-page">
+      <div class="auth-card">
+        <h1>Create your Befach account</h1>
+        <p class="muted">Already have one? <a href="#/login">Sign in</a></p>
+        <form id="registerForm" class="auth-form">
+          <label>Full name
+            <input type="text" name="name" required autocomplete="name" autofocus />
+          </label>
+          <label>Email
+            <input type="email" name="email" required autocomplete="email" />
+          </label>
+          <label>Phone (optional)
+            <input type="tel" name="phone" autocomplete="tel" placeholder="+91 9999999999" />
+          </label>
+          <label>Password
+            <input type="password" name="password" required minlength="6" autocomplete="new-password" />
+            <span class="muted small">At least 6 characters</span>
+          </label>
+          <button class="btn btn-primary btn-lg btn-full" type="submit" id="registerBtn">Create account</button>
+          <div class="auth-error" id="registerError"></div>
+        </form>
+      </div>
+    </div>
+  `;
+  document.getElementById('registerForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target).entries());
+    const errEl = document.getElementById('registerError');
+    const btn = document.getElementById('registerBtn');
+    errEl.textContent = '';
+    btn.disabled = true; btn.textContent = 'Creating account…';
+    try {
+      const { user } = await authPost('/api/auth/register', fd);
+      state.user = user;
+      updateAuthSlot();
+      showToast(`Welcome, ${user.name.split(' ')[0]}!`);
+      navigate('/account');
+    } catch (err) {
+      errEl.textContent = err.message;
+      btn.disabled = false; btn.textContent = 'Create account';
+    }
+  };
+}
+
+async function renderAccount() {
+  if (!state.user) return navigate('/login');
+
+  app.innerHTML = `
+    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">My Account</span></div>
+    <div class="account-layout">
+      <aside class="account-side">
+        <div class="account-avatar">${esc((state.user.name || 'U').slice(0, 1).toUpperCase())}</div>
+        <div class="account-name">${esc(state.user.name)}</div>
+        <div class="account-email muted small">${esc(state.user.email)}</div>
+        <button class="btn btn-ghost btn-full" id="logoutBtn">Sign out</button>
+      </aside>
+      <div class="account-main">
+        <section class="card">
+          <h2>Profile</h2>
+          <form id="profileForm" class="checkout-form">
+            <div class="form-row">
+              <label>Full name<input name="name" required value="${esc(state.user.name || '')}" /></label>
+              <label>Phone<input name="phone" type="tel" value="${esc(state.user.phone || '')}" /></label>
+            </div>
+            <button class="btn btn-primary" type="submit">Save changes</button>
+            <span class="muted small" id="profileSaved" style="margin-left:12px"></span>
+          </form>
+        </section>
+        <section class="card">
+          <h2>Your orders</h2>
+          <div id="myOrders">Loading…</div>
+        </section>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('logoutBtn').onclick = async () => {
+    try { await authPost('/api/auth/logout', {}); } catch {}
+    state.user = null;
+    updateAuthSlot();
+    showToast('Signed out');
+    navigate('/');
+  };
+
+  document.getElementById('profileForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target).entries());
+    const savedEl = document.getElementById('profileSaved');
+    try {
+      const { user } = await authPatch('/api/auth/me', fd);
+      state.user = user;
+      updateAuthSlot();
+      savedEl.textContent = '✓ Saved';
+      setTimeout(() => savedEl.textContent = '', 2500);
+    } catch (err) {
+      savedEl.textContent = '✗ ' + err.message;
+    }
+  };
+
+  // Order history
+  try {
+    const res = await fetch('/api/auth/orders', { credentials: 'include' });
+    const data = await res.json();
+    const list = data.orders || [];
+    const el = document.getElementById('myOrders');
+    if (!list.length) {
+      el.innerHTML = `<p class="muted">You haven't placed any orders yet. <a href="#/">Start shopping</a></p>`;
+    } else {
+      el.innerHTML = `
+        <table class="admin-table">
+          <thead><tr><th>Order</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            ${list.map(o => `
+              <tr>
+                <td><code>${esc(o.id)}</code></td>
+                <td>${new Date(o.createdAt).toLocaleDateString('en-IN')}</td>
+                <td>${o.items.length} item${o.items.length === 1 ? '' : 's'}</td>
+                <td><strong>${fmtINR(o.grandTotal)}</strong></td>
+                <td><span class="status-chip status-${esc((o.status || '').toLowerCase())}">${esc(o.status)}</span></td>
+                <td><a class="btn-sm btn-ghost" href="#/order/${encodeURIComponent(o.id)}">View</a></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+  } catch (err) {
+    document.getElementById('myOrders').innerHTML = `<p class="muted">Failed to load orders: ${esc(err.message)}</p>`;
+  }
+}
+
+window.loadCurrentUser = loadCurrentUser;
+window.updateAuthSlot = updateAuthSlot;
+
+// Expose pages to app.js's router by name
+window.renderCart = renderCart;
+window.renderCheckout = renderCheckout;
+window.renderOrderDetail = renderOrderDetail;
+window.renderTrack = renderTrack;
+window.renderAdmin = renderAdmin;
+window.renderFaq = renderFaq;
+window.renderLogin = renderLogin;
+window.renderRegister = renderRegister;
+window.renderAccount = renderAccount;
+
+// ══════════════════════════════════════════════════════════════
+//  BOOT — runs once both app.js and app-store.js have loaded.
+//  Loads config + current user in parallel, then routes.
+// ══════════════════════════════════════════════════════════════
+(async function boot() {
+  try {
+    await Promise.all([loadConfig(), loadCurrentUser()]);
+  } catch (e) {
+    console.warn('boot: config/user load failed', e);
+  }
+  checkHealth();
+  setInterval(checkHealth, 30000);
+  loadCategories();
+  handleRoute();
+})();

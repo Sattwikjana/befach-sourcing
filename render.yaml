@@ -1,0 +1,52 @@
+# Render.com one-click deploy config.
+# Push this repo to GitHub, then in Render: "New +" → "Blueprint" → connect repo.
+# Render reads this file and provisions a web service + persistent disk.
+#
+# After it's up, set the secret env vars in the Render dashboard:
+#   CJ_API_KEY        — your CJDropshipping key
+#   ADMIN_PASSWORD    — admin login password (change from default)
+# All other config has safe defaults below.
+
+services:
+  - type: web
+    name: befach-store
+    runtime: node
+    plan: starter            # $7/mo, 512MB RAM, always-on
+    region: singapore        # closest to India for low latency
+    rootDir: server          # package.json lives here
+    buildCommand: npm install --production
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true         # redeploy on every git push
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001          # Render sets PORT itself; this is just the fallback
+      - key: PROFIT_MARKUP_PERCENT
+        value: "20"
+      - key: USD_TO_INR
+        value: "85"
+      - key: STORE_CURRENCY
+        value: INR
+      - key: STORE_NAME
+        value: Befach
+      - key: DEFAULT_SHIP_FROM
+        value: CN
+      - key: DEFAULT_SHIP_TO
+        value: IN
+      - key: SHIPPING_METHOD
+        value: CJPacket Asia Ordinary
+      - key: FALLBACK_SHIPPING_USD
+        value: "3.49"
+      - key: CJ_FEE_FACTOR
+        value: "1.11"
+      # Secrets — set these in the Render dashboard, not in this file
+      - key: CJ_API_KEY
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+    disk:
+      name: befach-data
+      mountPath: /opt/render/project/src/server/data
+      sizeGB: 1              # $0.25/GB-month, plenty for years of data

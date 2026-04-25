@@ -29,3 +29,8 @@ Thumbs.db
 dist/
 coverage/
 *.tsbuildinfo
+
+# Server runtime data — lives on the persistent disk in production.
+# Contains user accounts, orders, sessions, shipping cache.
+# Never commit to git.
+server/data/
