@@ -29,6 +29,29 @@ const headerSearchForm = document.getElementById('headerSearchForm');
 const headerSearchInput = document.getElementById('headerSearchInput');
 const headerCatBtn = document.getElementById('headerCatBtn');
 const catDropdown = document.getElementById('catDropdown');
+
+// ── Mobile drawer ──
+const hamburgerBtn = document.getElementById('headerHamburger');
+const drawerEl = document.getElementById('drawer');
+const drawerBackdrop = document.getElementById('drawerBackdrop');
+const drawerClose = document.getElementById('drawerClose');
+function openDrawer() {
+  drawerEl?.classList.add('open');
+  drawerBackdrop?.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeDrawer() {
+  drawerEl?.classList.remove('open');
+  drawerBackdrop?.classList.remove('show');
+  document.body.style.overflow = '';
+}
+hamburgerBtn?.addEventListener('click', openDrawer);
+drawerClose?.addEventListener('click', closeDrawer);
+drawerBackdrop?.addEventListener('click', closeDrawer);
+// Close drawer whenever a link inside it is clicked (route changes)
+drawerEl?.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
+window.openDrawer = openDrawer;
+window.closeDrawer = closeDrawer;
 const cartCountEl = document.getElementById('cartCount');
 
 document.getElementById('footerYear').textContent = new Date().getFullYear();
@@ -207,13 +230,26 @@ function handleRoute() {
   const { path, params } = getRoute();
   state.currentPage = path;
 
-  // Cancel any in-flight shipping backfill from the previous page so its
-  // queued CJ calls free up and the new page loads fast.
   if (typeof cancelBackfill === 'function') cancelBackfill();
 
   document.querySelectorAll('.nav-link').forEach(el => {
     el.classList.toggle('active', el.getAttribute('href') === '#' + path);
   });
+
+  // Tag the body with the current page slug so CSS can target page-specific
+  // mobile UI (e.g. sticky bottom CTA bar on product / cart pages).
+  const slug = path === '/' || path === ''
+    ? 'home'
+    : path.split('/')[1] || 'home';
+  document.body.className = document.body.className
+    .split(' ')
+    .filter(c => !c.startsWith('page-'))
+    .concat('page-' + slug)
+    .join(' ');
+
+  // Remove any sticky mobile CTA bar from the previous page; the page
+  // renderer (product, cart) will inject a fresh one if it needs one.
+  document.getElementById('mobileCtaBar')?.remove();
 
   window.scrollTo(0, 0);
 
@@ -386,7 +422,7 @@ window.megaSelect = function(idx) {
 //  in sync.
 // ══════════════════════════════════════════════════════════════
 const SHIP_LS_KEY = 'befach_ship_v1';
-const SHIP_LS_TTL_MS = 24 * 60 * 60 * 1000;
+const SHIP_LS_TTL_MS = 180 * 24 * 60 * 60 * 1000;  // 6 months
 let _shipCache = null;
 function _loadShipCache() {
   if (_shipCache) return _shipCache;
@@ -1125,7 +1161,63 @@ async function renderProduct(pid) {
 
   // Initial stock check
   if (current.vid) checkVariantStock(current.vid);
+
+  // ── Sticky bottom CTA bar (mobile only — CSS hides it on desktop) ──
+  // Mirrors the desktop "Add to Cart" / "Buy Now" buttons but stays
+  // pinned to the bottom of the viewport so customers don't have to
+  // scroll back up. Updates price + state when variant changes.
+  installMobileCtaBar({
+    getPrice: () => current.priceUsd,
+    getDisabled: () => !current.vid || document.getElementById('pdAddCart')?.disabled,
+    onClick: () => {
+      const qty = parseInt(qtyInput.value) || 1;
+      addToCart({
+        pid: current.pid, vid: current.vid, quantity: qty,
+        productName: current.name, variantName: current.variantName,
+        image: current.image, priceUsd: current.priceUsd.toString(),
+      });
+      showToast(`✅ Added to cart`);
+    },
+    label: '🛒 Add to Cart',
+    priceLabel: 'incl. shipping',
+  });
 }
+
+/**
+ * Inject (or refresh) the sticky bottom CTA bar. CSS controls visibility:
+ * only shows on mobile via body.page-product / body.page-cart selectors.
+ */
+function installMobileCtaBar({ getPrice, getDisabled, onClick, label, priceLabel }) {
+  document.getElementById('mobileCtaBar')?.remove();
+  const bar = document.createElement('div');
+  bar.className = 'mobile-cta-bar';
+  bar.id = 'mobileCtaBar';
+  bar.innerHTML = `
+    <div class="mobile-cta-price">
+      <span>${esc(priceLabel || '')}</span>
+      <strong data-mcta-price>${fmtINR(getPrice())}</strong>
+    </div>
+    <button class="mobile-cta-btn" data-mcta-btn>${esc(label)}</button>
+  `;
+  document.body.appendChild(bar);
+  const btn = bar.querySelector('[data-mcta-btn]');
+  btn.disabled = !!(getDisabled && getDisabled());
+  btn.onclick = onClick;
+  // Refresh the price/disabled state every 250ms — cheap, and tracks
+  // variant changes without us having to plumb events everywhere.
+  if (window._mctaTimer) clearInterval(window._mctaTimer);
+  window._mctaTimer = setInterval(() => {
+    if (!document.getElementById('mobileCtaBar')) {
+      clearInterval(window._mctaTimer);
+      window._mctaTimer = null;
+      return;
+    }
+    const priceEl = bar.querySelector('[data-mcta-price]');
+    if (priceEl) priceEl.textContent = fmtINR(getPrice());
+    btn.disabled = !!(getDisabled && getDisabled());
+  }, 250);
+}
+window.installMobileCtaBar = installMobileCtaBar;
 
 // ══════════════════════════════════════════════════════════════
 //  VARIANT PARSING + PICKER (CJ-style Color / Size rows)

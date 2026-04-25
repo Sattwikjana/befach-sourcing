@@ -84,7 +84,7 @@ async function _doEnsureToken() {
     const s = err.response?.status;
     const msg = err.response?.data?.message || '';
     if (s === 429 || s >= 500 || /too many requests/i.test(msg)) {
-      console.warn('[CJ Auth] rate-limited, retrying in 1.5s');
+      // Silent retry — transient
       await new Promise(r => setTimeout(r, 1500));
       res = await doAuth();
     } else {
@@ -97,7 +97,6 @@ async function _doEnsureToken() {
   if (!res.data?.data?.accessToken) {
     const bodyMsg = res.data?.message || 'Failed to get access token';
     if (/too many requests/i.test(bodyMsg)) {
-      console.warn('[CJ Auth] 200 body rate-limit, retrying in 1.5s');
       await new Promise(r => setTimeout(r, 1500));
       res = await doAuth();
     }
@@ -215,9 +214,12 @@ async function cjCall(method, path, opts = {}) {
     } catch (err) {
       lastErr = err;
       if (!isRetryable(err)) throw err;
-      console.warn(`[CJ] ${method} ${path} → ${err.response?.status}, retrying...`);
+      // Silent retry — transient 429s are expected and the queue handles them.
+      // We only surface the failure if ALL retries are exhausted (below).
     }
   }
+  // Only log when retries genuinely failed
+  console.warn(`[CJ] ${method} ${path} failed after retries (${lastErr.response?.status || lastErr.message})`);
   throw lastErr;
 }
 

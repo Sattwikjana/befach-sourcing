@@ -79,7 +79,11 @@ function cacheSet(key, val) {
 // accurate the moment the server comes up, and the freight API only has
 // to quote each product once per day.
 const SHIPPING_CACHE_FILE = path.join(__dirname, 'data', 'shipping-cache.json');
-const SHIPPING_CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
+// 6 months — display prices stay fast for almost forever.
+// Order placement re-quotes if the cache is older than ORDER_FRESH_MAX_MS
+// (see below) so we never charge stale prices when CJ has raised rates.
+const SHIPPING_CACHE_TTL = 180 * 24 * 60 * 60 * 1000; // 180 days
+const ORDER_FRESH_MAX_MS = 7 * 24 * 60 * 60 * 1000;   // 7 days for orders
 let shippingCache = {};
 try {
   if (fs.existsSync(SHIPPING_CACHE_FILE)) {
@@ -150,23 +154,24 @@ async function quoteShippingForItems(items, priority = 'low') {
     // this product as not shippable (we only ship via Ordinary / Sensitive).
     return { usd: 0, method: null, available: false };
   } catch (e) {
-    console.warn('[shipping] freight quote failed:', e.message);
+    // Transient — caller handles by falling back to cached/flat estimate
     return null;
   }
 }
 
 /**
  * Get per-product shipping cost (for one unit) using the priority chain.
- * Results are cached 24h on disk, keyed by product id.
+ * Cached on disk, keyed by product id.
  *
- * @param {string} pid   CJ product id
- * @param {'high'|'low'} priority  CJ queue priority (default low)
+ * @param {string} pid           CJ product id
+ * @param {'high'|'medium'|'low'} priority  CJ queue priority
+ * @param {number} maxAgeMs      override TTL for this call (e.g. orders
+ *                               require fresher data than display does)
  * Returns { usd, method, available, cached }
- *   available=false means we should NOT sell this product (no CJ route).
  */
-async function getProductShippingUsd(pid, priority = 'low') {
+async function getProductShippingUsd(pid, priority = 'low', maxAgeMs = SHIPPING_CACHE_TTL) {
   const hit = shippingCache[pid];
-  if (hit && Date.now() - hit.ts < SHIPPING_CACHE_TTL) {
+  if (hit && Date.now() - hit.ts < maxAgeMs) {
     return {
       usd: hit.usd,
       method: hit.method,
@@ -652,7 +657,10 @@ app.post('/api/store/orders', async (req, res) => {
       const variant = (raw.variants || []).find(v => v.vid === item.vid);
       if (!variant) return res.status(400).json({ error: `Unknown variant ${item.vid} for product ${item.pid}` });
 
-      const shipping = await getProductShippingUsd(item.pid, 'high');
+      // Order placement: insist on shipping data ≤7 days old. If the
+      // display cache is older, we re-quote so we never charge stale
+      // (potentially below-cost) prices when CJ has changed rates.
+      const shipping = await getProductShippingUsd(item.pid, 'high', ORDER_FRESH_MAX_MS);
       if (!shipping.available) {
         return res.status(400).json({
           error: `"${raw.productNameEn}" is not available for shipping to India`,

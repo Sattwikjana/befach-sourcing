@@ -33,6 +33,17 @@ function renderCart() {
   `;
   renderCartItems();
   renderCartSummary();
+
+  // Sticky bottom CTA on mobile (CSS hides it on desktop)
+  if (typeof installMobileCtaBar === 'function') {
+    installMobileCtaBar({
+      getPrice: () => cartSubtotalUsd(),
+      getDisabled: () => state.cart.length === 0,
+      onClick: () => navigate('/checkout'),
+      label: 'Checkout →',
+      priceLabel: 'Total (incl. shipping)',
+    });
+  }
 }
 
 function renderCartItems() {
@@ -598,21 +609,28 @@ async function loadCurrentUser() {
 
 function updateAuthSlot() {
   const slot = document.getElementById('authSlot');
-  if (!slot) return;
+  const drawerAccount = document.getElementById('drawerAccountLink');
+  const drawerLogin = document.getElementById('drawerLoginLink');
+  const drawerRegister = document.getElementById('drawerRegisterLink');
   if (state.user) {
     const first = (state.user.name || state.user.email || 'You').split(' ')[0];
-    slot.innerHTML = `
+    if (slot) slot.innerHTML = `
       <a href="#/account" class="nav-link nav-account" data-page="account" title="Your account">
         <span class="nav-avatar">${esc(first.slice(0, 1).toUpperCase())}</span>
-        <span>Hi, ${esc(first)}</span>
+        <span class="nav-label">Hi, ${esc(first)}</span>
       </a>
     `;
+    if (drawerAccount) { drawerAccount.hidden = false; drawerAccount.textContent = `👤 Hi, ${first}`; }
+    if (drawerLogin) drawerLogin.hidden = true;
+    if (drawerRegister) drawerRegister.hidden = true;
   } else {
-    // Two visible CTAs: "Sign in" (text link) + "Register" (primary button)
-    slot.innerHTML = `
+    if (slot) slot.innerHTML = `
       <a href="#/login" class="nav-link nav-signin" data-page="login">Sign in</a>
       <a href="#/register" class="nav-link nav-register-btn" data-page="register">Create account</a>
     `;
+    if (drawerAccount) drawerAccount.hidden = true;
+    if (drawerLogin) drawerLogin.hidden = false;
+    if (drawerRegister) drawerRegister.hidden = false;
   }
 }
 
