@@ -85,16 +85,22 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   align-items: center;
   gap: 10px;
   font-weight: 800;
-}
-.brand-logo {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
-  flex-shrink: 0;
+  text-decoration: none;
 }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
-.brand-name { font-size: 20px; color: var(--text); letter-spacing: -0.3px; }
-.brand-tagline { font-size: 11px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.6px; }
+.brand-name {
+  font-size: 22px;
+  color: var(--brand);
+  letter-spacing: -0.5px;
+  font-weight: 800;
+}
+.brand-tagline {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
 
 .header-search {
   display: flex;
@@ -1588,19 +1594,26 @@ main {
   color: #cbd5e1;
 }
 .footer-col a:hover { color: #fff; }
-.footer-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.footer-logo {
-  width: 36px;
-  height: 36px;
-  object-fit: cover;
-  object-position: center;
-  background: #fff;
-  border-radius: 8px;
-  /* No padding — let the logo fill the white card edge to edge so the
-     mark reads clearly at small sizes on the dark footer. */
-  padding: 0;
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.1;
+  margin-bottom: 10px;
 }
-.footer-brand-name { font-weight: 800; font-size: 20px; color: #fff; }
+.footer-brand-name {
+  font-weight: 800;
+  font-size: 22px;
+  color: #fff;
+  letter-spacing: -0.4px;
+}
+.footer-brand-tag {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
 .footer-about { font-size: 13.5px; line-height: 1.6; color: #94a3b8; }
 .footer-bottom {
   max-width: var(--container);
@@ -1611,6 +1624,17 @@ main {
   justify-content: space-between;
   font-size: 12.5px;
   color: #94a3b8;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Page-specific header tweaks
+   ═══════════════════════════════════════════════════════════════ */
+/* Hide the header search bar on the home page — the hero already has
+   a big centered search box, so two on the same screen is redundant.
+   Other pages (search, product, category, etc.) keep the header search. */
+body.page-home .header-search { display: none; }
+body.page-home .header-inner {
+  grid-template-columns: auto 1fr auto;   /* brand | spacer | nav */
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1662,12 +1686,23 @@ main {
 }
 .drawer-brand {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 800;
-  font-size: 18px;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.1;
 }
-.drawer-brand img { width: 32px; height: 32px; object-fit: contain; }
+.drawer-brand-name {
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--brand);
+  letter-spacing: -0.4px;
+}
+.drawer-brand-tag {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
 .drawer-close {
   background: transparent;
   border: none;
@@ -1767,8 +1802,10 @@ main {
     gap: 10px;
     padding: 10px 14px;
   }
-  .brand-text { display: none; }    /* logo only on mobile */
-  .brand-logo { width: 36px; height: 36px; }
+  /* Brand stays visible on mobile — text only, slightly smaller */
+  .brand-text { display: flex; }
+  .brand-name { font-size: 18px; }
+  .brand-tagline { font-size: 9.5px; letter-spacing: 0.6px; }
   .header-search {
     grid-column: 1 / -1;
     order: 3;
