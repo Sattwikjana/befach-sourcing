@@ -10,15 +10,31 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/styles.css" />
+  <!-- Inline style as a safety net — guaranteed to load with no race
+       conditions against the external CSS. -->
+  <style>
+    html[data-page="home"] #headerSearchForm,
+    html[data-page="home"] .header-search { display: none !important; }
+  </style>
   <script>
     // Set the page slug on <html> BEFORE first paint so CSS rules like
-    // html[data-page="home"] .header-search { display: none } take effect
+    // html[data-page="home"] .header-search { display: none } fire
     // immediately — no flash of the wrong layout.
     (function () {
       var hash = location.hash || '#/';
       var path = hash.slice(1).split('?')[0];
       var slug = (path === '/' || path === '') ? 'home' : (path.split('/')[1] || 'home');
       document.documentElement.dataset.page = slug;
+      // Belt + braces: on home, also physically remove the search form
+      // from the DOM the moment it's parsed. CSS hides it; this guarantees
+      // it can never be seen even if a stylesheet loaded after the fact
+      // tries to override the display.
+      if (slug === 'home') {
+        document.addEventListener('DOMContentLoaded', function () {
+          var s = document.getElementById('headerSearchForm');
+          if (s) s.remove();
+        });
+      }
     })();
     window.addEventListener('hashchange', function () {
       var hash = location.hash || '#/';
