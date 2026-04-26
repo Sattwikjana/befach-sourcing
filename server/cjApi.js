@@ -141,7 +141,10 @@ function isRetryable(err) {
  * Cached responses serve the vast majority of traffic; queues only
  * engage on genuine cache misses.
  */
-const MIN_GAP_MS = 1050;
+// 1500ms gap = ~0.67 req/sec per endpoint. CJ's documented limit is
+// 1 req/sec but new accounts are throttled tighter — 1500ms gives
+// established and new keys both enough headroom to avoid 429s.
+const MIN_GAP_MS = 1500;
 const queues = new Map(); // path → { high: [], medium: [], low: [], lastAt, running }
 
 function enqueueCj(path, fn, priority = 'low') {
@@ -205,7 +208,10 @@ async function cjCall(method, path, opts = {}) {
   }, priority);
 
   let lastErr;
-  const delays = [0, 1500, 3000];
+  // 4 attempts total: immediate, +2s, +4s, +8s. New CJ accounts can
+  // throttle hard — the longer tail of the backoff covers cases where
+  // we need to wait several seconds for the rate-limit window to clear.
+  const delays = [0, 2000, 4000, 8000];
   for (const d of delays) {
     if (d) await sleep(d);
     try {
@@ -215,7 +221,6 @@ async function cjCall(method, path, opts = {}) {
       lastErr = err;
       if (!isRetryable(err)) throw err;
       // Silent retry — transient 429s are expected and the queue handles them.
-      // We only surface the failure if ALL retries are exhausted (below).
     }
   }
   // Only log when retries genuinely failed

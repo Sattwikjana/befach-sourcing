@@ -1631,8 +1631,11 @@ main {
    ═══════════════════════════════════════════════════════════════ */
 /* Hide the header search bar on the home page — the hero already has
    a big centered search box, so two on the same screen is redundant.
-   Other pages (search, product, category, etc.) keep the header search. */
-body.page-home .header-search { display: none; }
+   Uses html[data-page="home"] (set by inline script in <head>) so the
+   rule applies before first paint, avoiding any FOUC of an empty box. */
+html[data-page="home"] .header-search,
+body.page-home .header-search { display: none !important; }
+html[data-page="home"] .header-inner,
 body.page-home .header-inner {
   grid-template-columns: auto 1fr auto;   /* brand | spacer | nav */
 }

@@ -10,6 +10,23 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/styles.css" />
+  <script>
+    // Set the page slug on <html> BEFORE first paint so CSS rules like
+    // html[data-page="home"] .header-search { display: none } take effect
+    // immediately — no flash of the wrong layout.
+    (function () {
+      var hash = location.hash || '#/';
+      var path = hash.slice(1).split('?')[0];
+      var slug = (path === '/' || path === '') ? 'home' : (path.split('/')[1] || 'home');
+      document.documentElement.dataset.page = slug;
+    })();
+    window.addEventListener('hashchange', function () {
+      var hash = location.hash || '#/';
+      var path = hash.slice(1).split('?')[0];
+      var slug = (path === '/' || path === '') ? 'home' : (path.split('/')[1] || 'home');
+      document.documentElement.dataset.page = slug;
+    });
+  </script>
 </head>
 <body>
 
@@ -77,7 +94,17 @@
     </div>
     <div class="drawer-body" id="drawerBody">
       <a href="#/" class="drawer-link">🏠 Home</a>
-      <a href="#/category" class="drawer-link">📂 All categories</a>
+
+      <!-- Expandable Categories — tap to open, lists all top-level categories -->
+      <button class="drawer-link drawer-toggle" id="drawerCatToggle" type="button">
+        <span>📂 All categories</span>
+        <span class="drawer-chev">▾</span>
+      </button>
+      <div class="drawer-cats" id="drawerCats" hidden>
+        <!-- populated by JS once categories load -->
+        <span class="drawer-cats-loading muted">Loading…</span>
+      </div>
+
       <a href="#/cart" class="drawer-link">🛒 Cart</a>
       <a href="#/track" class="drawer-link">🚚 Track order</a>
       <a href="#/account" class="drawer-link" id="drawerAccountLink">👤 Account</a>

@@ -35,6 +35,9 @@ const hamburgerBtn = document.getElementById('headerHamburger');
 const drawerEl = document.getElementById('drawer');
 const drawerBackdrop = document.getElementById('drawerBackdrop');
 const drawerClose = document.getElementById('drawerClose');
+const drawerCatToggle = document.getElementById('drawerCatToggle');
+const drawerCatsEl = document.getElementById('drawerCats');
+
 function openDrawer() {
   drawerEl?.classList.add('open');
   drawerBackdrop?.classList.add('show');
@@ -48,10 +51,42 @@ function closeDrawer() {
 hamburgerBtn?.addEventListener('click', openDrawer);
 drawerClose?.addEventListener('click', closeDrawer);
 drawerBackdrop?.addEventListener('click', closeDrawer);
-// Close drawer whenever a link inside it is clicked (route changes)
+
+// Expandable categories accordion inside the drawer
+drawerCatToggle?.addEventListener('click', () => {
+  if (!drawerCatsEl) return;
+  const open = !drawerCatsEl.hidden;
+  drawerCatsEl.hidden = open;
+  drawerCatToggle.classList.toggle('open', !open);
+});
+
+/** Called by loadCategories() once the category list is ready. */
+function populateDrawerCategories() {
+  if (!drawerCatsEl) return;
+  const cats = state.categories || [];
+  if (!cats.length) {
+    drawerCatsEl.innerHTML = '<span class="drawer-cats-loading muted">Categories unavailable</span>';
+    return;
+  }
+  drawerCatsEl.innerHTML = cats.map(cat => {
+    const name = cat.categoryFirstName || '';
+    return `
+      <a class="drawer-cat-link" href="#/search?q=${encodeURIComponent(name)}">
+        <span class="drawer-cat-icon">${catIcon(name)}</span>
+        <span class="drawer-cat-name">${esc(name)}</span>
+      </a>
+    `;
+  }).join('');
+  // Re-attach close handler to the freshly-injected links
+  drawerCatsEl.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
+}
+
+// Close drawer whenever any direct link is clicked
 drawerEl?.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
+
 window.openDrawer = openDrawer;
 window.closeDrawer = closeDrawer;
+window.populateDrawerCategories = populateDrawerCategories;
 const cartCountEl = document.getElementById('cartCount');
 
 document.getElementById('footerYear').textContent = new Date().getFullYear();
