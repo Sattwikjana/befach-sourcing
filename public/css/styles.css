@@ -237,6 +237,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   max-height: 70vh;
   overflow-y: auto;
 }
+.cat-dropdown[hidden] { display: none !important; }
 .cat-dropdown-item {
   display: flex;
   align-items: center;
@@ -377,7 +378,10 @@ main {
   font-weight: 400;
 }
 
-/* Flyout — absolutely positioned inside .home-layout, overlays the main area */
+/* Flyout — absolutely positioned inside .home-layout, overlays the main area.
+   The [hidden] selector is critical: without it, our `display: grid` would
+   override the HTML `hidden` attribute and the empty white panel would
+   show on page load, before the user has hovered any category. */
 .sidebar-flyout {
   position: absolute;
   width: 720px;
@@ -395,6 +399,7 @@ main {
   gap: 22px 32px;
   align-content: start;
 }
+.sidebar-flyout[hidden] { display: none !important; }
 .flyout-group { min-width: 0; }
 .flyout-group-head {
   display: inline-block;
