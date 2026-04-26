@@ -336,11 +336,16 @@ function catIcon(name) {
 }
 
 async function loadCategories() {
-  if (state.categories.length) return state.categories;
+  if (state.categories.length) {
+    if (typeof populateDrawerCategories === 'function') populateDrawerCategories();
+    return state.categories;
+  }
   try {
     const res = await apiGet('/api/store/categories');
     state.categories = Array.isArray(res.data) ? res.data : [];
   } catch { state.categories = []; }
+  // Populate the mobile drawer accordion as soon as categories are ready
+  if (typeof populateDrawerCategories === 'function') populateDrawerCategories();
   return state.categories;
 }
 

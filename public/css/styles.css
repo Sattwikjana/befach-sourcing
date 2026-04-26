@@ -1639,6 +1639,10 @@ html[data-page="home"] .header-inner,
 body.page-home .header-inner {
   grid-template-columns: auto 1fr auto;   /* brand | spacer | nav */
 }
+/* Without the search bar in the middle the nav can sit right next to
+   the brand — give it more breathing room from the right edge. */
+html[data-page="home"] .header-nav,
+body.page-home .header-nav { margin-left: auto; }
 
 /* ═══════════════════════════════════════════════════════════════
    Mobile drawer (hamburger menu) — hidden by default; shows on mobile
@@ -1731,12 +1735,91 @@ body.page-home .header-inner {
   text-decoration: none;
   border-radius: 0;
 }
-.drawer-link:hover { background: var(--surface-alt); color: var(--brand); }
+.drawer-link:hover,
+.drawer-link:active { background: var(--surface-alt); color: var(--brand); }
 .drawer-link.drawer-admin { color: var(--text-muted); font-size: 14px; }
 .drawer-body hr {
   border: none;
   border-top: 1px solid var(--border);
   margin: 8px 0;
+}
+
+/* ── Drawer accordion: All categories ── */
+.drawer-toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.drawer-toggle .drawer-chev {
+  font-size: 14px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+.drawer-toggle.open .drawer-chev {
+  transform: rotate(180deg);
+  color: var(--brand);
+}
+.drawer-cats {
+  background: #fafafa;
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 4px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.drawer-cats[hidden] { display: none; }
+.drawer-cats-loading {
+  grid-column: 1 / -1;
+  padding: 12px;
+  text-align: center;
+  font-size: 13px;
+}
+.drawer-cat-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--text);
+  font-size: 11.5px;
+  text-align: center;
+  line-height: 1.25;
+  background: #fff;
+  border: 1px solid var(--border);
+  transition: border-color 0.12s, background 0.12s;
+}
+.drawer-cat-link:hover,
+.drawer-cat-link:active {
+  border-color: var(--brand);
+  background: var(--brand-light);
+  color: var(--brand-dark);
+}
+.drawer-cat-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  background: #f4f6f9;
+  border-radius: 50%;
+  font-size: 18px;
+}
+.drawer-cat-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-weight: 500;
 }
 
 /* ═══════════════════════════════════════════════════════════════
