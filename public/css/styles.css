@@ -1053,6 +1053,27 @@ main {
   border-radius: 50%;
   font-size: 16px;
 }
+
+/* "{query} in Department" — Amazon/Flipkart-style scope suggestion */
+.suggest-scope {
+  grid-template-columns: 28px 1fr;
+}
+.suggest-search-icon {
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+.suggest-scope .suggest-name {
+  font-size: 13.5px;
+  color: var(--text);
+}
+.suggest-scope strong {
+  font-weight: 600;
+}
+.suggest-scope-in {
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-left: 4px;
+}
 .suggest-name {
   font-size: 13.5px;
   white-space: nowrap;

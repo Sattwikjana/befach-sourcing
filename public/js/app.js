@@ -291,7 +291,16 @@ function handleRoute() {
   if (path === '/' || path === '') return renderHome();
   if (path === '/category') return renderAllCategories();
   if (path.startsWith('/category/')) return renderCategory(path.slice('/category/'.length), parseInt(params.get('page')) || 1, params);
-  if (path.startsWith('/search')) return renderSearch(params.get('q') || '', parseInt(params.get('page')) || 1);
+  if (path.startsWith('/search')) {
+    return renderSearch(
+      params.get('q') || '',
+      parseInt(params.get('page')) || 1,
+      {
+        categoryId: params.get('categoryId') || '',
+        categoryName: params.get('catName') || '',
+      }
+    );
+  }
   if (path.startsWith('/product/')) return renderProduct(path.slice('/product/'.length));
   if (path === '/cart') return renderCart();
   if (path === '/checkout') return renderCheckout();
@@ -376,10 +385,22 @@ function setupSearchSuggest(inputEl) {
       dropdown.innerHTML = '<div class="suggest-empty">No matches. Press Enter to search anyway.</div>';
     } else {
       dropdown.innerHTML = items.map((item, idx) => {
+        if (item.type === 'scope') {
+          // Amazon-style "{query} in Department" row
+          return `<a class="suggest-item suggest-scope" data-idx="${idx}" href="${item.href}">
+            <svg class="suggest-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+              <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <span class="suggest-name">
+              <strong>${esc(item.query)}</strong>
+              <span class="suggest-scope-in">in ${esc(item.scopeName)}</span>
+            </span>
+          </a>`;
+        }
         if (item.type === 'category') {
           return `<a class="suggest-item suggest-cat" data-idx="${idx}" href="${item.href}">
             <span class="suggest-cat-icon">${catIcon(item.name)}</span>
-            <span class="suggest-name">in ${esc(item.name)}</span>
+            <span class="suggest-name">${esc(item.name)}</span>
           </a>`;
         }
         const priceHtml = item.priceUsd > 0 ? `<span class="suggest-price">${fmtINR(item.priceUsd)}</span>` : '';
@@ -401,33 +422,72 @@ function setupSearchSuggest(inputEl) {
 
     const reqId = ++lastReqId;
     const items = [];
-
-    // Category matches (local, instant — no network)
     const ql = q.toLowerCase();
+
+    // ── 1. Department ("scope") suggestions: "{query} in Men's Clothing", etc.
+    // Same pattern as Amazon / Flipkart — gives users a one-tap way to
+    // narrow their query to the most common shopping departments.
+    const SCOPE_PRIORITY = [
+      "Men's Clothing",
+      "Women's Clothing",
+      "Toys, Kids & Babies",
+      "Consumer Electronics",
+      "Jewelry & Watches",
+      "Bags & Shoes",
+      "Health, Beauty & Hair",
+      "Phones & Accessories",
+    ];
+    const cats = state.categories || [];
+    const findCatByName = (n) => cats.find(c =>
+      (c.categoryFirstName || '').toLowerCase() === n.toLowerCase()
+    );
+    let scopeCount = 0;
+    for (const scopeName of SCOPE_PRIORITY) {
+      // Don't offer "shirt in Men's Clothing" if the user literally typed "men's clothing"
+      if (scopeName.toLowerCase().includes(ql)) continue;
+      const cat = findCatByName(scopeName);
+      if (!cat?.categoryFirstId) continue;
+      items.push({
+        type: 'scope',
+        query: q,
+        scopeName: cat.categoryFirstName,
+        href: `#/search?q=${encodeURIComponent(q)}&categoryId=${encodeURIComponent(cat.categoryFirstId)}&catName=${encodeURIComponent(cat.categoryFirstName)}`,
+      });
+      if (++scopeCount >= 3) break;
+    }
+
+    // ── 2. Direct category-name matches (sub-categories like "Glasses",
+    // "Shoes" etc.) — useful when the query IS a category name.
     const seen = new Set();
-    for (const cat of state.categories || []) {
+    let directCatCount = 0;
+    for (const cat of cats) {
       const fName = cat.categoryFirstName || '';
       if (fName.toLowerCase().includes(ql) && !seen.has(fName)) {
         items.push({ type: 'category', name: fName, href: categoryHref(cat) });
         seen.add(fName);
+        if (++directCatCount >= 2) break;
       }
+      if (directCatCount >= 2) break;
       for (const sec of cat.categoryFirstList || []) {
         const sName = sec.categorySecondName || '';
         if (sName.toLowerCase().includes(ql) && !seen.has(sName)) {
           items.push({ type: 'category', name: sName, href: categoryHref(sec) });
           seen.add(sName);
+          if (++directCatCount >= 2) break;
         }
+        if (directCatCount >= 2) break;
         for (const t of sec.categorySecondList || []) {
           const tName = t.categoryName || '';
           if (tName.toLowerCase().includes(ql) && !seen.has(tName)) {
             items.push({ type: 'category', name: tName, href: categoryHref(t) });
             seen.add(tName);
+            if (++directCatCount >= 2) break;
           }
         }
+        if (directCatCount >= 2) break;
       }
-      if (items.length >= 3) break;
+      if (directCatCount >= 2) break;
     }
-    items.length = Math.min(items.length, 3);
 
     // Product matches from CJ via the cached /products endpoint
     try {
@@ -1131,12 +1191,20 @@ function findCategoryChildren(id) {
 //  SEARCH / CATEGORY RESULTS
 // ══════════════════════════════════════════════════════════════
 async function renderSearch(query, page = 1, opts = {}) {
-  // Category browsing has no real query — keep the search box clear so the
-  // user isn't tricked into thinking they typed the category name.
-  if (headerSearchInput) headerSearchInput.value = opts.categoryName ? '' : query;
-  const title = opts.categoryName
-    ? esc(opts.categoryName)
-    : (query ? `Results for "${esc(query)}"` : 'Browse products');
+  // If the user typed a query, keep it visible in the search box even when a
+  // category scope is also applied. Pure category browse (no query) clears
+  // the input so the user isn't fooled into thinking they typed the name.
+  if (headerSearchInput) headerSearchInput.value = (opts.categoryName && !query) ? '' : query;
+  let title;
+  if (query && opts.categoryName) {
+    title = `Results for "${esc(query)}" in ${esc(opts.categoryName)}`;
+  } else if (opts.categoryName) {
+    title = esc(opts.categoryName);
+  } else if (query) {
+    title = `Results for "${esc(query)}"`;
+  } else {
+    title = 'Browse products';
+  }
   const childChips = (opts.categoryChildren || []).length ? `
     <nav class="subcategory-strip" aria-label="Subcategories">
       ${opts.categoryChildren.map(c => {
@@ -1188,9 +1256,15 @@ async function renderSearch(query, page = 1, opts = {}) {
 
     const pag = document.getElementById('pagination');
     if (totalPages > 1) {
-      const baseHash = opts.categoryId
-        ? `/category/${opts.categoryId}${opts.categoryName ? `?name=${encodeURIComponent(opts.categoryName)}` : ''}`
-        : `/search?q=${encodeURIComponent(query)}`;
+      // Three modes: pure category browse, search-within-category, or pure search.
+      let baseHash;
+      if (opts.categoryId && query) {
+        baseHash = `/search?q=${encodeURIComponent(query)}&categoryId=${encodeURIComponent(opts.categoryId)}${opts.categoryName ? `&catName=${encodeURIComponent(opts.categoryName)}` : ''}`;
+      } else if (opts.categoryId) {
+        baseHash = `/category/${opts.categoryId}${opts.categoryName ? `?name=${encodeURIComponent(opts.categoryName)}` : ''}`;
+      } else {
+        baseHash = `/search?q=${encodeURIComponent(query)}`;
+      }
       const mkLink = (p) => {
         const sep = baseHash.includes('?') ? '&' : '?';
         return `${baseHash}${sep}page=${p}`;
