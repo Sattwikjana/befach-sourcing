@@ -72,17 +72,18 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10h-8l-3-4h-7v12h18V10z"/></svg>
           <span>Track</span>
         </a>
-        <!-- Auth slot: filled by JS — shows "Sign in" or "Hi, Name" -->
-        <span id="authSlot"></span>
+        <span class="nav-divider" aria-hidden="true"></span>
+        <!-- Auth slot: filled by JS — shows "Sign in / Create account" or "Hi, Name" -->
+        <span id="authSlot" class="auth-slot"></span>
+        <span class="nav-divider" aria-hidden="true"></span>
         <a href="#/cart" class="nav-link cart-link" data-page="cart">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39A2 2 0 009.66 16H19a2 2 0 002-1.61L23 6H6"/></svg>
           <span class="nav-label">Cart</span>
           <span class="cart-badge" id="cartCount">0</span>
         </a>
-        <a href="#/admin" class="nav-link admin-link" data-page="admin" title="Admin dashboard">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 12a4 4 0 100-8 4 4 0 000 8z"/><path d="M20 21a8 8 0 10-16 0"/></svg>
-        </a>
-        <div class="status-pill" id="serverStatus" title="API status">
+        <!-- Hidden API-status indicator: kept in DOM so /js/app.js can update it,
+             but not shown to customers (display:none in CSS). -->
+        <div class="status-pill" id="serverStatus" title="API status" hidden>
           <span class="status-dot"></span>
         </div>
       </nav>
@@ -118,8 +119,6 @@
       <a href="#/login" class="drawer-link" id="drawerLoginLink" hidden>🔐 Sign in</a>
       <a href="#/register" class="drawer-link" id="drawerRegisterLink" hidden>✨ Create account</a>
       <a href="#/faq" class="drawer-link">❓ Help / FAQ</a>
-      <hr/>
-      <a href="#/admin" class="drawer-link drawer-admin">⚙️ Admin</a>
     </div>
   </aside>
 
@@ -157,7 +156,7 @@
       <div class="footer-col">
         <h4>About</h4>
         <a href="https://www.befach.com" target="_blank" rel="noopener">Befach.com</a>
-        <a href="#/admin">Admin Portal</a>
+        <a href="mailto:support@befach.com">Contact us</a>
       </div>
     </div>
     <div class="footer-bottom">

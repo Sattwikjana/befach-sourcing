@@ -143,10 +143,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 .header-nav {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 .nav-link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
@@ -156,9 +156,18 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   color: var(--text-secondary);
   transition: background 0.15s, color 0.15s;
   position: relative;
+  white-space: nowrap;
 }
 .nav-link:hover { background: #f3f4f7; color: var(--text); }
 .nav-link.active { color: var(--brand); }
+
+/* Subtle vertical separator between nav sections — standard e-commerce pattern */
+.nav-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 4px;
+}
 
 .cart-link { position: relative; }
 .cart-badge {
@@ -172,10 +181,15 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   text-align: center;
 }
 
-.admin-link { color: var(--text-muted); }
-.admin-link:hover { color: var(--text); }
-
-/* ── Auth nav (login / register / account) ── */
+/* ── Auth nav (login / register / account) ──
+   The slot is an inline-flex container so its two children — Sign in
+   link and Create account button — sit side by side. Without this they
+   stacked vertically because each .nav-link is itself display:inline-flex. */
+.auth-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .nav-signin { font-weight: 600; color: var(--text); }
 .nav-signin:hover { color: var(--brand); }
 .nav-register-btn {
@@ -193,7 +207,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 }
 .nav-register-btn:active { transform: translateY(1px); }
 .nav-account {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   background: var(--brand-light);
@@ -215,15 +229,9 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   flex-shrink: 0;
 }
 
-.status-pill {
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  background: #ccc;
-  margin-left: 4px;
-}
-.status-pill.online { background: var(--success); box-shadow: 0 0 0 4px rgba(22,163,74,0.15); }
-.status-pill.offline, .status-pill.degraded { background: var(--danger); box-shadow: 0 0 0 4px rgba(220,38,38,0.15); }
-.status-pill .status-dot { display: none; }
+/* Developer-only API status indicator — kept in DOM for app.js but
+   hidden from customers. Uncomment the display rule to show it again. */
+.status-pill { display: none !important; }
 
 .cat-dropdown {
   position: fixed;
@@ -1931,10 +1939,9 @@ body.page-home .header-nav { margin-left: auto; }
   .header-nav { gap: 4px; }
   /* Hide low-priority nav items on mobile — they live in the drawer */
   .nav-track,
-  .admin-link,
   .nav-signin,
   .nav-register-btn,
-  .status-pill { display: none; }
+  .nav-divider { display: none; }
   /* Cart icon and account avatar stay visible in header */
   .nav-link .nav-label { display: none; }   /* icon-only on mobile */
   .nav-link { padding: 8px 10px; }
