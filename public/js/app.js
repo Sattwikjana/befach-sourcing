@@ -309,12 +309,200 @@ window.addEventListener('hashchange', handleRoute);
 window.addEventListener('load', handleRoute);
 
 // Header search submit
-headerSearchForm.addEventListener('submit', (e) => {
+headerSearchForm?.addEventListener('submit', (e) => {
   e.preventDefault();
   const q = headerSearchInput.value.trim();
   if (q.length < 2) return showToast('Type at least 2 characters');
+  if (typeof closeSearchSuggest === 'function') closeSearchSuggest();
   navigate(`/search?q=${encodeURIComponent(q)}`);
 });
+
+// ══════════════════════════════════════════════════════════════
+//  SEARCH TYPEAHEAD (Google / CJ-style live suggestions dropdown)
+//  Wired on every search input via setupSearchSuggest(inputEl).
+//  - Debounces input by ~220ms before hitting /api/store/products
+//  - Caches each query for 60s so re-typing is instant
+//  - Mixes a few category matches (local) with product hits (server)
+//  - Keyboard: ↑/↓ to highlight, Enter to open, Esc to close
+// ══════════════════════════════════════════════════════════════
+const SUGGEST_DEBOUNCE_MS = 220;
+const SUGGEST_CACHE = new Map();
+const SUGGEST_CACHE_TTL = 60_000;
+let activeSuggestDropdown = null;
+function closeSearchSuggest() {
+  if (activeSuggestDropdown) activeSuggestDropdown.hidden = true;
+}
+window.closeSearchSuggest = closeSearchSuggest;
+
+function setupSearchSuggest(inputEl) {
+  if (!inputEl || inputEl._suggestWired) return;
+  inputEl._suggestWired = true;
+
+  const dropdown = document.createElement('div');
+  dropdown.className = 'search-suggest';
+  dropdown.hidden = true;
+  document.body.appendChild(dropdown);
+
+  let activeIdx = -1;
+  let currentResults = [];
+  let lastReqId = 0;
+  let debounceTimer = null;
+
+  const positionDropdown = () => {
+    const r = inputEl.getBoundingClientRect();
+    dropdown.style.left = r.left + 'px';
+    dropdown.style.top = (r.bottom + 4) + 'px';
+    dropdown.style.width = Math.max(r.width, 280) + 'px';
+  };
+
+  const close = () => {
+    dropdown.hidden = true;
+    activeIdx = -1;
+    activeSuggestDropdown = null;
+  };
+
+  const updateActiveHighlight = () => {
+    dropdown.querySelectorAll('.suggest-item').forEach((el, i) => {
+      el.classList.toggle('active', i === activeIdx);
+    });
+    const active = dropdown.querySelector('.suggest-item.active');
+    if (active) active.scrollIntoView({ block: 'nearest' });
+  };
+
+  const renderItems = (items) => {
+    currentResults = items;
+    activeIdx = -1;
+    if (!items.length) {
+      dropdown.innerHTML = '<div class="suggest-empty">No matches. Press Enter to search anyway.</div>';
+    } else {
+      dropdown.innerHTML = items.map((item, idx) => {
+        if (item.type === 'category') {
+          return `<a class="suggest-item suggest-cat" data-idx="${idx}" href="${item.href}">
+            <span class="suggest-cat-icon">${catIcon(item.name)}</span>
+            <span class="suggest-name">in ${esc(item.name)}</span>
+          </a>`;
+        }
+        const priceHtml = item.priceUsd > 0 ? `<span class="suggest-price">${fmtINR(item.priceUsd)}</span>` : '';
+        return `<a class="suggest-item suggest-product" data-idx="${idx}" href="${item.href}">
+          <img class="suggest-thumb" src="${imgProxy(item.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"/>
+          <span class="suggest-name">${esc(item.name)}</span>
+          ${priceHtml}
+        </a>`;
+      }).join('');
+    }
+    positionDropdown();
+    dropdown.hidden = false;
+    activeSuggestDropdown = dropdown;
+  };
+
+  const fetchSuggestions = async (q) => {
+    const cached = SUGGEST_CACHE.get(q);
+    if (cached && Date.now() - cached.ts < SUGGEST_CACHE_TTL) return cached.items;
+
+    const reqId = ++lastReqId;
+    const items = [];
+
+    // Category matches (local, instant — no network)
+    const ql = q.toLowerCase();
+    const seen = new Set();
+    for (const cat of state.categories || []) {
+      const fName = cat.categoryFirstName || '';
+      if (fName.toLowerCase().includes(ql) && !seen.has(fName)) {
+        items.push({ type: 'category', name: fName, href: categoryHref(cat) });
+        seen.add(fName);
+      }
+      for (const sec of cat.categoryFirstList || []) {
+        const sName = sec.categorySecondName || '';
+        if (sName.toLowerCase().includes(ql) && !seen.has(sName)) {
+          items.push({ type: 'category', name: sName, href: categoryHref(sec) });
+          seen.add(sName);
+        }
+        for (const t of sec.categorySecondList || []) {
+          const tName = t.categoryName || '';
+          if (tName.toLowerCase().includes(ql) && !seen.has(tName)) {
+            items.push({ type: 'category', name: tName, href: categoryHref(t) });
+            seen.add(tName);
+          }
+        }
+      }
+      if (items.length >= 3) break;
+    }
+    items.length = Math.min(items.length, 3);
+
+    // Product matches from CJ via the cached /products endpoint
+    try {
+      const res = await fetch(`/api/store/products?keyWord=${encodeURIComponent(q)}&size=6&page=1`);
+      if (reqId !== lastReqId) return null; // stale, drop
+      if (res.ok) {
+        const data = await res.json();
+        const products = (data.products || []).slice(0, 6).map(p => ({
+          type: 'product',
+          name: p.productNameEn || p.nameEn || p.productName || 'Untitled',
+          image: parseProductImage(p),
+          priceUsd: parseFloat(p.sellPrice || p.price || 0),
+          href: '#/product/' + encodeURIComponent(p.pid || p.id || p.productId || ''),
+        }));
+        items.push(...products);
+      }
+    } catch {}
+
+    SUGGEST_CACHE.set(q, { items, ts: Date.now() });
+    return items;
+  };
+
+  inputEl.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = inputEl.value.trim();
+    if (q.length < 2) { close(); return; }
+    debounceTimer = setTimeout(async () => {
+      const items = await fetchSuggestions(q);
+      if (items === null) return;
+      renderItems(items);
+    }, SUGGEST_DEBOUNCE_MS);
+  });
+
+  inputEl.addEventListener('focus', () => {
+    if (currentResults.length && inputEl.value.trim().length >= 2) {
+      positionDropdown();
+      dropdown.hidden = false;
+      activeSuggestDropdown = dropdown;
+    }
+  });
+
+  inputEl.addEventListener('keydown', (e) => {
+    if (dropdown.hidden || !currentResults.length) return;
+    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = (activeIdx + 1) % currentResults.length;
+      updateActiveHighlight();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = (activeIdx - 1 + currentResults.length) % currentResults.length;
+      updateActiveHighlight();
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      const item = currentResults[activeIdx];
+      location.hash = item.href.replace(/^#/, '');
+      close();
+    }
+  });
+
+  // Outside click closes
+  document.addEventListener('click', (e) => {
+    if (e.target === inputEl || dropdown.contains(e.target)) return;
+    close();
+  });
+
+  // Selecting a suggestion closes the dropdown (the link itself navigates)
+  dropdown.addEventListener('click', (e) => {
+    if (e.target.closest('.suggest-item')) close();
+  });
+
+  window.addEventListener('scroll', () => { if (!dropdown.hidden) positionDropdown(); }, { passive: true });
+  window.addEventListener('resize', () => { if (!dropdown.hidden) positionDropdown(); });
+}
+window.setupSearchSuggest = setupSearchSuggest;
 
 // ══════════════════════════════════════════════════════════════
 //  CATEGORIES (header strip + dropdown)
@@ -706,12 +894,15 @@ async function renderHome() {
     </div>
   `;
 
+  const heroInput = document.getElementById('heroSearchInput');
   document.getElementById('heroSearchForm').addEventListener('submit', (e) => {
     e.preventDefault();
-    const q = document.getElementById('heroSearchInput').value.trim();
+    const q = heroInput.value.trim();
     if (q.length < 2) return showToast('Type at least 2 characters');
+    closeSearchSuggest();
     navigate(`/search?q=${encodeURIComponent(q)}`);
   });
+  setupSearchSuggest(heroInput);
 
   loadCategories().then(() => renderHomeSidebar());
   loadHomeProducts();

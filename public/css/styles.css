@@ -1003,6 +1003,80 @@ main {
    ═══════════════════════════════════════════════════════════════ */
 .search-header { margin-bottom: 16px; }
 
+/* ═══════════════════════════════════════════════════════════════
+   Search typeahead dropdown — Google / CJ-style live suggestions
+   ═══════════════════════════════════════════════════════════════ */
+.search-suggest {
+  position: fixed;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  max-height: 70vh;
+  overflow-y: auto;
+  min-width: 280px;
+  padding: 6px;
+}
+.suggest-item {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  text-decoration: none;
+  color: var(--text);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.suggest-item:hover,
+.suggest-item.active {
+  background: #f5f6f8;
+}
+.suggest-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #f5f6f8;
+  flex-shrink: 0;
+}
+.suggest-cat {
+  grid-template-columns: 32px 1fr;
+}
+.suggest-cat-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  background: #f5f6f8;
+  border-radius: 50%;
+  font-size: 16px;
+}
+.suggest-name {
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.suggest-cat .suggest-name {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.suggest-price {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--brand);
+  white-space: nowrap;
+}
+.suggest-empty {
+  padding: 18px 14px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 /* Subcategory chips on category pages — let users drill down from a broad
    parent like "Women's Clothing" into "Tops / Dresses / Accessories" etc. */
 .subcategory-strip {
