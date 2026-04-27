@@ -1004,95 +1004,106 @@ main {
 .search-header { margin-bottom: 16px; }
 
 /* ═══════════════════════════════════════════════════════════════
-   Search typeahead dropdown — Google / CJ-style live suggestions
+   Search typeahead dropdown — Flipkart-style two-line rows
    ═══════════════════════════════════════════════════════════════ */
 .search-suggest {
   position: fixed;
   z-index: 200;
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
-  max-height: 70vh;
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+  max-height: 72vh;
   overflow-y: auto;
-  min-width: 280px;
-  padding: 6px;
+  min-width: 320px;
+  padding: 4px 0;
 }
 .suggest-item {
   display: grid;
-  grid-template-columns: 44px 1fr auto;
-  gap: 12px;
+  grid-template-columns: 44px 1fr 20px;
+  gap: 14px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 10px 16px;
   text-decoration: none;
   color: var(--text);
-  border-radius: 8px;
+  border-bottom: 1px solid #f1f1f3;
   cursor: pointer;
+  transition: background 0.1s;
 }
+.suggest-item:last-child { border-bottom: none; }
 .suggest-item:hover,
-.suggest-item.active {
-  background: #f5f6f8;
-}
+.suggest-item.active { background: #fafafa; }
+
+/* Left column — either a thumbnail (products) or an icon box (scope/category) */
 .suggest-thumb {
   width: 44px;
   height: 44px;
-  border-radius: 6px;
+  border-radius: 4px;
   object-fit: cover;
   background: #f5f6f8;
-  flex-shrink: 0;
+  border: 1px solid #f0f0f2;
 }
-.suggest-cat {
-  grid-template-columns: 32px 1fr;
-}
-.suggest-cat-icon {
-  width: 32px;
-  height: 32px;
+.suggest-icon-box {
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   background: #f5f6f8;
-  border-radius: 50%;
-  font-size: 16px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  border: 1px solid #f0f0f2;
+}
+.suggest-icon-box.suggest-emoji {
+  font-size: 22px;
+  background: #fff7ee;
+  border-color: #fde6cf;
 }
 
-/* "{query} in Department" — Amazon/Flipkart-style scope suggestion */
-.suggest-scope {
-  grid-template-columns: 28px 1fr;
+/* Two-line text column */
+.suggest-text {
+  min-width: 0;
+  line-height: 1.35;
 }
-.suggest-search-icon {
-  color: var(--text-muted);
-  margin-left: 6px;
-}
-.suggest-scope .suggest-name {
-  font-size: 13.5px;
-  color: var(--text);
-}
-.suggest-scope strong {
-  font-weight: 600;
-}
-.suggest-scope-in {
-  color: var(--text-muted);
+.suggest-main {
+  font-size: 14.5px;
   font-weight: 500;
-  margin-left: 4px;
-}
-.suggest-name {
-  font-size: 13.5px;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.4;
 }
-.suggest-cat .suggest-name {
+.suggest-main strong {
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text);
 }
-.suggest-price {
-  font-size: 13.5px;
+.suggest-phrase {
+  color: var(--text);
+  font-weight: 400;
+}
+.suggest-sub {
+  font-size: 12.5px;
+  color: var(--brand);     /* Brand-colored subtitle (Flipkart blue → our orange) */
+  font-weight: 500;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.suggest-product .suggest-sub.suggest-price {
   font-weight: 700;
   color: var(--brand);
-  white-space: nowrap;
 }
+
+/* Right column — arrow icon */
+.suggest-arrow {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  justify-self: end;
+}
+.suggest-item:hover .suggest-arrow { color: var(--text); }
+
 .suggest-empty {
-  padding: 18px 14px;
+  padding: 20px 16px;
   text-align: center;
   color: var(--text-muted);
   font-size: 13px;

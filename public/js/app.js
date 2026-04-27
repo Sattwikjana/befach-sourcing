@@ -384,30 +384,45 @@ function setupSearchSuggest(inputEl) {
     if (!items.length) {
       dropdown.innerHTML = '<div class="suggest-empty">No matches. Press Enter to search anyway.</div>';
     } else {
+      // Row layout (Flipkart-style):
+      //   [icon/thumb 44]  [main text \n subtitle]  [arrow]
+      // Scope rows use a magnifier icon + ↖ arrow ("fill the search box"),
+      // product rows use a thumbnail + › arrow ("open product").
+      const arrowFill = `<svg class="suggest-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 7L7 17M7 7h10v10"/></svg>`;
+      const arrowOpen = `<svg class="suggest-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>`;
+      const magnifier = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>`;
+
       dropdown.innerHTML = items.map((item, idx) => {
         if (item.type === 'scope') {
-          // Amazon-style "{query} in Department" row
           return `<a class="suggest-item suggest-scope" data-idx="${idx}" href="${item.href}">
-            <svg class="suggest-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
-              <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>
-            </svg>
-            <span class="suggest-name">
-              <strong>${esc(item.query)}</strong>
-              <span class="suggest-scope-in">in ${esc(item.scopeName)}</span>
-            </span>
+            <span class="suggest-icon-box">${magnifier}</span>
+            <div class="suggest-text">
+              <div class="suggest-main"><strong>${esc(item.query)}</strong> <span class="suggest-phrase">${esc(item.displayPhrase)}</span></div>
+              <div class="suggest-sub">in ${esc(item.scopeName)}</div>
+            </div>
+            ${arrowFill}
           </a>`;
         }
         if (item.type === 'category') {
           return `<a class="suggest-item suggest-cat" data-idx="${idx}" href="${item.href}">
-            <span class="suggest-cat-icon">${catIcon(item.name)}</span>
-            <span class="suggest-name">${esc(item.name)}</span>
+            <span class="suggest-icon-box suggest-emoji">${catIcon(item.name)}</span>
+            <div class="suggest-text">
+              <div class="suggest-main">${esc(item.name)}</div>
+              <div class="suggest-sub">Browse category</div>
+            </div>
+            ${arrowFill}
           </a>`;
         }
-        const priceHtml = item.priceUsd > 0 ? `<span class="suggest-price">${fmtINR(item.priceUsd)}</span>` : '';
+        const priceHtml = item.priceUsd > 0
+          ? `<div class="suggest-sub suggest-price">${fmtINR(item.priceUsd)}</div>`
+          : '';
         return `<a class="suggest-item suggest-product" data-idx="${idx}" href="${item.href}">
           <img class="suggest-thumb" src="${imgProxy(item.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"/>
-          <span class="suggest-name">${esc(item.name)}</span>
-          ${priceHtml}
+          <div class="suggest-text">
+            <div class="suggest-main">${esc(item.name)}</div>
+            ${priceHtml}
+          </div>
+          ${arrowOpen}
         </a>`;
       }).join('');
     }
@@ -424,32 +439,40 @@ function setupSearchSuggest(inputEl) {
     const items = [];
     const ql = q.toLowerCase();
 
-    // ── 1. Department ("scope") suggestions: "{query} in Men's Clothing", etc.
-    // Same pattern as Amazon / Flipkart — gives users a one-tap way to
-    // narrow their query to the most common shopping departments.
+    // The category tree drives both scope suggestions and direct matches.
+    // If the user types before the tree finished loading, await it.
+    if (!state.categories || !state.categories.length) {
+      try { await loadCategories(); } catch {}
+    }
+
+    // ── 1. Department ("scope") suggestions, Flipkart-style:
+    //   bold:  "shirt"
+    //   sub:   "for Men"   (linked to Men's Clothing category)
+    // The display phrase reads naturally next to the query in the row.
     const SCOPE_PRIORITY = [
-      "Men's Clothing",
-      "Women's Clothing",
-      "Toys, Kids & Babies",
-      "Consumer Electronics",
-      "Jewelry & Watches",
-      "Bags & Shoes",
-      "Health, Beauty & Hair",
-      "Phones & Accessories",
+      { display: 'for Men',         name: "Men's Clothing" },
+      { display: 'for Women',       name: "Women's Clothing" },
+      { display: 'for Kids',        name: "Toys, Kids & Babies" },
+      { display: 'in Electronics',  name: "Consumer Electronics" },
+      { display: 'in Watches',      name: "Jewelry & Watches" },
+      { display: 'in Bags & Shoes', name: "Bags & Shoes" },
+      { display: 'in Beauty',       name: "Health, Beauty & Hair" },
+      { display: 'in Phones',       name: "Phones & Accessories" },
     ];
     const cats = state.categories || [];
     const findCatByName = (n) => cats.find(c =>
       (c.categoryFirstName || '').toLowerCase() === n.toLowerCase()
     );
     let scopeCount = 0;
-    for (const scopeName of SCOPE_PRIORITY) {
-      // Don't offer "shirt in Men's Clothing" if the user literally typed "men's clothing"
-      if (scopeName.toLowerCase().includes(ql)) continue;
-      const cat = findCatByName(scopeName);
+    for (const scope of SCOPE_PRIORITY) {
+      // Don't offer "shirt for men" if the user literally typed "men's clothing"
+      if (scope.name.toLowerCase().includes(ql)) continue;
+      const cat = findCatByName(scope.name);
       if (!cat?.categoryFirstId) continue;
       items.push({
         type: 'scope',
         query: q,
+        displayPhrase: scope.display,
         scopeName: cat.categoryFirstName,
         href: `#/search?q=${encodeURIComponent(q)}&categoryId=${encodeURIComponent(cat.categoryFirstId)}&catName=${encodeURIComponent(cat.categoryFirstName)}`,
       });
