@@ -450,6 +450,16 @@ function setupSearchSuggest(inputEl) {
     // top-level parent. Those parents become the "scope" suggestions, so
     // we never show nonsense like "car for Men" — only top categories
     // that actually contain something matching the query are offered.
+    //
+    // Match rule: any *word* in the category name must START with the query.
+    // This blocks substring false positives like "car" matching "Scarves"
+    // or "Garden Care" — only "Car Mats", "Pet Car Mats" etc. count.
+    const wordMatches = (name) => {
+      if (!name) return false;
+      const words = String(name).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+      return words.some(w => w.startsWith(ql));
+    };
+
     const cats = state.categories || [];
     const directMatches = [];          // sub-cats whose own name matches
     const relevantTopCats = new Map(); // top-cat id → top-cat object (insertion order preserved)
@@ -457,14 +467,13 @@ function setupSearchSuggest(inputEl) {
 
     for (const cat of cats) {
       const fName = cat.categoryFirstName || '';
-      if (fName.toLowerCase().includes(ql) && !seenName.has(fName.toLowerCase())) {
+      if (wordMatches(fName) && !seenName.has(fName.toLowerCase())) {
         directMatches.push({ type: 'category', name: fName, href: categoryHref(cat) });
         seenName.add(fName.toLowerCase());
       }
       for (const sec of cat.categoryFirstList || []) {
         const sName = sec.categorySecondName || '';
-        const sMatches = sName.toLowerCase().includes(ql);
-        if (sMatches) {
+        if (wordMatches(sName)) {
           if (!seenName.has(sName.toLowerCase())) {
             directMatches.push({ type: 'category', name: sName, href: categoryHref(sec) });
             seenName.add(sName.toLowerCase());
@@ -473,7 +482,7 @@ function setupSearchSuggest(inputEl) {
         }
         for (const t of sec.categorySecondList || []) {
           const tName = t.categoryName || '';
-          if (tName.toLowerCase().includes(ql)) {
+          if (wordMatches(tName)) {
             if (!seenName.has(tName.toLowerCase())) {
               directMatches.push({ type: 'category', name: tName, href: categoryHref(t) });
               seenName.add(tName.toLowerCase());
@@ -507,8 +516,10 @@ function setupSearchSuggest(inputEl) {
     let scopeCount = 0;
     for (const cat of relevantTopCats.values()) {
       const name = cat.categoryFirstName || '';
-      // Skip if the query already names this department (would be redundant)
-      if (name.toLowerCase().includes(ql)) continue;
+      // Skip if the query already names this department (would be redundant).
+      // Use word-prefix match so "car" doesn't suppress "Pet Car Mats" via
+      // some unrelated substring inside the department name.
+      if (wordMatches(name)) continue;
       items.push({
         type: 'scope',
         query: q,
@@ -879,7 +890,13 @@ async function backfillCardShipping(gridEl) {
         const data = await res.json();
         if (abort.signal.aborted || !card.isConnected) continue;
 
-        if (data.available === false) { card.remove(); continue; }
+        if (data.available === false) {
+          // Fade out smoothly instead of pop-removing — much less jarring
+          // when CJ flags many products as unshippable on the same page.
+          card.classList.add('fading-out');
+          setTimeout(() => { try { card.remove(); } catch {} }, 280);
+          continue;
+        }
 
         if (data.displayUsd) {
           // Persist for instant load on next visit

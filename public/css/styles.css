@@ -1109,6 +1109,16 @@ main {
   font-size: 13px;
 }
 
+/* Smooth fade-out for product cards that the shipping backfill discovers
+   are unshippable. Keeps the grid from feeling like products are popping
+   out one by one — they melt away gently instead. */
+.product-card.fading-out {
+  opacity: 0;
+  transform: scale(0.94);
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+  pointer-events: none;
+}
+
 /* Subcategory chips on category pages — let users drill down from a broad
    parent like "Women's Clothing" into "Tops / Dresses / Accessories" etc. */
 .subcategory-strip {
