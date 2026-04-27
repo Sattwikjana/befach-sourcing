@@ -445,72 +445,83 @@ function setupSearchSuggest(inputEl) {
       try { await loadCategories(); } catch {}
     }
 
-    // ── 1. Department ("scope") suggestions, Flipkart-style:
-    //   bold:  "shirt"
-    //   sub:   "for Men"   (linked to Men's Clothing category)
-    // The display phrase reads naturally next to the query in the row.
-    const SCOPE_PRIORITY = [
-      { display: 'for Men',         name: "Men's Clothing" },
-      { display: 'for Women',       name: "Women's Clothing" },
-      { display: 'for Kids',        name: "Toys, Kids & Babies" },
-      { display: 'in Electronics',  name: "Consumer Electronics" },
-      { display: 'in Watches',      name: "Jewelry & Watches" },
-      { display: 'in Bags & Shoes', name: "Bags & Shoes" },
-      { display: 'in Beauty',       name: "Health, Beauty & Hair" },
-      { display: 'in Phones',       name: "Phones & Accessories" },
-    ];
+    // ── Walk the category tree ONCE.
+    // For every sub-category that matches the query we also remember its
+    // top-level parent. Those parents become the "scope" suggestions, so
+    // we never show nonsense like "car for Men" — only top categories
+    // that actually contain something matching the query are offered.
     const cats = state.categories || [];
-    const findCatByName = (n) => cats.find(c =>
-      (c.categoryFirstName || '').toLowerCase() === n.toLowerCase()
-    );
+    const directMatches = [];          // sub-cats whose own name matches
+    const relevantTopCats = new Map(); // top-cat id → top-cat object (insertion order preserved)
+    const seenName = new Set();
+
+    for (const cat of cats) {
+      const fName = cat.categoryFirstName || '';
+      if (fName.toLowerCase().includes(ql) && !seenName.has(fName.toLowerCase())) {
+        directMatches.push({ type: 'category', name: fName, href: categoryHref(cat) });
+        seenName.add(fName.toLowerCase());
+      }
+      for (const sec of cat.categoryFirstList || []) {
+        const sName = sec.categorySecondName || '';
+        const sMatches = sName.toLowerCase().includes(ql);
+        if (sMatches) {
+          if (!seenName.has(sName.toLowerCase())) {
+            directMatches.push({ type: 'category', name: sName, href: categoryHref(sec) });
+            seenName.add(sName.toLowerCase());
+          }
+          if (cat.categoryFirstId) relevantTopCats.set(cat.categoryFirstId, cat);
+        }
+        for (const t of sec.categorySecondList || []) {
+          const tName = t.categoryName || '';
+          if (tName.toLowerCase().includes(ql)) {
+            if (!seenName.has(tName.toLowerCase())) {
+              directMatches.push({ type: 'category', name: tName, href: categoryHref(t) });
+              seenName.add(tName.toLowerCase());
+            }
+            if (cat.categoryFirstId) relevantTopCats.set(cat.categoryFirstId, cat);
+          }
+        }
+      }
+    }
+
+    // ── 1. Scope suggestions (Flipkart-style "{query} for/in {Department}").
+    // Drawn from the top-level categories whose subtree had a match above.
+    // SCOPE_PHRASES gives natural wording for the common departments;
+    // anything else falls back to "in {Name}".
+    const SCOPE_PHRASES = {
+      "Men's Clothing":            'for Men',
+      "Women's Clothing":          'for Women',
+      "Toys, Kids & Babies":       'for Kids',
+      "Pet Supplies":              'for Pets',
+      "Automobiles & Motorcycles": 'in Automotive',
+      "Consumer Electronics":      'in Electronics',
+      "Jewelry & Watches":         'in Watches',
+      "Bags & Shoes":              'in Bags & Shoes',
+      "Health, Beauty & Hair":     'in Beauty',
+      "Phones & Accessories":      'in Phones',
+      "Computer & Office":         'in Computer & Office',
+      "Home, Garden & Furniture":  'in Home & Garden',
+      "Home Improvement":          'in Home Improvement',
+      "Sports & Outdoors":         'in Sports & Outdoors',
+    };
     let scopeCount = 0;
-    for (const scope of SCOPE_PRIORITY) {
-      // Don't offer "shirt for men" if the user literally typed "men's clothing"
-      if (scope.name.toLowerCase().includes(ql)) continue;
-      const cat = findCatByName(scope.name);
-      if (!cat?.categoryFirstId) continue;
+    for (const cat of relevantTopCats.values()) {
+      const name = cat.categoryFirstName || '';
+      // Skip if the query already names this department (would be redundant)
+      if (name.toLowerCase().includes(ql)) continue;
       items.push({
         type: 'scope',
         query: q,
-        displayPhrase: scope.display,
-        scopeName: cat.categoryFirstName,
-        href: `#/search?q=${encodeURIComponent(q)}&categoryId=${encodeURIComponent(cat.categoryFirstId)}&catName=${encodeURIComponent(cat.categoryFirstName)}`,
+        displayPhrase: SCOPE_PHRASES[name] || `in ${name}`,
+        scopeName: name,
+        href: `#/search?q=${encodeURIComponent(q)}&categoryId=${encodeURIComponent(cat.categoryFirstId)}&catName=${encodeURIComponent(name)}`,
       });
       if (++scopeCount >= 3) break;
     }
 
-    // ── 2. Direct category-name matches (sub-categories like "Glasses",
-    // "Shoes" etc.) — useful when the query IS a category name.
-    const seen = new Set();
-    let directCatCount = 0;
-    for (const cat of cats) {
-      const fName = cat.categoryFirstName || '';
-      if (fName.toLowerCase().includes(ql) && !seen.has(fName)) {
-        items.push({ type: 'category', name: fName, href: categoryHref(cat) });
-        seen.add(fName);
-        if (++directCatCount >= 2) break;
-      }
-      if (directCatCount >= 2) break;
-      for (const sec of cat.categoryFirstList || []) {
-        const sName = sec.categorySecondName || '';
-        if (sName.toLowerCase().includes(ql) && !seen.has(sName)) {
-          items.push({ type: 'category', name: sName, href: categoryHref(sec) });
-          seen.add(sName);
-          if (++directCatCount >= 2) break;
-        }
-        if (directCatCount >= 2) break;
-        for (const t of sec.categorySecondList || []) {
-          const tName = t.categoryName || '';
-          if (tName.toLowerCase().includes(ql) && !seen.has(tName)) {
-            items.push({ type: 'category', name: tName, href: categoryHref(t) });
-            seen.add(tName);
-            if (++directCatCount >= 2) break;
-          }
-        }
-        if (directCatCount >= 2) break;
-      }
-      if (directCatCount >= 2) break;
-    }
+    // ── 2. Direct sub-category matches — useful when the query IS a
+    // category name (e.g. typing "glasses" surfaces the "Glasses" sub-cat).
+    items.push(...directMatches.slice(0, 2));
 
     // Product matches from CJ via the cached /products endpoint
     try {
