@@ -71,7 +71,7 @@ function populateDrawerCategories() {
   drawerCatsEl.innerHTML = cats.map(cat => {
     const name = cat.categoryFirstName || '';
     return `
-      <a class="drawer-cat-link" href="#/search?q=${encodeURIComponent(name)}">
+      <a class="drawer-cat-link" href="${categoryHref(cat)}">
         <span class="drawer-cat-icon">${catIcon(name)}</span>
         <span class="drawer-cat-name">${esc(name)}</span>
       </a>
@@ -290,7 +290,7 @@ function handleRoute() {
 
   if (path === '/' || path === '') return renderHome();
   if (path === '/category') return renderAllCategories();
-  if (path.startsWith('/category/')) return renderCategory(path.slice('/category/'.length), parseInt(params.get('page')) || 1);
+  if (path.startsWith('/category/')) return renderCategory(path.slice('/category/'.length), parseInt(params.get('page')) || 1, params);
   if (path.startsWith('/search')) return renderSearch(params.get('q') || '', parseInt(params.get('page')) || 1);
   if (path.startsWith('/product/')) return renderProduct(path.slice('/product/'.length));
   if (path === '/cart') return renderCart();
@@ -335,6 +335,19 @@ function catIcon(name) {
   return '📦';
 }
 
+// Build a hash link for a CJ category at any nesting level. Uses CJ's
+// real categoryId so list pages get the exact products in that category
+// (a keyword search on the name returns wrong/no results — e.g. "Smart
+// glasses" or "Woman Prescription Glasses" match almost nothing as a
+// keyword, but their categoryId returns the actual catalog).
+function categoryHref(item) {
+  if (!item) return '#/';
+  const name = (item.categoryName || item.categorySecondName || item.categoryFirstName || '').trim();
+  const id = item.categoryId || item.categorySecondId || item.categoryFirstId || '';
+  if (id) return `#/category/${encodeURIComponent(id)}?name=${encodeURIComponent(name)}`;
+  return `#/search?q=${encodeURIComponent(name)}`;
+}
+
 async function loadCategories() {
   if (state.categories.length) {
     if (typeof populateDrawerCategories === 'function') populateDrawerCategories();
@@ -357,7 +370,7 @@ headerCatBtn?.addEventListener('click', async (e) => {
   if (isOpen) { catDropdown.hidden = true; return; }
   catDropdown.innerHTML = state.categories.map(cat => {
     const name = cat.categoryFirstName || '';
-    return `<a class="cat-dropdown-item" href="#/search?q=${encodeURIComponent(name)}">
+    return `<a class="cat-dropdown-item" href="${categoryHref(cat)}">
       <span>${catIcon(name)}</span>${esc(name)}
     </a>`;
   }).join('');
@@ -394,11 +407,12 @@ function renderMegaCategories() {
   // Left pane: list of top-level categories
   leftEl.innerHTML = cats.map((cat, idx) => {
     const name = cat.categoryFirstName || '';
+    const href = categoryHref(cat);
     return `
       <button type="button"
               class="mega-cat-item ${idx === 0 ? 'active' : ''}"
               data-idx="${idx}"
-              onclick="navigate('/search?q=${encodeURIComponent(name)}')"
+              onclick="location.hash='${href.slice(1)}'"
               onmouseenter="megaSelect(${idx})">
         <span class="mega-cat-icon">${catIcon(name)}</span>
         <span class="mega-cat-name">${esc(name)}</span>
@@ -430,7 +444,7 @@ window.megaSelect = function(idx) {
     rightEl.innerHTML = `
       <div class="mega-empty">
         <p>Browse all <strong>${esc(cat.categoryFirstName)}</strong> products</p>
-        <a class="btn btn-primary" href="#/search?q=${encodeURIComponent(cat.categoryFirstName)}">Shop ${esc(cat.categoryFirstName)} →</a>
+        <a class="btn btn-primary" href="${categoryHref(cat)}">Shop ${esc(cat.categoryFirstName)} →</a>
       </div>
     `;
     return;
@@ -439,15 +453,16 @@ window.megaSelect = function(idx) {
   rightEl.innerHTML = secondGroups.map(group => {
     const secondName = group.categorySecondName || '';
     const thirds = group.categorySecondList || [];
+    const groupHref = categoryHref(group);
     return `
       <div class="mega-group">
-        <a class="mega-group-head" href="#/search?q=${encodeURIComponent(secondName)}">${esc(secondName)}</a>
+        <a class="mega-group-head" href="${groupHref}">${esc(secondName)}</a>
         <div class="mega-group-items">
           ${thirds.slice(0, 8).map(t => {
             const tName = t.categoryName || '';
-            return `<a href="#/search?q=${encodeURIComponent(tName)}">${esc(tName)}</a>`;
+            return `<a href="${categoryHref(t)}">${esc(tName)}</a>`;
           }).join('')}
-          ${thirds.length > 8 ? `<a class="mega-more" href="#/search?q=${encodeURIComponent(secondName)}">+${thirds.length - 8} more</a>` : ''}
+          ${thirds.length > 8 ? `<a class="mega-more" href="${groupHref}">+${thirds.length - 8} more</a>` : ''}
         </div>
       </div>
     `;
@@ -654,7 +669,7 @@ async function renderHome() {
         <section class="section">
           <div class="section-head">
             <h2>🔥 Trending tech &amp; gadgets</h2>
-            <a href="#/search?q=earbuds" class="section-link">See more →</a>
+            <a href="#/search?q=earbuds" class="section-link" id="trendingMore">See more →</a>
           </div>
           <div class="products-grid" id="trendingGrid">${productSkeleton(10)}</div>
         </section>
@@ -679,7 +694,7 @@ async function renderHome() {
         <section class="section">
           <div class="section-head">
             <h2>💎 Style &amp; jewellery picks</h2>
-            <a href="#/search?q=watch" class="section-link">See more →</a>
+            <a href="#/search?q=watch" class="section-link" id="forYouMore">See more →</a>
           </div>
           <div class="products-grid" id="forYouGrid">${productSkeleton(10)}</div>
         </section>
@@ -687,7 +702,7 @@ async function renderHome() {
         <section class="section">
           <div class="section-head">
             <h2>🏠 Home &amp; lifestyle</h2>
-            <a href="#/search?q=led light" class="section-link">See more →</a>
+            <a href="#/search?q=led light" class="section-link" id="homeLifestyleMore">See more →</a>
           </div>
           <div class="products-grid" id="homeLifestyleGrid">${productSkeleton(10)}</div>
         </section>
@@ -723,7 +738,7 @@ function renderHomeSidebar() {
     return `
       <a class="sidebar-cat"
          data-idx="${idx}"
-         href="#/search?q=${encodeURIComponent(name)}">
+         href="${categoryHref(cat)}">
         <span class="sidebar-cat-icon">${catIcon(name)}</span>
         <span class="sidebar-cat-name">${esc(name)}</span>
         <span class="sidebar-cat-chev">›</span>
@@ -766,22 +781,23 @@ function showSidebarFlyout(idx) {
     flyout.innerHTML = `
       <div class="flyout-empty">
         <p>Browse all <strong>${esc(title)}</strong> products</p>
-        <a class="btn btn-primary" href="#/search?q=${encodeURIComponent(title)}">Shop ${esc(title)} →</a>
+        <a class="btn btn-primary" href="${categoryHref(cat)}">Shop ${esc(title)} →</a>
       </div>
     `;
   } else {
     flyout.innerHTML = groups.map(g => {
       const gName = g.categorySecondName || '';
       const thirds = g.categorySecondList || [];
+      const gHref = categoryHref(g);
       return `
         <div class="flyout-group">
-          <a class="flyout-group-head" href="#/search?q=${encodeURIComponent(gName)}">${esc(gName)}</a>
+          <a class="flyout-group-head" href="${gHref}">${esc(gName)}</a>
           <div class="flyout-group-items">
             ${thirds.slice(0, 10).map(t => {
               const tName = t.categoryName || '';
-              return `<a href="#/search?q=${encodeURIComponent(tName)}">${esc(tName)}</a>`;
+              return `<a href="${categoryHref(t)}">${esc(tName)}</a>`;
             }).join('')}
-            ${thirds.length > 10 ? `<a class="flyout-more" href="#/search?q=${encodeURIComponent(gName)}">+${thirds.length - 10} more</a>` : ''}
+            ${thirds.length > 10 ? `<a class="flyout-more" href="${gHref}">+${thirds.length - 10} more</a>` : ''}
           </div>
         </div>
       `;
@@ -810,14 +826,43 @@ async function loadHomeProducts() {
 
   // Three themed sections — each fires its own /api/store/products call with
   // a different keyword, so the rows are visually distinct (different
-  // products, different vibes). Server-side cache means repeat visits
-  // return instantly. The keywords are picked because CJ has tons of
-  // results for each, all photogenic and price-friendly.
-  const sections = [
-    { grid: trendingGrid,       keyword: 'earbuds',   label: 'tech & gadgets' },
-    { grid: forYouGrid,         keyword: 'watch',     label: 'style & jewellery' },
-    { grid: homeLifestyleGrid,  keyword: 'led light', label: 'home & lifestyle' },
+  // products, different vibes). Keywords rotate by day-of-year so the home
+  // page feels fresh every visit instead of showing the same items forever.
+  const today = new Date();
+  const dayOfYear = Math.floor(
+    (today - new Date(today.getFullYear(), 0, 0)) / 86400000
+  );
+  const pick = (arr) => arr[dayOfYear % arr.length];
+
+  const trendingPool = [
+    'earbuds', 'wireless headphones', 'smart watch', 'bluetooth speaker',
+    'power bank', 'phone holder', 'gaming mouse', 'mini projector',
+    'action camera', 'mechanical keyboard', 'smart glasses', 'drone',
+    'vr headset', 'air purifier',
   ];
+  const stylePool = [
+    'watch', 'sunglasses', 'necklace', 'bracelet', 'ring', 'earrings',
+    'handbag', 'wallet', 'hair clip', 'pendant', 'silk scarf', 'leather belt',
+    'mens watch', 'womens jewellery',
+  ];
+  const homePool = [
+    'led light', 'kitchen tools', 'wall art', 'desk lamp', 'storage organizer',
+    'cushion cover', 'blanket', 'bathroom mat', 'plant pot', 'humidifier',
+    'aroma diffuser', 'room decor', 'coffee mug', 'cookware',
+  ];
+
+  const sections = [
+    { grid: trendingGrid,       keyword: pick(trendingPool), label: 'tech & gadgets',     moreId: 'trendingMore' },
+    { grid: forYouGrid,         keyword: pick(stylePool),    label: 'style & jewellery',  moreId: 'forYouMore' },
+    { grid: homeLifestyleGrid,  keyword: pick(homePool),     label: 'home & lifestyle',   moreId: 'homeLifestyleMore' },
+  ];
+
+  // Point each section's "See more →" link at the same keyword we're
+  // showing in the row, so navigation matches what the user sees.
+  sections.forEach(s => {
+    const link = document.getElementById(s.moreId);
+    if (link) link.href = `#/search?q=${encodeURIComponent(s.keyword)}`;
+  });
 
   // Fire all three in parallel (different endpoints don't share rate limit
   // here — they're all on /product/listV2, which the server queue serialises,
@@ -856,17 +901,18 @@ async function renderAllCategories() {
   grid.innerHTML = state.categories.map(cat => {
     const name = cat.categoryFirstName || '';
     const subs = (cat.categoryFirstList || []);
+    const catHref = categoryHref(cat);
     return `<div class="cat-block fade-in">
-      <a href="#/search?q=${encodeURIComponent(name)}" class="cat-block-head">
+      <a href="${catHref}" class="cat-block-head">
         <span class="cat-block-icon">${catIcon(name)}</span>
         <span class="cat-block-name">${esc(name)}</span>
       </a>
       <div class="cat-block-subs">
         ${subs.slice(0, 8).map(s => {
           const subName = s.categorySecondName || '';
-          return `<a href="#/search?q=${encodeURIComponent(subName)}">${esc(subName)}</a>`;
+          return `<a href="${categoryHref(s)}">${esc(subName)}</a>`;
         }).join('')}
-        ${subs.length > 8 ? `<a href="#/search?q=${encodeURIComponent(name)}" class="muted">+${subs.length - 8} more</a>` : ''}
+        ${subs.length > 8 ? `<a href="${catHref}" class="muted">+${subs.length - 8} more</a>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -875,16 +921,21 @@ async function renderAllCategories() {
 // ══════════════════════════════════════════════════════════════
 //  CATEGORY PAGE  (stub — shares search rendering)
 // ══════════════════════════════════════════════════════════════
-function renderCategory(categoryId, page) {
-  return renderSearch('', page, { categoryId });
+function renderCategory(categoryId, page, params) {
+  const name = params?.get('name') || '';
+  return renderSearch('', page, { categoryId, categoryName: name });
 }
 
 // ══════════════════════════════════════════════════════════════
 //  SEARCH / CATEGORY RESULTS
 // ══════════════════════════════════════════════════════════════
 async function renderSearch(query, page = 1, opts = {}) {
-  headerSearchInput.value = query;
-  const title = query ? `Results for "${esc(query)}"` : 'Browse products';
+  // Category browsing has no real query — keep the search box clear so the
+  // user isn't tricked into thinking they typed the category name.
+  if (headerSearchInput) headerSearchInput.value = opts.categoryName ? '' : query;
+  const title = opts.categoryName
+    ? esc(opts.categoryName)
+    : (query ? `Results for "${esc(query)}"` : 'Browse products');
   app.innerHTML = `
     <div class="breadcrumb">
       <a href="#/">Home</a> <span>›</span>
@@ -926,10 +977,12 @@ async function renderSearch(query, page = 1, opts = {}) {
 
     const pag = document.getElementById('pagination');
     if (totalPages > 1) {
-      const baseHash = opts.categoryId ? `/category/${opts.categoryId}` : `/search?q=${encodeURIComponent(query)}`;
+      const baseHash = opts.categoryId
+        ? `/category/${opts.categoryId}${opts.categoryName ? `?name=${encodeURIComponent(opts.categoryName)}` : ''}`
+        : `/search?q=${encodeURIComponent(query)}`;
       const mkLink = (p) => {
-        if (opts.categoryId) return `${baseHash}?page=${p}`;
-        return `${baseHash}&page=${p}`;
+        const sep = baseHash.includes('?') ? '&' : '?';
+        return `${baseHash}${sep}page=${p}`;
       };
       const start = Math.max(1, page - 2);
       const end = Math.min(totalPages, page + 2);
