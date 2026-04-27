@@ -516,26 +516,19 @@ function productCard(p) {
   const listed = p.listedNum || p.listedShopNum || 0;
   const serverAccurate = p.shippingAccurate === true;
 
-  // Decide what to show RIGHT NOW (no waiting):
-  //   1. Server says price is accurate → use it
-  //   2. Browser localStorage has it from a previous visit → use that
-  //   3. Otherwise → show skeleton, will be backfilled
+  // Always show SOMETHING — never a skeleton. The server already returns a
+  // usable price (using a flat fallback shipping for products it hasn't
+  // warmed yet). Backfill silently refines it once CJ returns real
+  // shipping. Cached localStorage value wins if present (fastest + accurate).
   const cachedDisplay = getCachedDisplayUsd(pid);
-  let displayUsd = null;
+  let displayUsd = parseFloat(p.sellPrice || p.price || 0) || 0;
   let accurate = false;
   if (serverAccurate) {
-    displayUsd = parseFloat(p.sellPrice || p.price || 0);
     accurate = true;
   } else if (cachedDisplay != null) {
     displayUsd = cachedDisplay;
     accurate = true;
   }
-
-  const priceHtml = accurate
-    ? `<span class="product-price-now" data-card-price>${fmtINR(displayUsd)}</span>`
-    : `<span class="product-price-loading" data-card-price>
-         <span class="price-skeleton"></span>
-       </span>`;
 
   return `
     <a class="product-card fade-in"
@@ -549,8 +542,10 @@ function productCard(p) {
       </div>
       <div class="product-card-body">
         <div class="product-card-title">${esc(name)}</div>
-        <div class="product-card-prices">${priceHtml}</div>
-        <div class="product-card-ship">${accurate ? 'Shipping included' : 'Calculating price…'}</div>
+        <div class="product-card-prices">
+          <span class="product-price-now" data-card-price>${fmtINR(displayUsd)}</span>
+        </div>
+        <div class="product-card-ship">Shipping included</div>
       </div>
     </a>
   `;
@@ -606,12 +601,8 @@ async function backfillCardShipping(gridEl) {
           // Persist for instant load on next visit
           setCachedDisplayUsd(pid, data.displayUsd);
           const priceEl = card.querySelector('[data-card-price]');
-          if (priceEl) {
-            priceEl.outerHTML = `<span class="product-price-now" data-card-price>${fmtINR(data.displayUsd)}</span>`;
-          }
+          if (priceEl) priceEl.textContent = fmtINR(data.displayUsd);
         }
-        const shipEl = card.querySelector('.product-card-ship');
-        if (shipEl) shipEl.textContent = 'Shipping included';
         card.setAttribute('data-accurate', '1');
       } catch (e) {
         if (e.name === 'AbortError') return;
@@ -921,9 +912,26 @@ async function renderAllCategories() {
 // ══════════════════════════════════════════════════════════════
 //  CATEGORY PAGE  (stub — shares search rendering)
 // ══════════════════════════════════════════════════════════════
-function renderCategory(categoryId, page, params) {
+async function renderCategory(categoryId, page, params) {
   const name = params?.get('name') || '';
-  return renderSearch('', page, { categoryId, categoryName: name });
+  // Make sure the category tree is loaded before we look up children
+  await loadCategories();
+  const children = findCategoryChildren(categoryId);
+  return renderSearch('', page, { categoryId, categoryName: name, categoryChildren: children });
+}
+
+// Find the immediate children of a given category id at any nesting level.
+// Lets the category page surface chips for "Tops / Dresses / Accessories"
+// when the user clicks a broad parent like "Women's Clothing", instead of
+// being stuck on whatever CJ returns first for the parent id.
+function findCategoryChildren(id) {
+  for (const cat of state.categories || []) {
+    if (cat.categoryFirstId === id) return cat.categoryFirstList || [];
+    for (const sec of cat.categoryFirstList || []) {
+      if (sec.categorySecondId === id) return sec.categorySecondList || [];
+    }
+  }
+  return [];
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -936,6 +944,15 @@ async function renderSearch(query, page = 1, opts = {}) {
   const title = opts.categoryName
     ? esc(opts.categoryName)
     : (query ? `Results for "${esc(query)}"` : 'Browse products');
+  const childChips = (opts.categoryChildren || []).length ? `
+    <nav class="subcategory-strip" aria-label="Subcategories">
+      ${opts.categoryChildren.map(c => {
+        const cname = c.categoryName || c.categorySecondName || c.categoryFirstName || '';
+        return `<a class="subcat-chip" href="${categoryHref(c)}">${esc(cname)}</a>`;
+      }).join('')}
+    </nav>
+  ` : '';
+
   app.innerHTML = `
     <div class="breadcrumb">
       <a href="#/">Home</a> <span>›</span>
@@ -947,6 +964,7 @@ async function renderSearch(query, page = 1, opts = {}) {
         <div class="muted" id="searchCount">Loading...</div>
       </div>
     </div>
+    ${childChips}
     <div class="products-grid" id="searchGrid">${productSkeleton(12)}</div>
     <div class="pagination" id="pagination"></div>
   `;

@@ -994,6 +994,31 @@ main {
    Search page
    ═══════════════════════════════════════════════════════════════ */
 .search-header { margin-bottom: 16px; }
+
+/* Subcategory chips on category pages — let users drill down from a broad
+   parent like "Women's Clothing" into "Tops / Dresses / Accessories" etc. */
+.subcategory-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 22px;
+}
+.subcat-chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #f3f4f7;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.subcat-chip:hover {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
 .pagination {
   display: flex;
   gap: 4px;
