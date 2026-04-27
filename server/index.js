@@ -62,15 +62,36 @@ const SHIPPING_METHODS_PRIORITY = ['CJPacket Asia Ordinary', 'CJPacket Asia Sens
 // Absolute last-resort fallback when no CJ method returns a quote.
 const FALLBACK_SHIPPING_USD = parseFloat(process.env.FALLBACK_SHIPPING_USD) || 3.49;
 
-// ── Simple in-memory caches so we don't hammer the CJ API ──
-const CACHE = new Map();
+// ── In-memory LRU cache keyed by URL/cache-key ──
+// Capped at 600 entries — without a cap this Map grew forever on the
+// 512MB Render Starter and eventually OOM'd the Node process, which
+// caused the "/products hangs for minutes after a restart" symptom
+// (cold caches + CJ rate-limit cascade until everything warms up).
+const CACHE_MAX_ENTRIES = 600;
+const CACHE = new Map(); // insertion order = LRU order
+
 function cacheGet(key, ttlMs) {
   const e = CACHE.get(key);
-  if (!e || Date.now() - e.ts > ttlMs) return null;
+  if (!e) return null;
+  if (Date.now() - e.ts > ttlMs) {
+    CACHE.delete(key);
+    return null;
+  }
+  // Touch: re-insert so this key becomes most-recently-used
+  CACHE.delete(key);
+  CACHE.set(key, e);
   return e.val;
 }
+
 function cacheSet(key, val) {
+  CACHE.delete(key);
   CACHE.set(key, { ts: Date.now(), val });
+  // Evict the oldest entry while we're over the cap
+  while (CACHE.size > CACHE_MAX_ENTRIES) {
+    const oldestKey = CACHE.keys().next().value;
+    if (oldestKey === undefined) break;
+    CACHE.delete(oldestKey);
+  }
   return val;
 }
 
@@ -864,9 +885,25 @@ app.get('/api/admin/pricing', adminAuth, (req, res) => {
 
 // ══════════════════════════════════════════════════════════════════
 //  IMAGE PROXY — CJ/Aliexpress CDNs hotlink-protect; proxy with Referer
+//
+//  LRU-capped because each entry holds a full image Buffer (often
+//  100s of KB). Without this cap the Map grew without bound on the
+//  512MB Render Starter and OOM'd the Node process. 200 entries ≈
+//  ~40MB worst case, leaving plenty of headroom for everything else.
 // ══════════════════════════════════════════════════════════════════
-const IMG_CACHE = new Map();
+const IMG_CACHE = new Map(); // insertion order = LRU order
+const IMG_CACHE_MAX_ENTRIES = 200;
 const IMG_TTL = 24 * 60 * 60 * 1000;
+
+function imgCacheTouch(url, entry) {
+  IMG_CACHE.delete(url);
+  IMG_CACHE.set(url, entry);
+  while (IMG_CACHE.size > IMG_CACHE_MAX_ENTRIES) {
+    const oldest = IMG_CACHE.keys().next().value;
+    if (oldest === undefined) break;
+    IMG_CACHE.delete(oldest);
+  }
+}
 
 app.get('/api/img', async (req, res) => {
   const url = req.query.url;
@@ -876,6 +913,7 @@ app.get('/api/img', async (req, res) => {
   }
   const cached = IMG_CACHE.get(url);
   if (cached && Date.now() - cached.ts < IMG_TTL) {
+    imgCacheTouch(url, cached);
     res.set('Content-Type', cached.type);
     res.set('Cache-Control', 'public, max-age=86400');
     return res.end(cached.buf);
@@ -891,7 +929,7 @@ app.get('/api/img', async (req, res) => {
     });
     const buf = Buffer.from(r.data);
     const type = r.headers['content-type'] || 'image/jpeg';
-    IMG_CACHE.set(url, { ts: Date.now(), buf, type });
+    imgCacheTouch(url, { ts: Date.now(), buf, type });
     res.set('Content-Type', type);
     res.set('Cache-Control', 'public, max-age=86400');
     res.end(buf);

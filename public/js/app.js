@@ -152,10 +152,23 @@ function imgProxy(url) {
 }
 
 // ── Fetch helpers ──
-async function apiGet(path) {
-  const res = await fetch(`${API}${path}`);
-  if (!res.ok) throw new Error(`API ${res.status}: ${(await res.text().catch(() => ''))}`);
-  return res.json();
+// 25s timeout: covers a slow CJ pre-warm but still fails fast enough that
+// the user gets a "Retry" button rather than staring at skeletons forever.
+async function apiGet(path, timeoutMs = 25000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API}${path}`, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`API ${res.status}: ${(await res.text().catch(() => ''))}`);
+    return await res.json();
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error("Server is busy — please try again in a moment");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 async function apiPost(path, body, extraHeaders = {}) {
   const res = await fetch(`${API}${path}`, {
@@ -1331,8 +1344,13 @@ async function renderSearch(query, page = 1, opts = {}) {
       pag.innerHTML = html;
     }
   } catch (err) {
-    document.getElementById('searchGrid').innerHTML =
-      `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Search failed</h3><p class="muted">${esc(err.message)}</p></div>`;
+    document.getElementById('searchGrid').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">⚠️</div>
+        <h3>Couldn't load products</h3>
+        <p class="muted">${esc(err.message)}</p>
+        <button class="btn btn-primary" onclick="location.reload()">Retry</button>
+      </div>`;
   }
 }
 
