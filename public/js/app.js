@@ -476,7 +476,9 @@ window.megaSelect = function(idx) {
 //  any backfill — same TTL as the server-side disk cache so they stay
 //  in sync.
 // ══════════════════════════════════════════════════════════════
-const SHIP_LS_KEY = 'befach_ship_v1';
+// Bumped to v2 when the global markup changed (20% → 50%) so returning
+// visitors don't keep seeing old prices from their localStorage cache.
+const SHIP_LS_KEY = 'befach_ship_v2';
 const SHIP_LS_TTL_MS = 180 * 24 * 60 * 60 * 1000;  // 6 months
 let _shipCache = null;
 function _loadShipCache() {

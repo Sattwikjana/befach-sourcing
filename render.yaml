@@ -24,7 +24,7 @@ services:
       - key: PORT
         value: 3001          # Render sets PORT itself; this is just the fallback
       - key: PROFIT_MARKUP_PERCENT
-        value: "20"
+        value: "50"
       - key: USD_TO_INR
         value: "85"
       - key: STORE_CURRENCY
