@@ -402,7 +402,8 @@ app.get('/api/store/categories', async (req, res) => {
 // shipping from the disk-backed shipping cache.
 app.get('/api/store/products', async (req, res) => {
   try {
-    const { keyWord, page, size, categoryId } = req.query;
+    const { keyWord, page, size, categoryId, strictShippable } = req.query;
+    const wantStrict = strictShippable === '1' || strictShippable === 'true';
     const rawKey = 'productsRaw:' + JSON.stringify({
       keyWord: keyWord || '', page: page || '1', size: size || '20', categoryId: categoryId || '',
     });
@@ -434,18 +435,30 @@ app.get('/api/store/products', async (req, res) => {
     }
 
     // For each product:
-    //   1. Check shipping cache. If cached AND unshippable → drop it entirely.
-    //   2. If cached AND shippable → compute real display price (wholesale + shipping) × (1+markup)
-    //   3. If not cached → show approximate display using flat fallback and flag
-    //      `shippingAccurate: false`. Frontend backfills via /shipping-for/:pid
-    //      and will remove the card if it turns out to be unshippable.
+    //   1. Cached AND unshippable → drop it entirely.
+    //   2. Cached AND shippable     → real display price (wholesale + shipping) × (1+markup).
+    //   3. Not cached                → behaviour depends on strictShippable flag.
+    //
+    //  - strictShippable=1 (search & category pages): drop unverified products
+    //    so the user never sees a card that vanishes 30s later when the
+    //    backfill discovers it can't ship to India. Cleaner UX, smaller
+    //    initial result set on fresh keywords. Fire-and-forget warm runs
+    //    in the background so future visits include them.
+    //  - strictShippable=0 (default, e.g. home page): include unverified
+    //    with approximate price; client backfills + fades out unshippable.
     const priced = [];
+    const unwarmedToWarm = [];
     for (const rawProduct of meta.products) {
       const pid = rawProduct.pid || rawProduct.id || rawProduct.productId || '';
       const wholesaleUsd = parseFloat(rawProduct.sellPrice || rawProduct.nowPrice || 0);
       const hit = peekShippingCache(pid);
 
       if (hit && !hit.available) continue; // known unshippable → hide
+
+      if (!hit) {
+        if (pid) unwarmedToWarm.push(pid);
+        if (wantStrict) continue; // strict mode: don't expose unverified products
+      }
 
       const shippingUsd = hit ? hit.usd : FALLBACK_SHIPPING_USD;
       const displayUsd = computeDisplayUsd(wholesaleUsd, shippingUsd);
@@ -462,11 +475,22 @@ app.get('/api/store/products', async (req, res) => {
       });
     }
 
+    // Fire-and-forget background warming so the next visit to this listing
+    // (or to one of these products) returns from cache. Capped per request
+    // to avoid blowing the daily CJ quota on a single page load.
+    const WARM_PER_REQUEST = 10;
+    for (const pid of unwarmedToWarm.slice(0, WARM_PER_REQUEST)) {
+      getProductShippingUsd(pid, 'low').catch(() => {});
+    }
+
     res.json({
       products: priced,
       total: meta.total,
       page: parseInt(page) || 1,
       totalPages: meta.totalPages,
+      // Frontend uses this to know whether to retry without strict
+      strictShippable: wantStrict,
+      unverifiedCount: unwarmedToWarm.length,
     });
   } catch (err) {
     console.error('[Store Products]', err.message);

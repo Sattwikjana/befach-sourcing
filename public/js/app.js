@@ -1056,10 +1056,27 @@ async function renderSearch(query, page = 1, opts = {}) {
   `;
 
   try {
-    const qs = new URLSearchParams({ page: String(page), size: '20' });
-    if (query) qs.set('keyWord', query);
-    if (opts.categoryId) qs.set('categoryId', opts.categoryId);
-    const res = await apiGet('/api/store/products?' + qs.toString());
+    // Strict mode: server returns ONLY products it has confirmed are shippable
+    // to India. No card-vanishing UX. If the result is sparse on a fresh
+    // keyword (server hasn't warmed those products yet), we retry without
+    // strict so the user isn't stuck on an empty page.
+    const buildQs = (strict) => {
+      const qs = new URLSearchParams({ page: String(page), size: '20' });
+      if (query) qs.set('keyWord', query);
+      if (opts.categoryId) qs.set('categoryId', opts.categoryId);
+      if (strict) qs.set('strictShippable', '1');
+      return qs;
+    };
+
+    let res = await apiGet('/api/store/products?' + buildQs(true).toString());
+    const STRICT_FALLBACK_THRESHOLD = 4;
+    if ((res.products || []).length < STRICT_FALLBACK_THRESHOLD && (res.unverifiedCount || 0) > 0) {
+      // Either truly few results OR we're warming a fresh search — fall back
+      // so the user sees something while the cache fills. Background warming
+      // (kicked off by the strict call above) means a refresh in ~30s will
+      // produce a clean strict result.
+      res = await apiGet('/api/store/products?' + buildQs(false).toString());
+    }
 
     const products = res.products || [];
     const total = res.total || 0;
