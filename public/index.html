@@ -170,6 +170,9 @@
   <!-- Category dropdown portal (populated at runtime) -->
   <div class="cat-dropdown" id="catDropdown" hidden></div>
 
+  <!-- Razorpay Checkout — loaded async so it doesn't block the page;
+       only used on the checkout page when the customer hits "Pay & Place order". -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
   <script src="/js/app.js"></script>
   <script src="/js/app-store.js"></script>
 </body>

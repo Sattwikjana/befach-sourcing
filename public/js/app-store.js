@@ -217,14 +217,13 @@ async function renderCheckout() {
         <section class="checkout-step">
           <h2><span class="step-num">2</span> Payment method</h2>
           <div class="payment-method-card selected">
-            <div class="pm-icon">💵</div>
+            <div class="pm-icon">💳</div>
             <div class="pm-body">
-              <div class="pm-title">Cash on Delivery (COD)</div>
-              <p class="pm-sub">Pay in cash when your order arrives at your door — no advance payment needed.</p>
+              <div class="pm-title">Pay Online (UPI · Cards · Netbanking · Wallets)</div>
+              <p class="pm-sub">Secure payment powered by Razorpay. You'll see a popup to choose UPI, debit/credit card, netbanking or wallet.</p>
             </div>
             <div class="pm-tick">✓</div>
           </div>
-          <p class="muted small" style="margin-top:10px">Online payments (UPI / Cards / Netbanking) are coming soon.</p>
         </section>
       </div>
 
@@ -238,7 +237,7 @@ async function renderCheckout() {
         <div class="summary-row muted"><span>Taxes</span><span>Included</span></div>
         <hr/>
         <div class="summary-row summary-total"><span>Total</span><strong id="sumTotal">${fmtINR(cartSubtotalUsd())}</strong></div>
-        <button class="btn btn-primary btn-lg btn-full" id="placeOrderBtn">Place order</button>
+        <button class="btn btn-primary btn-lg btn-full" id="placeOrderBtn">Pay &amp; Place order</button>
         <p class="muted small" style="text-align:center">By placing this order you agree to our terms.</p>
       </aside>
     </div>
@@ -306,8 +305,13 @@ async function renderCheckout() {
     return { ok: false };
   }
 
-  // Place order — shipping is already included in each item's price
-  // (CJPacket Asia Ordinary), so no method picker and no extra shipping row.
+  // Place order flow:
+  //   1. Validate form
+  //   2. POST /api/store/payment/create-order  → server creates a Razorpay
+  //      order with the server-priced amount; returns ids + key
+  //   3. Open Razorpay's checkout modal with those ids
+  //   4. On success: POST /api/store/orders with the payment ids; server
+  //      verifies signature + amount, saves order, pushes to CJ
   document.getElementById('placeOrderBtn').onclick = async () => {
     if (!form.reportValidity()) return;
     const fd = Object.fromEntries(new FormData(form).entries());
@@ -321,55 +325,107 @@ async function renderCheckout() {
         return;
       }
     }
+    if (typeof window.Razorpay !== 'function') {
+      showToast('Payment system still loading — please wait a few seconds and try again', 4500);
+      return;
+    }
 
     const btn = document.getElementById('placeOrderBtn');
     btn.disabled = true;
-    btn.textContent = 'Placing order…';
+    btn.textContent = 'Starting payment…';
 
+    const itemsPayload = state.cart.map(i => ({ pid: i.pid, vid: i.vid, quantity: i.quantity }));
+    const shippingPayload = {
+      address: fd.address,
+      address2: fd.address2 || '',
+      city: fd.city,
+      province: fd.province,
+      zip: fd.zip,
+      country: countryName(fd.countryCode),
+      countryCode: fd.countryCode,
+    };
+    const consigneeID = (fd.consigneeID || '').trim().toUpperCase();
+
+    let intent;
     try {
-      const res = await apiPost('/api/store/orders', {
-        customer: { name: fd.name, phone: fd.phone, email: fd.email },
-        items: state.cart.map(i => ({ pid: i.pid, vid: i.vid, quantity: i.quantity })),
-        shippingAddress: {
-          address: fd.address,
-          address2: fd.address2 || '',
-          city: fd.city,
-          province: fd.province,
-          zip: fd.zip,
-          country: countryName(fd.countryCode),
-          countryCode: fd.countryCode,
-        },
-        consigneeID: (fd.consigneeID || '').trim().toUpperCase(),
-        // Server overrides logisticName with SHIPPING_METHOD regardless;
-        // we send a placeholder just to be explicit.
-        logisticName: state.config.shippingMethod || 'CJPacket Asia Ordinary',
-      });
-      if (res.success && res.order) {
-        // If signed in, save the address to the user's profile so future
-        // checkouts auto-fill from the server, not just localStorage.
-        if (state.user) {
-          authPatch('/api/auth/me', {
-            phone: fd.phone,
-            address: {
-              address: fd.address,
-              address2: fd.address2 || '',
-              city: fd.city,
-              province: fd.province,
-              zip: fd.zip,
-              countryCode: fd.countryCode,
-            },
-          }).catch(() => {}); // best-effort, don't block checkout
-        }
-        clearCart();
-        navigate(`/order/${res.order.id}`);
-      } else {
-        throw new Error(res.error || 'Order failed');
-      }
+      intent = await apiPost('/api/store/payment/create-order', { items: itemsPayload });
     } catch (err) {
-      showToast('Order failed: ' + err.message, 4500);
+      showToast('Could not start payment: ' + err.message, 4500);
       btn.disabled = false;
-      btn.textContent = 'Place order';
+      btn.textContent = 'Pay & Place order';
+      return;
     }
+
+    btn.textContent = 'Awaiting payment…';
+
+    const rzp = new Razorpay({
+      key: intent.keyId,
+      amount: intent.amount,
+      currency: intent.currency || 'INR',
+      order_id: intent.razorpayOrderId,
+      name: 'BEFACH 4X PRIVATE LIMITED',
+      description: `${itemsPayload.length} item${itemsPayload.length === 1 ? '' : 's'} from Befach`,
+      image: '/img/befach_logo.png',
+      prefill: {
+        name: fd.name,
+        email: fd.email,
+        contact: fd.phone,
+      },
+      theme: { color: '#ea580c' },
+      modal: {
+        ondismiss: () => {
+          btn.disabled = false;
+          btn.textContent = 'Pay & Place order';
+        },
+      },
+      handler: async (rzResp) => {
+        // Razorpay returns { razorpay_payment_id, razorpay_order_id, razorpay_signature }
+        btn.textContent = 'Confirming order…';
+        try {
+          const res = await apiPost('/api/store/orders', {
+            customer: { name: fd.name, phone: fd.phone, email: fd.email },
+            items: itemsPayload,
+            shippingAddress: shippingPayload,
+            consigneeID,
+            logisticName: state.config.shippingMethod || 'CJPacket Asia Ordinary',
+            razorpay_payment_id: rzResp.razorpay_payment_id,
+            razorpay_order_id: rzResp.razorpay_order_id,
+            razorpay_signature: rzResp.razorpay_signature,
+          });
+          if (res.success && res.order) {
+            // Save address to user profile (best-effort)
+            if (state.user) {
+              authPatch('/api/auth/me', {
+                phone: fd.phone,
+                address: { ...shippingPayload },
+              }).catch(() => {});
+            }
+            clearCart();
+            navigate(`/order/${res.order.id}`);
+          } else {
+            throw new Error(res.error || 'Order failed');
+          }
+        } catch (err) {
+          // ⚠️ Money was captured but our backend couldn't create the order.
+          // Show a clear message — admin needs to follow up via Razorpay
+          // payment id (which is in the customer's email confirmation).
+          showToast(
+            `Payment received but order failed: ${err.message}. Reference: ${rzResp.razorpay_payment_id}. Please contact support.`,
+            10000
+          );
+          btn.disabled = false;
+          btn.textContent = 'Pay & Place order';
+        }
+      },
+    });
+
+    rzp.on('payment.failed', (resp) => {
+      showToast('Payment failed: ' + (resp.error?.description || 'unknown'), 5000);
+      btn.disabled = false;
+      btn.textContent = 'Pay & Place order';
+    });
+
+    rzp.open();
   };
 }
 

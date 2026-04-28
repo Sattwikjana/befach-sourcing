@@ -52,6 +52,15 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      # Razorpay — set both in the Render dashboard.
+      # KEY_ID is technically public-ish (the frontend sees it) but treating
+      # it as a secret keeps both keys rotatable in one place.
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
     disk:
       name: befach-data
       mountPath: /opt/render/project/src/server/data

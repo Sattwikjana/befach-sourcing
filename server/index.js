@@ -23,8 +23,23 @@ const pricing = require('./pricingEngine');
 const orders = require('./orderManager');
 const auth = require('./auth');
 
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// ── Razorpay client ──
+// Both keys live in env — never in code or git.
+let razorpay = null;
+if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+  razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+} else {
+  console.warn('[Razorpay] keys not set — payment endpoints will return 503 until they are.');
+}
 
 // ── Production-grade middleware ──
 // Security headers (CSP relaxed because the SPA inlines handlers)
@@ -36,7 +51,13 @@ app.use(helmet({
 app.use(compression());
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
-app.use(express.json({ limit: '1mb' }));
+// Keep the raw bytes alongside the parsed JSON so endpoints that need to
+// verify HMAC signatures (e.g. Razorpay webhooks) can re-hash the exact
+// payload Razorpay signed. Adds < 1ms; we never use rawBody elsewhere.
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, res, buf) => { req.rawBody = buf; },
+}));
 app.use(auth.attachUser);
 // Static assets — long browser cache for images/fonts. CSS/JS use
 // no-cache + ETag so updates are picked up immediately (browser still
@@ -706,10 +727,160 @@ app.post('/api/store/shipping-estimate', async (req, res) => {
   }
 });
 
-// Place an order
+// ══════════════════════════════════════════════════════════════════
+//  RAZORPAY — payment intent + signature verification + webhook
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * Re-price a cart server-side (we never trust the client total).
+ * Returns { totalPaise, totalUsd, items: [{...item, displayPrice}] } or
+ * throws on validation errors so the caller can short-circuit.
+ */
+async function repriceCart(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    const e = new Error('items required'); e.status = 400; throw e;
+  }
+  let totalUsd = 0;
+  const priced = [];
+  for (const item of items) {
+    if (!item.pid || !item.vid || !item.quantity) {
+      const e = new Error('each item needs pid, vid, quantity'); e.status = 400; throw e;
+    }
+    if (isBlocked(item.pid)) {
+      const e = new Error('Item not available'); e.status = 400; e.code = 'BLOCKED'; throw e;
+    }
+    const raw = await getProductRaw(item.pid, 'high');
+    if (!raw) { const e = new Error(`Unknown product ${item.pid}`); e.status = 400; throw e; }
+    const variant = (raw.variants || []).find(v => v.vid === item.vid);
+    if (!variant) { const e = new Error(`Unknown variant ${item.vid}`); e.status = 400; throw e; }
+
+    const shipping = await getProductShippingUsd(item.pid, 'high', ORDER_FRESH_MAX_MS);
+    if (!shipping.available) {
+      const e = new Error(`"${raw.productNameEn}" is not available for shipping to India`);
+      e.status = 400; e.code = 'UNSHIPPABLE'; e.pid = item.pid; throw e;
+    }
+    const wholesale = parseFloat(variant.variantSellPrice || 0);
+    const displayUsd = computeDisplayUsd(wholesale, shipping.usd);
+    const lineUsd = displayUsd * parseInt(item.quantity);
+    totalUsd += lineUsd;
+
+    priced.push({
+      pid: item.pid,
+      vid: item.vid,
+      quantity: parseInt(item.quantity),
+      productName: raw.productNameEn || '',
+      variantName: variant.variantNameEn || variant.variantKey || '',
+      cjPrice: (wholesale * (parseFloat(process.env.CJ_FEE_FACTOR) || 1)).toFixed(2),
+      apiWholesale: wholesale.toFixed(2),
+      retailPrice: displayUsd.toFixed(2),
+      shippingPerUnit: shipping.usd.toFixed(2),
+      shippingMethod: shipping.method,
+      displayPrice: displayUsd.toFixed(2),
+    });
+  }
+  // Customer pays in INR. We store paise (integer) so we never lose
+  // half-rupees to floating point.
+  const usdToInr = parseFloat(process.env.USD_TO_INR) || 85;
+  const totalInr = totalUsd * usdToInr;
+  const totalPaise = Math.round(totalInr * 100);
+  return { totalPaise, totalUsd, totalInr, priced };
+}
+
+/**
+ * Create a Razorpay Order (the customer-facing payment intent).
+ * The frontend calls this to start a payment, then opens Razorpay's
+ * checkout modal with the returned ids. Amount is computed server-side.
+ */
+app.post('/api/store/payment/create-order', async (req, res) => {
+  if (!razorpay) {
+    return res.status(503).json({ error: 'Online payment is not configured' });
+  }
+  try {
+    const { items } = req.body || {};
+    const { totalPaise, totalInr, priced } = await repriceCart(items);
+    if (totalPaise < 100) {
+      return res.status(400).json({ error: 'Minimum order amount is ₹1' });
+    }
+    const rzOrder = await razorpay.orders.create({
+      amount: totalPaise,
+      currency: 'INR',
+      receipt: 'BF-' + Date.now().toString(36).toUpperCase(),
+      notes: {
+        itemCount: String(priced.length),
+        firstProduct: priced[0]?.productName?.slice(0, 60) || '',
+      },
+    });
+    res.json({
+      razorpayOrderId: rzOrder.id,
+      amount: rzOrder.amount,        // paise
+      amountInr: totalInr.toFixed(2),
+      currency: rzOrder.currency,
+      keyId: process.env.RAZORPAY_KEY_ID,
+      // Echo the priced items so the frontend can show the same total
+      itemsCount: priced.length,
+    });
+  } catch (err) {
+    console.error('[Razorpay create-order]', err.message, err.code || '');
+    res.status(err.status || 500).json({
+      error: err.message || 'Failed to create payment',
+      code: err.code,
+      pid: err.pid,
+    });
+  }
+});
+
+/**
+ * Verify Razorpay's webhook-style signature handshake.
+ * Per Razorpay docs: HMAC-SHA256( razorpay_order_id + "|" + razorpay_payment_id, key_secret )
+ */
+function verifyRazorpaySignature({ razorpay_order_id, razorpay_payment_id, razorpay_signature }) {
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) return false;
+  const expected = crypto
+    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '')
+    .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+    .digest('hex');
+  // timingSafeEqual requires equal-length buffers
+  const a = Buffer.from(expected);
+  const b = Buffer.from(razorpay_signature);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/**
+ * Razorpay webhook receiver — fires for payment.captured, payment.failed,
+ * refund.created, etc. We mostly use this as a safety net: even if the
+ * customer closed their browser before our /orders POST landed, this
+ * webhook catches the captured payment so we can reconcile later.
+ *
+ * NOTE: needs the RAW request body to verify the signature. We mount this
+ * with express.raw() above the global json parser via the wrapper below.
+ */
+app.post('/api/webhooks/razorpay', (req, res) => {
+  try {
+    const sig = req.headers['x-razorpay-signature'];
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (!sig || !secret || !req.rawBody) return res.status(200).end(); // accept silently if not configured
+    const expected = crypto.createHmac('sha256', secret).update(req.rawBody).digest('hex');
+    if (sig !== expected) return res.status(401).end();
+    const event = req.body || {};
+    console.log('[Razorpay webhook]', event.event, event.payload?.payment?.entity?.id || '');
+    // For now we just log. Future: persist payment record so /orders can
+    // reconcile without depending on the client's POST.
+    res.status(200).end();
+  } catch (err) {
+    console.warn('[Razorpay webhook] error:', err.message);
+    res.status(200).end(); // always 2xx so Razorpay doesn't retry forever
+  }
+});
+
+// Place an order. Online payment only — the customer must have completed
+// a Razorpay payment first; we verify the signature server-side before
+// pushing anything to CJ.
 app.post('/api/store/orders', async (req, res) => {
   try {
-    const { customer, items, shippingAddress, logisticName, consigneeID } = req.body;
+    const {
+      customer, items, shippingAddress, logisticName, consigneeID,
+      razorpay_payment_id, razorpay_order_id, razorpay_signature,
+    } = req.body;
     if (!customer || !customer.name || !customer.phone) {
       return res.status(400).json({ error: 'customer.name and customer.phone required' });
     }
@@ -726,6 +897,36 @@ app.post('/api/store/orders', async (req, res) => {
       return res.status(400).json({
         error: 'Aadhaar or PAN is required for shipping to India (customs clearance)',
       });
+    }
+
+    // ── Payment gate: must have a verified Razorpay payment ─────────
+    if (!razorpay) {
+      return res.status(503).json({ error: 'Online payment is not configured on the server' });
+    }
+    if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+      return res.status(400).json({ error: 'Payment is required before placing an order' });
+    }
+    if (!verifyRazorpaySignature({ razorpay_order_id, razorpay_payment_id, razorpay_signature })) {
+      return res.status(400).json({ error: 'Payment signature mismatch — please retry payment' });
+    }
+    // Idempotency — if we've already created an order for this payment id,
+    // return the existing one instead of double-booking with CJ.
+    const existing = orders.getAllOrders({ page: 1, pageSize: 5000 }).orders
+      .find(o => o.razorpay_payment_id === razorpay_payment_id);
+    if (existing) {
+      return res.json({ success: true, alreadyExisted: true, order: { id: existing.id, status: existing.status } });
+    }
+    // Re-fetch the payment from Razorpay so we know it's actually captured
+    // and the amount matches what we'd charge for this cart. Without this,
+    // a tampered client could re-use a tiny payment for a giant cart.
+    let paymentRecord;
+    try {
+      paymentRecord = await razorpay.payments.fetch(razorpay_payment_id);
+    } catch (e) {
+      return res.status(400).json({ error: 'Could not verify payment with Razorpay: ' + e.message });
+    }
+    if (paymentRecord.status !== 'captured' && paymentRecord.status !== 'authorized') {
+      return res.status(400).json({ error: `Payment not captured (status: ${paymentRecord.status})` });
     }
 
     // Re-price server-side — never trust the cart prices from the client.
@@ -787,12 +988,35 @@ app.post('/api/store/orders', async (req, res) => {
       ? 'CJPacket Asia Ordinary'
       : (methodCounts['CJPacket Asia Sensitive'] > 0 ? 'CJPacket Asia Sensitive' : SHIPPING_METHODS_PRIORITY[0]);
 
+    // Confirm Razorpay's captured amount actually matches what we'd charge
+    // for this priced cart. Prevents a tampered client from paying ₹1 and
+    // claiming a ₹10,000 order. We allow a small tolerance for rounding.
+    const usdToInr = parseFloat(process.env.USD_TO_INR) || 85;
+    const expectedTotalPaise = Math.round(
+      pricedItems.reduce((s, i) => s + parseFloat(i.displayPrice) * i.quantity, 0) * usdToInr * 100
+    );
+    const tolerancePaise = 200; // ₹2 wiggle room for INR rounding
+    if (Math.abs(paymentRecord.amount - expectedTotalPaise) > tolerancePaise) {
+      return res.status(400).json({
+        error: 'Payment amount does not match cart total. Please refresh and try again.',
+        paid: paymentRecord.amount,
+        expected: expectedTotalPaise,
+      });
+    }
+
     const order = await orders.createOrder({
       customer,
       items: pricedItems,
       shippingAddress,
       consigneeID,
       logisticName: chosenMethod,
+      // Link the verified Razorpay payment so it shows up in admin and
+      // protects against duplicate-order replays via the idempotency check.
+      razorpay_payment_id,
+      razorpay_order_id,
+      paymentMethod: 'razorpay',
+      paymentStatus: paymentRecord.status,
+      paymentAmountPaise: paymentRecord.amount,
       // If the customer was signed in when placing the order, link it to
       // their account so it appears in their order history.
       userId: req.user?.id || null,

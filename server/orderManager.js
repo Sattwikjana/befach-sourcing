@@ -73,7 +73,10 @@ function generateOrderId() {
  * shippingAddress: { address, address2, city, province, zip, country, countryCode }
  */
 async function createOrder(orderData) {
-  const { customer, items, shippingAddress, logisticName, userId, consigneeID } = orderData;
+  const {
+    customer, items, shippingAddress, logisticName, userId, consigneeID,
+    razorpay_payment_id, razorpay_order_id, paymentMethod, paymentStatus, paymentAmountPaise,
+  } = orderData;
 
   // Totals:
   //   productTotal    = what the customer paid  (sum of displayPrice × qty)
@@ -151,6 +154,11 @@ async function createOrder(orderData) {
     items,
     shippingAddress,
     consigneeID: consigneeID || null,
+    paymentMethod: paymentMethod || null,
+    paymentStatus: paymentStatus || null,
+    paymentAmountPaise: paymentAmountPaise || null,
+    razorpay_payment_id: razorpay_payment_id || null,
+    razorpay_order_id: razorpay_order_id || null,
     logisticName: logisticName || null,
     productTotal: productTotal.toFixed(2),
     cjTotal: cjTotal.toFixed(2),
