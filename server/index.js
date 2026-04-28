@@ -335,6 +335,13 @@ app.get('/api/health', async (req, res) => {
     markup: pricing.getMarkupPercent() + '%',
     shipFrom: DEFAULT_SHIP_FROM,
     shipTo: DEFAULT_SHIP_TO,
+    // Surface payment configuration so we can diagnose "online payment not
+    // configured" without exposing the secret. "test" / "live" / "missing".
+    razorpay: !razorpay
+      ? 'missing'
+      : (process.env.RAZORPAY_KEY_ID || '').startsWith('rzp_live_')
+        ? 'live'
+        : 'test',
   });
 });
 
