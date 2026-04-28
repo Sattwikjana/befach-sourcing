@@ -1027,8 +1027,4 @@ window.renderAccount = renderAccount;
   setInterval(checkHealth, 30000);
   loadCategories();
   handleRoute();
-  // Live search suggestions for the header search box (every page except home)
-  if (typeof setupSearchSuggest === 'function' && headerSearchInput) {
-    setupSearchSuggest(headerSearchInput);
-  }
 })();
