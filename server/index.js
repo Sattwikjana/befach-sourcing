@@ -95,6 +95,30 @@ function cacheSet(key, val) {
   return val;
 }
 
+// ── Manual product blocklist (admin-curated, disk-backed) ──
+// Lets the owner hide specific products that, despite CJ's freight API
+// saying they're shippable, shouldn't be sold (e.g. observed quality
+// issues, supplier reliability, or genuinely unshippable products that
+// the freight API quotes anyway). Both list and detail endpoints honour it.
+const BLOCKED_PRODUCTS_FILE = path.join(__dirname, 'data', 'blocked-products.json');
+let blockedProducts = {};
+try {
+  if (fs.existsSync(BLOCKED_PRODUCTS_FILE)) {
+    blockedProducts = JSON.parse(fs.readFileSync(BLOCKED_PRODUCTS_FILE, 'utf8'));
+  }
+} catch (e) {
+  console.warn('[blocked products] failed to load:', e.message);
+  blockedProducts = {};
+}
+function saveBlockedProducts() {
+  try {
+    const dir = path.dirname(BLOCKED_PRODUCTS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(BLOCKED_PRODUCTS_FILE, JSON.stringify(blockedProducts, null, 2));
+  } catch (e) { console.warn('[blocked products] save failed:', e.message); }
+}
+function isBlocked(pid) { return !!blockedProducts[pid]; }
+
 // ── Persistent per-product shipping cache (disk-backed) ──
 // One entry per product id; survives server restarts so list pages are
 // accurate the moment the server comes up, and the freight API only has
@@ -451,6 +475,10 @@ app.get('/api/store/products', async (req, res) => {
     for (const rawProduct of meta.products) {
       const pid = rawProduct.pid || rawProduct.id || rawProduct.productId || '';
       const wholesaleUsd = parseFloat(rawProduct.sellPrice || rawProduct.nowPrice || 0);
+
+      // Admin-curated blocklist always wins
+      if (isBlocked(pid)) continue;
+
       const hit = peekShippingCache(pid);
 
       if (hit && !hit.available) continue; // known unshippable → hide
@@ -543,6 +571,9 @@ app.get('/api/store/shipping-for/:pid', async (req, res) => {
 app.get('/api/store/products/:pid', async (req, res) => {
   try {
     const pid = req.params.pid;
+    if (isBlocked(pid)) {
+      return res.status(404).json({ error: 'Product not available', code: 'BLOCKED' });
+    }
     // High priority so user-clicks jump ahead of background backfill
     const raw = await getProductRaw(pid, 'high');
     if (!raw) return res.status(404).json({ error: 'Product not found' });
@@ -704,6 +735,13 @@ app.post('/api/store/orders', async (req, res) => {
     for (const item of items) {
       if (!item.pid || !item.vid || !item.quantity) {
         return res.status(400).json({ error: 'each item needs pid, vid, quantity' });
+      }
+      if (isBlocked(item.pid)) {
+        return res.status(400).json({
+          error: 'One of the items in your cart is no longer available. Please remove it and try again.',
+          code: 'BLOCKED',
+          pid: item.pid,
+        });
       }
       const raw = await getProductRaw(item.pid, 'high');
       if (!raw) return res.status(400).json({ error: `Unknown product ${item.pid}` });
@@ -912,6 +950,47 @@ app.delete('/api/admin/orders/:id', adminAuth, (req, res) => {
   const ok = orders.deleteOrder(req.params.id);
   if (!ok) return res.status(404).json({ error: 'Order not found' });
   res.json({ deleted: true, id: req.params.id });
+});
+
+// ── Product blocklist (manual hide) ────────────────────────────────
+// List all blocked products
+app.get('/api/admin/products/blocked', adminAuth, (req, res) => {
+  res.json({ blocked: blockedProducts, count: Object.keys(blockedProducts).length });
+});
+
+// Block a product — hides it from list, detail, and checkout endpoints
+app.post('/api/admin/products/:pid/block', adminAuth, (req, res) => {
+  const pid = req.params.pid;
+  blockedProducts[pid] = {
+    reason: req.body?.reason || 'manually blocked',
+    blockedAt: new Date().toISOString(),
+  };
+  saveBlockedProducts();
+  res.json({ ok: true, pid, blocked: blockedProducts[pid] });
+});
+
+// Unblock a product
+app.delete('/api/admin/products/:pid/block', adminAuth, (req, res) => {
+  const pid = req.params.pid;
+  if (!blockedProducts[pid]) return res.status(404).json({ error: 'Not blocked' });
+  delete blockedProducts[pid];
+  saveBlockedProducts();
+  res.json({ ok: true, pid, unblocked: true });
+});
+
+// Force-recheck shipping for a product (clears cache, re-queries CJ).
+// Useful when you suspect the cached availability is wrong/stale.
+app.post('/api/admin/products/:pid/recheck-shipping', adminAuth, async (req, res) => {
+  const pid = req.params.pid;
+  const before = shippingCache[pid] || null;
+  delete shippingCache[pid];
+  saveShippingCache();
+  try {
+    const after = await getProductShippingUsd(pid, 'high');
+    res.json({ pid, before, after });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/admin/balance', adminAuth, async (req, res) => {
