@@ -385,6 +385,42 @@ headerSearchForm?.addEventListener('submit', (e) => {
 // ══════════════════════════════════════════════════════════════
 //  CATEGORIES (header strip + dropdown)
 // ══════════════════════════════════════════════════════════════
+// Top-level CJ categories get a real product photo. Match by ALL keywords
+// being present (case-insensitive substring) — first rule wins, so list
+// the more-specific rules above the catch-alls.
+const CAT_IMAGE_RULES = [
+  [['home', 'improvement'],     '/img/cat-home-improvement.png'],
+  [['home'],                    '/img/cat-home-garden.png'],
+  [['health'],                  '/img/cat-health-beauty.png'],
+  [['beauty'],                  '/img/cat-health-beauty.png'],
+  [['jewelr'],                  '/img/cat-jewelry-watches.png'],
+  [['watch'],                   '/img/cat-jewelry-watches.png'],
+  [['women'],                   '/img/cat-women-clothing.png'],
+  [['men'],                     '/img/cat-men-clothing.png'],
+  [['pet'],                     '/img/cat-pet-supplies.png'],
+  [['bag'],                     '/img/cat-bags-shoes.png'],
+  [['shoe'],                    '/img/cat-bags-shoes.png'],
+  [['toy'],                     '/img/cat-toys-kids.png'],
+  [['kid'],                     '/img/cat-toys-kids.png'],
+  [['baby'],                    '/img/cat-toys-kids.png'],
+  [['sport'],                   '/img/cat-sports-outdoors.png'],
+  [['outdoor'],                 '/img/cat-sports-outdoors.png'],
+  [['consumer', 'electronic'],  '/img/cat-electronics.png'],
+  [['electronic'],              '/img/cat-electronics.png'],
+  [['auto'],                    '/img/cat-automobiles.png'],
+  [['motorcycle'],              '/img/cat-automobiles.png'],
+  [['phone'],                   '/img/cat-phones-accessories.png'],
+  [['computer'],                '/img/cat-computers-office.png'],
+  [['office'],                  '/img/cat-computers-office.png'],
+];
+function catImage(name) {
+  if (!name) return null;
+  const lower = name.toLowerCase();
+  for (const [keywords, src] of CAT_IMAGE_RULES) {
+    if (keywords.every(k => lower.includes(k))) return src;
+  }
+  return null;
+}
 const CAT_ICONS = {
   Computer: '💻', Phone: '📱', Electronic: '🔌', Home: '🏠', Garden: '🌿',
   Toy: '🧸', Sport: '⚽', Beauty: '💄', Health: '💊', Cloth: '👕',
@@ -394,6 +430,8 @@ const CAT_ICONS = {
   Book: '📚', Bed: '🛏️', Bath: '🛁', Travel: '🧳',
 };
 function catIcon(name) {
+  const img = catImage(name);
+  if (img) return `<img src="${img}" alt="" class="cat-img" loading="lazy"/>`;
   if (!name) return '📦';
   for (const [k, v] of Object.entries(CAT_ICONS)) {
     if (name.toLowerCase().includes(k.toLowerCase())) return v;

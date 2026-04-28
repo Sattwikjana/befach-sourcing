@@ -688,7 +688,36 @@ main {
   font-size: 16px;
   margin-bottom: 10px;
 }
-.cat-block-icon { font-size: 26px; }
+.cat-block-icon {
+  font-size: 26px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+/* When catIcon() returns a product photo (top-level categories), fill the
+   parent circle and clip. The container's gray hover background still
+   fires on the 1-2px ring around the rounded corners. */
+.sidebar-cat-icon img.cat-img,
+.drawer-cat-icon img.cat-img,
+.mega-cat-icon img.cat-img,
+.cat-block-icon img.cat-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+.cat-dropdown-item img.cat-img {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
+}
 .cat-block-subs { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .cat-block-subs a { color: var(--text-secondary); padding: 2px 0; }
 .cat-block-subs a:hover { color: var(--brand); }
