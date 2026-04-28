@@ -861,17 +861,33 @@ app.get('/api/admin/orders/:id', adminAuth, async (req, res) => {
 // to a transient issue (rate limit, intermittent CJ error) — saves you
 // from having to make a fresh customer order for every test.
 //
-// Body (optional): { consigneeID, phone } — pass these to fix orders that
-// were placed before consigneeID was a checkout field, or to correct a
-// bad phone number without recreating the order.
+// Body (optional):
+//   { consigneeID, phone, dryRun }
+// - dryRun:true  → returns the exact payload we'd send to CJ, doesn't call.
+//                  Great for verifying phone/consigneeID normalization
+//                  without actually creating a CJ order.
+// - consigneeID, phone → pass these to fix orders that were placed
+//                        before those checkout fields existed.
 app.post('/api/admin/orders/:id/retry-cj', adminAuth, async (req, res) => {
   try {
-    const { consigneeID, phone } = req.body || {};
+    const { consigneeID, phone, dryRun } = req.body || {};
+    if (dryRun) {
+      const payload = orders.previewCjPayload(req.params.id, { consigneeID, phone });
+      return res.json({ dryRun: true, payload });
+    }
     const result = await orders.retryCjPush(req.params.id, { consigneeID, phone });
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+// Delete a local order. Doesn't touch CJ — only for cleaning up test
+// orders that never made it to CJ. Returns 404 if no such order.
+app.delete('/api/admin/orders/:id', adminAuth, (req, res) => {
+  const ok = orders.deleteOrder(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'Order not found' });
+  res.json({ deleted: true, id: req.params.id });
 });
 
 app.get('/api/admin/balance', adminAuth, async (req, res) => {

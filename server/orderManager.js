@@ -207,6 +207,52 @@ function updateOrderStatus(orderId, status, extra = {}) {
 }
 
 /**
+ * Delete a local order. Doesn't touch CJ — only use for cleaning up test
+ * orders that never made it to CJ. If you need to cancel a CJ_CREATED
+ * order, do that in the CJ dashboard first.
+ */
+function deleteOrder(orderId) {
+  const orders = loadOrders();
+  const idx = orders.findIndex(o => o.id === orderId);
+  if (idx === -1) return false;
+  orders.splice(idx, 1);
+  saveOrders(orders);
+  return true;
+}
+
+/**
+ * Build the exact payload we'd send to CJ for a given local order, without
+ * actually calling the API. Lets you verify phone normalization, consigneeID
+ * handling, etc. before placing a real test order.
+ */
+function previewCjPayload(orderId, overrides = {}) {
+  const orders = loadOrders();
+  const order = orders.find(o => o.id === orderId);
+  if (!order) throw new Error('Order not found');
+  const consigneeID = overrides.consigneeID ?? order.consigneeID ?? '';
+  const phone = overrides.phone ?? order.customer.phone ?? '';
+  const ccode = order.shippingAddress.countryCode || 'IN';
+  return {
+    orderNumber: order.id,
+    shippingZip: order.shippingAddress.zip || '',
+    shippingCountry: order.shippingAddress.country || '',
+    shippingCountryCode: ccode,
+    shippingProvince: order.shippingAddress.province || '',
+    shippingCity: order.shippingAddress.city || '',
+    shippingPhone: normalizePhone(phone, ccode),
+    shippingCustomerName: order.customer.name || '',
+    shippingAddress: order.shippingAddress.address || '',
+    shippingAddress2: order.shippingAddress.address2 || '',
+    email: order.customer.email || '',
+    fromCountryCode: process.env.DEFAULT_SHIP_FROM || 'CN',
+    logisticName: order.logisticName || '',
+    payType: 1,
+    consigneeID,
+    products: order.items.map(item => ({ vid: item.vid, quantity: item.quantity })),
+  };
+}
+
+/**
  * Retry pushing a PENDING order to CJ. Useful when the first push failed
  * due to a transient issue (rate limit, intermittent CJ error) and we want
  * to try again without making the customer place a new order.
@@ -320,5 +366,7 @@ module.exports = {
   getAllOrders,
   updateOrderStatus,
   retryCjPush,
+  previewCjPayload,
+  deleteOrder,
   getDashboardStats,
 };
