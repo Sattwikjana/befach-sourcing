@@ -1769,6 +1769,81 @@ main {
   letter-spacing: 0.7px;
 }
 .footer-about { font-size: 13.5px; line-height: 1.6; color: #94a3b8; }
+
+/* Befach International footer column — registered office, GSTIN, IEC, CIN */
+.footer-company .footer-line {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #94a3b8;
+  margin: 0 0 10px;
+}
+.footer-company .footer-line strong {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+.footer-company a {
+  color: #94a3b8;
+  text-decoration: none;
+}
+.footer-company a:hover { color: #fff; }
+
+/* Hero byline — small line under the trust strip mentioning the
+   parent company. Helps establish legitimacy at first glance. */
+.hero-byline {
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--text-muted);
+  letter-spacing: 0.1px;
+}
+.hero-byline strong { color: var(--text); font-weight: 600; }
+
+/* Legal & Compliance page */
+.legal-page {
+  max-width: 820px;
+  margin: 0 auto;
+  padding-bottom: 60px;
+}
+.legal-section { margin: 28px 0; }
+.legal-section h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--text);
+}
+.legal-section p {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.legal-table th,
+.legal-table td {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 14px;
+  border-bottom: 1px solid #f1f1f3;
+}
+.legal-table tr:last-child th,
+.legal-table tr:last-child td { border-bottom: none; }
+.legal-table th {
+  width: 38%;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: #fafafa;
+}
+.legal-table td { color: var(--text); }
+.legal-footer-note {
+  text-align: center;
+  font-size: 12px;
+  margin-top: 28px;
+}
 .footer-bottom {
   max-width: var(--container);
   margin: 0 auto;

@@ -394,6 +394,63 @@ function renderTrack() {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  LEGAL / COMPANY DETAILS
+//  Public page that exposes company registration, GSTIN, IEC, CIN
+//  and contact info. Surfaced in the footer; helps establish
+//  legitimacy with payment processors and CJ verification.
+// ══════════════════════════════════════════════════════════════
+function renderLegal() {
+  const c = window.COMPANY_INFO || {};
+  app.innerHTML = `
+    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Legal &amp; Compliance</span></div>
+    <h1 class="page-title">Legal &amp; Compliance</h1>
+
+    <div class="legal-page">
+      <section class="legal-section">
+        <h2>About ${esc(c.legalName || 'Befach International')}</h2>
+        <p>${esc(c.legalName || 'Befach International')} operates the ${esc(c.brandName || 'Befach')} Global Store, a cross-border e-commerce platform that sources products from verified manufacturers and ships worldwide. We are an authorised CJ Dropshipping partner (User ID: <strong>${esc(c.cjUserId || '—')}</strong>).</p>
+      </section>
+
+      <section class="legal-section">
+        <h2>Company details</h2>
+        <table class="legal-table">
+          <tbody>
+            <tr><th>Legal name</th><td>${esc(c.legalName || '—')}</td></tr>
+            <tr><th>Brand name</th><td>${esc(c.brandName || '—')}</td></tr>
+            <tr><th>Registered office</th><td>${esc(c.registeredAddress || '—')}</td></tr>
+            <tr><th>GSTIN</th><td>${esc(c.gstin || '—')}</td></tr>
+            <tr><th>Import &amp; Export Code (IEC)</th><td>${esc(c.iec || '—')}</td></tr>
+            <tr><th>Corporate Identification Number (CIN)</th><td>${esc(c.cin || '—')}</td></tr>
+            <tr><th>Founded</th><td>${esc(c.founded || '—')}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="legal-section">
+        <h2>Contact</h2>
+        <p>
+          📧 <a href="mailto:${esc(c.email || '')}">${esc(c.email || '')}</a><br/>
+          📞 <a href="tel:${esc((c.phone || '').replace(/\s+/g, ''))}">${esc(c.phone || '')}</a><br/>
+          🌐 <a href="${esc(c.website || '#')}" target="_blank" rel="noopener">${esc(c.website || '')}</a>
+        </p>
+      </section>
+
+      <section class="legal-section">
+        <h2>Shipping &amp; supplier policy</h2>
+        <p>Products listed on this store are sourced from CJ Dropshipping's verified supplier network. Orders placed on ${esc(c.brandName || 'Befach')} are forwarded to CJ for fulfillment via their official Store Orders API (<code>/shopping/order/createOrderV2</code>). We are responsible for customer service, payments, and warranty handling on the storefront side; CJ handles supplier coordination, packaging and international logistics.</p>
+      </section>
+
+      <section class="legal-section">
+        <h2>Returns &amp; refunds</h2>
+        <p>For shipping times, return windows and refund process, please see our <a href="#/faq">Shipping &amp; FAQ</a>.</p>
+      </section>
+
+      <p class="legal-footer-note muted">Last updated: ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════
 //  FAQ / SHIPPING & RETURNS
 // ══════════════════════════════════════════════════════════════
 function renderFaq() {
@@ -845,6 +902,7 @@ window.renderOrderDetail = renderOrderDetail;
 window.renderTrack = renderTrack;
 window.renderAdmin = renderAdmin;
 window.renderFaq = renderFaq;
+window.renderLegal = renderLegal;
 window.renderLogin = renderLogin;
 window.renderRegister = renderRegister;
 window.renderAccount = renderAccount;

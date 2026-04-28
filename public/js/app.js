@@ -21,6 +21,28 @@
 //  CORE HELPERS
 // ══════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════
+//  COMPANY INFO — single source of truth.
+//  Edit this block to update the footer, the /#/legal page, and the
+//  hero byline all at once. Values marked TODO need real data before
+//  going live; CJ verification will check these.
+// ══════════════════════════════════════════════════════════════
+const COMPANY_INFO = {
+  legalName: 'Befach International',
+  brandName: 'Befach',
+  email: 'support@befach.com',
+  phone: '+91 80000 00000',                                   // TODO: real number
+  website: 'https://www.befach.com',
+  founded: '2024',
+  registeredAddress: 'Your registered office address, City, State — PIN, India',  // TODO
+  gstin: 'XXXXXXXXXXXXXXX',                                   // TODO
+  iec: 'XXXXXXXXXX',                                          // TODO
+  cin: 'UXXXXXXXXXXXXXXXXXX',                                 // TODO (or PAN if proprietorship)
+  cjUserId: 'CJ5344586',
+};
+// Expose so the rest of the app (and inline boot script) can read it
+window.COMPANY_INFO = COMPANY_INFO;
+
 const API = '';
 const app = document.getElementById('app');
 const toast = document.getElementById('toast');
@@ -90,6 +112,26 @@ window.populateDrawerCategories = populateDrawerCategories;
 const cartCountEl = document.getElementById('cartCount');
 
 document.getElementById('footerYear').textContent = new Date().getFullYear();
+
+// Populate the footer's "Befach International" column from COMPANY_INFO
+// (single source of truth, edit at the top of app.js).
+(function populateFooterCompany() {
+  const el = document.getElementById('footerCompany');
+  if (!el) return;
+  const c = COMPANY_INFO;
+  el.innerHTML = `
+    <h4>${c.legalName}</h4>
+    <p class="footer-line"><strong>Registered Office</strong><br/>${c.registeredAddress}</p>
+    <p class="footer-line"><strong>GSTIN:</strong> ${c.gstin}</p>
+    <p class="footer-line"><strong>IEC:</strong> ${c.iec}</p>
+    <p class="footer-line"><strong>CIN:</strong> ${c.cin}</p>
+    <p class="footer-line">
+      <a href="mailto:${c.email}">${c.email}</a><br/>
+      <a href="tel:${c.phone.replace(/\s+/g,'')}">${c.phone}</a>
+    </p>
+    <p class="footer-line"><a href="#/legal">Legal &amp; Compliance →</a></p>
+  `;
+})();
 
 // ── State ──
 const state = {
@@ -321,6 +363,7 @@ function handleRoute() {
   if (path === '/track') return renderTrack();
   if (path === '/admin') return renderAdmin();
   if (path === '/faq') return renderFaq();
+  if (path === '/legal') return renderLegal();
   if (path === '/login') return renderLogin();
   if (path === '/register') return renderRegister();
   if (path === '/account') return renderAccount();
@@ -967,6 +1010,7 @@ async function renderHome() {
                 <span>🔄 Easy returns</span>
                 <span>🔒 Secure checkout</span>
               </div>
+              <p class="hero-byline">A <strong>${esc(COMPANY_INFO.legalName)}</strong> venture · GSTIN &amp; IEC compliant · Authorised CJ Dropshipping partner.</p>
             </div>
           </div>
         </section>
