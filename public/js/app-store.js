@@ -365,7 +365,7 @@ async function renderCheckout() {
       order_id: intent.razorpayOrderId,
       name: 'BEFACH 4X PRIVATE LIMITED',
       description: `${itemsPayload.length} item${itemsPayload.length === 1 ? '' : 's'} from Befach`,
-      image: `${location.origin}/img/befach_logo.png`,
+      image: `${location.origin}/img/befach_logo_256.png`,
       prefill: {
         name: fd.name,
         email: fd.email,
