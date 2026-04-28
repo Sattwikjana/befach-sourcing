@@ -464,7 +464,6 @@ function renderLegal() {
             <tr><th>Registered office</th><td>${esc(c.registeredAddress || '—')}</td></tr>
             <tr><th>GSTIN</th><td>${esc(c.gstin || '—')}</td></tr>
             <tr><th>Import &amp; Export Code (IEC)</th><td>${esc(c.iec || '—')}</td></tr>
-            <tr><th>Corporate Identification Number (CIN)</th><td>${esc(c.cin || '—')}</td></tr>
             <tr><th>Founded</th><td>${esc(c.founded || '—')}</td></tr>
           </tbody>
         </table>

@@ -24,20 +24,22 @@
 // ══════════════════════════════════════════════════════════════
 //  COMPANY INFO — single source of truth.
 //  Edit this block to update the footer, the /#/legal page, and the
-//  hero byline all at once. Values marked TODO need real data before
-//  going live; CJ verification will check these.
+//  hero byline all at once.
 // ══════════════════════════════════════════════════════════════
 const COMPANY_INFO = {
-  legalName: 'Befach International',
+  legalName: 'BEFACH 4X PRIVATE LIMITED',
   brandName: 'Befach',
-  email: 'support@befach.com',
-  phone: '+91 80000 00000',                                   // TODO: real number
+  email: 'sales@befach.com',
+  phone: '+91 70570 53160',
   website: 'https://www.befach.com',
-  founded: '2024',
-  registeredAddress: 'Your registered office address, City, State — PIN, India',  // TODO
-  gstin: 'XXXXXXXXXXXXXXX',                                   // TODO
-  iec: 'XXXXXXXXXX',                                          // TODO
-  cin: 'UXXXXXXXXXXXXXXXXXX',                                 // TODO (or PAN if proprietorship)
+  founded: '2018',
+  registeredAddress: '3rd floor, Luxor Park, Banjara Hills Road No. 3, opp. LV Prasad Bus Stand, BNR Colony, Venkat Nagar, Banjara Hills, Hyderabad, Telangana 500034, India',
+  gstin: '36AAHCB9338E1ZK',
+  iec: 'AAHCB9338E',
+  // CIN is stored for CJ verification / legal records only — NOT
+  // rendered on the public site by intent. Keep this value here so
+  // the email reply to CJ has it ready.
+  cin: 'U74999TG2018PTC125809',
   cjUserId: 'CJ5344586',
 };
 // Expose so the rest of the app (and inline boot script) can read it
@@ -124,7 +126,6 @@ document.getElementById('footerYear').textContent = new Date().getFullYear();
     <p class="footer-line"><strong>Registered Office</strong><br/>${c.registeredAddress}</p>
     <p class="footer-line"><strong>GSTIN:</strong> ${c.gstin}</p>
     <p class="footer-line"><strong>IEC:</strong> ${c.iec}</p>
-    <p class="footer-line"><strong>CIN:</strong> ${c.cin}</p>
     <p class="footer-line">
       <a href="mailto:${c.email}">${c.email}</a><br/>
       <a href="tel:${c.phone.replace(/\s+/g,'')}">${c.phone}</a>
@@ -1010,7 +1011,7 @@ async function renderHome() {
                 <span>🔄 Easy returns</span>
                 <span>🔒 Secure checkout</span>
               </div>
-              <p class="hero-byline">A <strong>${esc(COMPANY_INFO.legalName)}</strong> venture · GSTIN &amp; IEC compliant · Authorised CJ Dropshipping partner.</p>
+              <p class="hero-byline">A <strong>${esc(COMPANY_INFO.legalName)}</strong> venture · GSTIN &amp; IEC compliant.</p>
             </div>
           </div>
         </section>
