@@ -1844,6 +1844,21 @@ main {
   font-size: 12px;
   margin-top: 28px;
 }
+
+/* Checkout KYC field (Aadhaar / PAN) — required for India shipments */
+.form-kyc {
+  background: #fff7ee;
+  border: 1px solid #fde6cf;
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-top: 4px;
+}
+.form-kyc label { display: block; }
+.form-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .footer-bottom {
   max-width: var(--container);
   margin: 0 auto;

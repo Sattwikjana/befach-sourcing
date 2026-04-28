@@ -11,6 +11,41 @@ const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
+/**
+ * Normalize a phone number to the international format CJ expects.
+ *   India:   "8008188807"   → "918008188807"
+ *            "+91 80081 88807" → "918008188807"
+ *            "918008188807" → unchanged
+ *            "08008188807"  → "918008188807"
+ * For other supported countries, prepend the country dialing code if the
+ * number is the local-format length. Falls back to digits-only if we
+ * can't recognize the format — CJ may still accept it.
+ */
+const COUNTRY_DIAL_CODES = {
+  IN: { code: '91', localLen: 10 },
+  US: { code: '1',  localLen: 10 },
+  GB: { code: '44', localLen: 10 },
+  CN: { code: '86', localLen: 11 },
+  AE: { code: '971', localLen: 9 },
+  // Add more as you expand markets
+};
+function normalizePhone(rawPhone, countryCode = 'IN') {
+  let digits = String(rawPhone || '').replace(/[^\d]/g, '');
+  const cc = COUNTRY_DIAL_CODES[countryCode] || COUNTRY_DIAL_CODES.IN;
+  // Strip leading zeros (common in some formats)
+  digits = digits.replace(/^0+/, '');
+  // Already prefixed correctly?
+  if (digits.startsWith(cc.code) && digits.length === cc.code.length + cc.localLen) {
+    return digits;
+  }
+  // Local-length number → prepend the country code
+  if (digits.length === cc.localLen) {
+    return cc.code + digits;
+  }
+  // Otherwise return whatever we have (let CJ tell us if invalid)
+  return digits;
+}
+
 function loadOrders() {
   try {
     if (fs.existsSync(ORDERS_FILE)) {
@@ -38,7 +73,7 @@ function generateOrderId() {
  * shippingAddress: { address, address2, city, province, zip, country, countryCode }
  */
 async function createOrder(orderData) {
-  const { customer, items, shippingAddress, logisticName, userId } = orderData;
+  const { customer, items, shippingAddress, logisticName, userId, consigneeID } = orderData;
 
   // Totals:
   //   productTotal    = what the customer paid  (sum of displayPrice × qty)
@@ -56,14 +91,15 @@ async function createOrder(orderData) {
   const orderId = generateOrderId();
 
   // Build CJ order payload
+  const ccode = shippingAddress.countryCode || 'IN';
   const cjOrderPayload = {
     orderNumber: orderId,
     shippingZip: shippingAddress.zip || '',
     shippingCountry: shippingAddress.country || '',
-    shippingCountryCode: shippingAddress.countryCode || 'IN',
+    shippingCountryCode: ccode,
     shippingProvince: shippingAddress.province || '',
     shippingCity: shippingAddress.city || '',
-    shippingPhone: customer.phone || '',
+    shippingPhone: normalizePhone(customer.phone, ccode),
     shippingCustomerName: customer.name || '',
     shippingAddress: shippingAddress.address || '',
     shippingAddress2: shippingAddress.address2 || '',
@@ -72,6 +108,9 @@ async function createOrder(orderData) {
     fromCountryCode: process.env.DEFAULT_SHIP_FROM || 'CN',
     logisticName: logisticName || '',
     payType: 1, // returns cjPayUrl for you to pay
+    // India customs requires the recipient's Aadhaar (12 digits) or PAN
+    // (10 chars). CJ rejects with "Consignee ID required" if missing.
+    consigneeID: consigneeID || '',
     products: items.map(item => ({
       vid: item.vid,
       quantity: item.quantity,
@@ -111,6 +150,7 @@ async function createOrder(orderData) {
     customer,
     items,
     shippingAddress,
+    consigneeID: consigneeID || null,
     logisticName: logisticName || null,
     productTotal: productTotal.toFixed(2),
     cjTotal: cjTotal.toFixed(2),
@@ -171,7 +211,7 @@ function updateOrderStatus(orderId, status, extra = {}) {
  * due to a transient issue (rate limit, intermittent CJ error) and we want
  * to try again without making the customer place a new order.
  */
-async function retryCjPush(orderId) {
+async function retryCjPush(orderId, overrides = {}) {
   const orders = loadOrders();
   const idx = orders.findIndex(o => o.id === orderId);
   if (idx === -1) throw new Error('Order not found');
@@ -180,14 +220,20 @@ async function retryCjPush(orderId) {
     return { ok: false, reason: 'Order is already pushed to CJ', cjOrderId: order.cjOrderId };
   }
 
+  // Allow the admin to pass consigneeID (Aadhaar/PAN) and an updated phone
+  // when retrying an old order that was placed before those fields existed.
+  const consigneeID = overrides.consigneeID ?? order.consigneeID ?? '';
+  const phone = overrides.phone ?? order.customer.phone ?? '';
+  const ccode = order.shippingAddress.countryCode || 'IN';
+
   const cjOrderPayload = {
     orderNumber: order.id,
     shippingZip: order.shippingAddress.zip || '',
     shippingCountry: order.shippingAddress.country || '',
-    shippingCountryCode: order.shippingAddress.countryCode || 'IN',
+    shippingCountryCode: ccode,
     shippingProvince: order.shippingAddress.province || '',
     shippingCity: order.shippingAddress.city || '',
-    shippingPhone: order.customer.phone || '',
+    shippingPhone: normalizePhone(phone, ccode),
     shippingCustomerName: order.customer.name || '',
     shippingAddress: order.shippingAddress.address || '',
     shippingAddress2: order.shippingAddress.address2 || '',
@@ -196,6 +242,7 @@ async function retryCjPush(orderId) {
     fromCountryCode: process.env.DEFAULT_SHIP_FROM || 'CN',
     logisticName: order.logisticName || '',
     payType: 1,
+    consigneeID,
     products: order.items.map(item => ({ vid: item.vid, quantity: item.quantity })),
   };
 
@@ -216,6 +263,7 @@ async function retryCjPush(orderId) {
   if (cjResponse?.data?.orderId) {
     orders[idx] = {
       ...order,
+      consigneeID,
       cjOrderId: cjResponse.data.orderId,
       cjPayUrl: cjResponse.data.cjPayUrl || null,
       cjError: null,

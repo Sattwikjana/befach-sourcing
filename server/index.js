@@ -654,7 +654,7 @@ app.post('/api/store/shipping-estimate', async (req, res) => {
 // Place an order
 app.post('/api/store/orders', async (req, res) => {
   try {
-    const { customer, items, shippingAddress, logisticName } = req.body;
+    const { customer, items, shippingAddress, logisticName, consigneeID } = req.body;
     if (!customer || !customer.name || !customer.phone) {
       return res.status(400).json({ error: 'customer.name and customer.phone required' });
     }
@@ -663,6 +663,14 @@ app.post('/api/store/orders', async (req, res) => {
     }
     if (!shippingAddress || !shippingAddress.address || !shippingAddress.city) {
       return res.status(400).json({ error: 'shippingAddress.address and city required' });
+    }
+    // India customs requires Aadhaar (12 digits) or PAN (10 chars). CJ
+    // rejects with "Consignee ID required" if missing for Indian addresses.
+    const ccode = (shippingAddress.countryCode || 'IN').toUpperCase();
+    if (ccode === 'IN' && !consigneeID) {
+      return res.status(400).json({
+        error: 'Aadhaar or PAN is required for shipping to India (customs clearance)',
+      });
     }
 
     // Re-price server-side — never trust the cart prices from the client.
@@ -721,6 +729,7 @@ app.post('/api/store/orders', async (req, res) => {
       customer,
       items: pricedItems,
       shippingAddress,
+      consigneeID,
       logisticName: chosenMethod,
       // If the customer was signed in when placing the order, link it to
       // their account so it appears in their order history.
@@ -851,9 +860,14 @@ app.get('/api/admin/orders/:id', adminAuth, async (req, res) => {
 // Retry a PENDING order's CJ push. Useful when the first push failed due
 // to a transient issue (rate limit, intermittent CJ error) — saves you
 // from having to make a fresh customer order for every test.
+//
+// Body (optional): { consigneeID, phone } — pass these to fix orders that
+// were placed before consigneeID was a checkout field, or to correct a
+// bad phone number without recreating the order.
 app.post('/api/admin/orders/:id/retry-cj', adminAuth, async (req, res) => {
   try {
-    const result = await orders.retryCjPush(req.params.id);
+    const { consigneeID, phone } = req.body || {};
+    const result = await orders.retryCjPush(req.params.id, { consigneeID, phone });
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });

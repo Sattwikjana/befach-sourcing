@@ -151,7 +151,7 @@ async function renderCheckout() {
               <label>PIN / ZIP *<input name="zip" required value="${esc(saved.zip || '')}" /></label>
             </div>
             <label>Country *
-              <select name="countryCode" required>
+              <select name="countryCode" id="checkoutCountry" required>
                 <option value="IN" ${(saved.countryCode || state.config.shipTo) === 'IN' ? 'selected' : ''}>India</option>
                 <option value="US" ${saved.countryCode === 'US' ? 'selected' : ''}>United States</option>
                 <option value="GB" ${saved.countryCode === 'GB' ? 'selected' : ''}>United Kingdom</option>
@@ -162,6 +162,17 @@ async function renderCheckout() {
                 <option value="SG" ${saved.countryCode === 'SG' ? 'selected' : ''}>Singapore</option>
               </select>
             </label>
+            <!-- KYC for Indian customs clearance — required by CJ for India shipments.
+                 Hidden for non-India destinations via JS below. -->
+            <div class="form-kyc" id="kycFields">
+              <label>Aadhaar or PAN *
+                <input name="consigneeID" id="checkoutConsigneeID"
+                       value="${esc(saved.consigneeID || '')}"
+                       placeholder="12-digit Aadhaar or 10-character PAN"
+                       maxlength="12" />
+              </label>
+              <p class="form-hint muted small">Required by Indian customs for international parcels. We never share this with anyone except the customs authority via our shipping partner.</p>
+            </div>
           </form>
         </section>
 
@@ -210,11 +221,43 @@ async function renderCheckout() {
     localStorage.setItem('befach_address', JSON.stringify(fd));
   });
 
+  // Hide the Aadhaar/PAN field when the destination isn't India.
+  const countrySel = document.getElementById('checkoutCountry');
+  const kyc = document.getElementById('kycFields');
+  const kycInput = document.getElementById('checkoutConsigneeID');
+  function syncKycVisibility() {
+    const isIndia = countrySel.value === 'IN';
+    kyc.style.display = isIndia ? '' : 'none';
+    if (kycInput) kycInput.required = isIndia;
+  }
+  countrySel.addEventListener('change', syncKycVisibility);
+  syncKycVisibility();
+
+  // Validate Aadhaar (12 digits) or PAN (10 chars, e.g. ABCDE1234F).
+  // Inline error message instead of using HTML5 pattern (gives us a
+  // clearer hint for either format).
+  function validateConsigneeID(val) {
+    const v = (val || '').trim();
+    if (/^\d{12}$/.test(v)) return { ok: true, kind: 'Aadhaar' };
+    if (/^[A-Z]{5}\d{4}[A-Z]$/i.test(v)) return { ok: true, kind: 'PAN' };
+    return { ok: false };
+  }
+
   // Place order — shipping is already included in each item's price
   // (CJPacket Asia Ordinary), so no method picker and no extra shipping row.
   document.getElementById('placeOrderBtn').onclick = async () => {
     if (!form.reportValidity()) return;
     const fd = Object.fromEntries(new FormData(form).entries());
+
+    // India-only validation: Aadhaar (12 digits) or PAN (e.g. ABCDE1234F)
+    if (fd.countryCode === 'IN') {
+      const check = validateConsigneeID(fd.consigneeID);
+      if (!check.ok) {
+        showToast('Please enter a valid 12-digit Aadhaar or 10-character PAN');
+        kycInput?.focus();
+        return;
+      }
+    }
 
     const btn = document.getElementById('placeOrderBtn');
     btn.disabled = true;
@@ -233,6 +276,7 @@ async function renderCheckout() {
           country: countryName(fd.countryCode),
           countryCode: fd.countryCode,
         },
+        consigneeID: (fd.consigneeID || '').trim().toUpperCase(),
         // Server overrides logisticName with SHIPPING_METHOD regardless;
         // we send a placeholder just to be explicit.
         logisticName: state.config.shippingMethod || 'CJPacket Asia Ordinary',
