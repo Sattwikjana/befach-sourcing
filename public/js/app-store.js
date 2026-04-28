@@ -107,6 +107,31 @@ window.cartRemove = function(pid, vid) {
 // ══════════════════════════════════════════════════════════════
 //  CHECKOUT PAGE
 // ══════════════════════════════════════════════════════════════
+// Country → dialing-code map (mirrors server/orderManager.js so the UI
+// shows the same prefix the server will normalize to).
+const COUNTRY_DIAL_CODES_CLIENT = {
+  IN: { code: '91',  localLen: 10 },
+  US: { code: '1',   localLen: 10 },
+  GB: { code: '44',  localLen: 10 },
+  CN: { code: '86',  localLen: 11 },
+  AE: { code: '971', localLen: 9 },
+  AU: { code: '61',  localLen: 9 },
+  CA: { code: '1',   localLen: 10 },
+  DE: { code: '49',  localLen: 10 },
+  SG: { code: '65',  localLen: 8 },
+};
+
+// If the user previously saved a phone WITH country code (e.g. "918008188807"),
+// strip the prefix for display so they see just the 10-digit local part.
+function stripCountryCode(phone, ccode = 'IN') {
+  const digits = String(phone || '').replace(/[^\d]/g, '');
+  const cc = COUNTRY_DIAL_CODES_CLIENT[ccode];
+  if (cc && digits.startsWith(cc.code) && digits.length === cc.code.length + cc.localLen) {
+    return digits.slice(cc.code.length);
+  }
+  return digits;
+}
+
 async function renderCheckout() {
   if (!state.cart.length) return renderCart();
 
@@ -123,6 +148,10 @@ async function renderCheckout() {
       ...saved,
     };
   }
+  // Phone shows just the local digits — the +XX prefix is rendered as a
+  // visual chip next to the input (and the server adds it back on submit).
+  const initialCC = saved.countryCode || state.config.shipTo || 'IN';
+  saved.phone = stripCountryCode(saved.phone, initialCC);
 
   app.innerHTML = `
     <div class="breadcrumb">
@@ -140,7 +169,15 @@ async function renderCheckout() {
           <form id="checkoutForm" class="checkout-form">
             <div class="form-row">
               <label>Full name *<input name="name" required value="${esc(saved.name || '')}" /></label>
-              <label>Phone *<input name="phone" type="tel" required value="${esc(saved.phone || '')}" /></label>
+              <label>Phone *
+                <div class="phone-input-wrap">
+                  <span class="phone-cc" id="phoneCcPrefix">+91</span>
+                  <input name="phone" type="tel" required
+                         value="${esc(saved.phone || '')}"
+                         placeholder="10-digit number"
+                         inputmode="numeric" autocomplete="tel-national" />
+                </div>
+              </label>
             </div>
             <label>Email *<input name="email" type="email" required value="${esc(saved.email || '')}" /></label>
             <label>Address line 1 *<input name="address" required value="${esc(saved.address || '')}" /></label>
@@ -176,13 +213,18 @@ async function renderCheckout() {
           </form>
         </section>
 
-        <!-- Step 2: Payment -->
+        <!-- Step 2: Payment method -->
         <section class="checkout-step">
-          <h2><span class="step-num">2</span> Payment</h2>
-          <div class="payment-note">
-            <strong>Pay on delivery / Pay offline</strong>
-            <p class="muted small">Online payment is not enabled yet. We will contact you after placing the order to arrange payment.</p>
+          <h2><span class="step-num">2</span> Payment method</h2>
+          <div class="payment-method-card selected">
+            <div class="pm-icon">💵</div>
+            <div class="pm-body">
+              <div class="pm-title">Cash on Delivery (COD)</div>
+              <p class="pm-sub">Pay in cash when your order arrives at your door — no advance payment needed.</p>
+            </div>
+            <div class="pm-tick">✓</div>
           </div>
+          <p class="muted small" style="margin-top:10px">Online payments (UPI / Cards / Netbanking) are coming soon.</p>
         </section>
       </div>
 
@@ -225,13 +267,34 @@ async function renderCheckout() {
   const countrySel = document.getElementById('checkoutCountry');
   const kyc = document.getElementById('kycFields');
   const kycInput = document.getElementById('checkoutConsigneeID');
-  function syncKycVisibility() {
+  const phoneInput = form.querySelector('input[name="phone"]');
+  const phoneCcPrefix = document.getElementById('phoneCcPrefix');
+
+  function syncCountrySpecificFields() {
     const isIndia = countrySel.value === 'IN';
+    // KYC field
     kyc.style.display = isIndia ? '' : 'none';
     if (kycInput) kycInput.required = isIndia;
+    // Phone country-code prefix
+    const cc = COUNTRY_DIAL_CODES_CLIENT[countrySel.value] || COUNTRY_DIAL_CODES_CLIENT.IN;
+    phoneCcPrefix.textContent = '+' + cc.code;
+    // Re-strip the existing phone in case the user changed country
+    phoneInput.value = stripCountryCode(phoneInput.value, countrySel.value);
   }
-  countrySel.addEventListener('change', syncKycVisibility);
-  syncKycVisibility();
+  countrySel.addEventListener('change', syncCountrySpecificFields);
+  syncCountrySpecificFields();
+
+  // If the user pastes/types a number with the country code already in
+  // it (a common mistake — "+91 80081 88807" or "918008188807"), strip
+  // it on the fly so they only see/keep the 10-digit local part.
+  phoneInput.addEventListener('input', () => {
+    const cc = COUNTRY_DIAL_CODES_CLIENT[countrySel.value];
+    if (!cc) return;
+    let digits = phoneInput.value.replace(/[^\d]/g, '');
+    if (digits.startsWith(cc.code) && digits.length > cc.localLen) {
+      phoneInput.value = digits.slice(cc.code.length);
+    }
+  });
 
   // Validate Aadhaar (12 digits) or PAN (10 chars, e.g. ABCDE1234F).
   // Inline error message instead of using HTML5 pattern (gives us a

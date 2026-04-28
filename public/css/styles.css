@@ -1859,6 +1859,95 @@ main {
   font-size: 12px;
   line-height: 1.5;
 }
+
+/* Phone input with a fixed "+91" country-code chip baked in. The chip
+   sits inside the same border so the whole control reads as one field;
+   updating the country dropdown rewrites the chip's text. */
+.phone-input-wrap {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: #fff;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.phone-input-wrap:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
+}
+.phone-cc {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: #fafafa;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-right: 1px solid var(--border);
+  user-select: none;
+}
+.phone-input-wrap input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: transparent;
+  font-family: inherit;
+}
+
+/* Cash-on-Delivery payment card — selected by default since it's the
+   only method while Razorpay is pending. */
+.payment-method-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+  background: #fff;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.payment-method-card.selected {
+  border-color: var(--brand);
+  background: #fff7ee;
+}
+.pm-icon {
+  font-size: 26px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.pm-body { min-width: 0; }
+.pm-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.pm-sub {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.pm-tick {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 13px;
+}
 .footer-bottom {
   max-width: var(--container);
   margin: 0 auto;
