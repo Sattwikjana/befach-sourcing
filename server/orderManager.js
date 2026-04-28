@@ -85,12 +85,22 @@ async function createOrder(orderData) {
 
   try {
     cjResponse = await cj.createOrderV2(cjOrderPayload);
-    if (cjResponse.data) {
+    if (cjResponse?.data?.orderId) {
       cjOrderId = cjResponse.data.orderId;
       cjPayUrl = cjResponse.data.cjPayUrl;
+    } else {
+      // CJ returned HTTP 200 but the body indicates a rejection. Common shapes:
+      //   { code: 429, message: "Too many requests", data: null }
+      //   { result: false, message: "Logistic method not available", data: null }
+      //   { code: 200, data: null, message: "..." }
+      // Capture the message so the admin actually sees WHY it failed.
+      cjError = cjResponse?.message
+             || cjResponse?.data?.message
+             || `CJ rejected order (code=${cjResponse?.code || '?'}, no orderId returned)`;
+      console.error('[OrderManager] CJ order rejected:', JSON.stringify(cjResponse));
     }
   } catch (err) {
-    cjError = err.message;
+    cjError = err.response?.data?.message || err.message;
     console.error('[OrderManager] CJ order creation failed:', err.message);
   }
 
@@ -157,6 +167,79 @@ function updateOrderStatus(orderId, status, extra = {}) {
 }
 
 /**
+ * Retry pushing a PENDING order to CJ. Useful when the first push failed
+ * due to a transient issue (rate limit, intermittent CJ error) and we want
+ * to try again without making the customer place a new order.
+ */
+async function retryCjPush(orderId) {
+  const orders = loadOrders();
+  const idx = orders.findIndex(o => o.id === orderId);
+  if (idx === -1) throw new Error('Order not found');
+  const order = orders[idx];
+  if (order.cjOrderId) {
+    return { ok: false, reason: 'Order is already pushed to CJ', cjOrderId: order.cjOrderId };
+  }
+
+  const cjOrderPayload = {
+    orderNumber: order.id,
+    shippingZip: order.shippingAddress.zip || '',
+    shippingCountry: order.shippingAddress.country || '',
+    shippingCountryCode: order.shippingAddress.countryCode || 'IN',
+    shippingProvince: order.shippingAddress.province || '',
+    shippingCity: order.shippingAddress.city || '',
+    shippingPhone: order.customer.phone || '',
+    shippingCustomerName: order.customer.name || '',
+    shippingAddress: order.shippingAddress.address || '',
+    shippingAddress2: order.shippingAddress.address2 || '',
+    email: order.customer.email || '',
+    remark: `Befach Order ${order.id} (retry)`,
+    fromCountryCode: process.env.DEFAULT_SHIP_FROM || 'CN',
+    logisticName: order.logisticName || '',
+    payType: 1,
+    products: order.items.map(item => ({ vid: item.vid, quantity: item.quantity })),
+  };
+
+  let cjResponse = null;
+  try {
+    cjResponse = await cj.createOrderV2(cjOrderPayload);
+  } catch (err) {
+    const msg = err.response?.data?.message || err.message;
+    orders[idx] = {
+      ...order,
+      cjError: msg,
+      updatedAt: new Date().toISOString(),
+    };
+    saveOrders(orders);
+    return { ok: false, reason: msg, raw: err.response?.data || null };
+  }
+
+  if (cjResponse?.data?.orderId) {
+    orders[idx] = {
+      ...order,
+      cjOrderId: cjResponse.data.orderId,
+      cjPayUrl: cjResponse.data.cjPayUrl || null,
+      cjError: null,
+      status: 'CJ_CREATED',
+      updatedAt: new Date().toISOString(),
+    };
+    saveOrders(orders);
+    return { ok: true, cjOrderId: cjResponse.data.orderId, cjPayUrl: cjResponse.data.cjPayUrl };
+  }
+
+  // CJ returned 200 with no orderId — capture the body so we can see why
+  const reason = cjResponse?.message
+              || cjResponse?.data?.message
+              || `CJ rejected (code=${cjResponse?.code || '?'})`;
+  orders[idx] = {
+    ...order,
+    cjError: reason,
+    updatedAt: new Date().toISOString(),
+  };
+  saveOrders(orders);
+  return { ok: false, reason, raw: cjResponse };
+}
+
+/**
  * Get dashboard stats
  */
 function getDashboardStats() {
@@ -188,5 +271,6 @@ module.exports = {
   getOrder,
   getAllOrders,
   updateOrderStatus,
+  retryCjPush,
   getDashboardStats,
 };

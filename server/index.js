@@ -848,6 +848,18 @@ app.get('/api/admin/orders/:id', adminAuth, async (req, res) => {
   res.json({ order, cjDetail, tracking });
 });
 
+// Retry a PENDING order's CJ push. Useful when the first push failed due
+// to a transient issue (rate limit, intermittent CJ error) — saves you
+// from having to make a fresh customer order for every test.
+app.post('/api/admin/orders/:id/retry-cj', adminAuth, async (req, res) => {
+  try {
+    const result = await orders.retryCjPush(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get('/api/admin/balance', adminAuth, async (req, res) => {
   try {
     const data = await cj.getBalance();
