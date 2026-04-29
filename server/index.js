@@ -496,6 +496,53 @@ function categoryNameForId(id) {
   return '';
 }
 
+// ── Synthetic MRP / discount badge ────────────────────────────────
+// E-commerce convention: show a struck-through "MRP" alongside the
+// actual sell price with an "X% off" badge. CJ doesn't expose an MRP
+// — they're a wholesale source — so we generate one deterministically
+// from the product ID, picking a discount in a believable range and
+// rounding the implied MRP to a "X99" / "X999" INR value.
+//
+// Deterministic: same product always shows the same MRP across page
+// loads, so users don't see the discount jitter between visits.
+function syntheticDiscountPct(pid) {
+  if (!pid) return 35;
+  // Cheap stable hash → bucket index. Buckets weighted toward the
+  // 30–50 range that competitors typically advertise.
+  let h = 0;
+  const s = String(pid);
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  const buckets = [25, 28, 30, 32, 35, 37, 40, 42, 45, 47, 50, 52, 55, 58, 62];
+  return buckets[Math.abs(h) % buckets.length];
+}
+
+function computeOfferPricing(pid, displayUsd) {
+  if (!displayUsd || displayUsd <= 0) return null;
+  const targetPct = syntheticDiscountPct(pid);
+  const exactMrpUsd = displayUsd / (1 - targetPct / 100);
+
+  // Round in INR space — that's where the user sees aesthetic numbers
+  // ("₹7,999" vs the ugly "₹7,923" you'd get from raw conversion).
+  const usdToInr = parseFloat(process.env.USD_TO_INR) || 85;
+  const exactInr = exactMrpUsd * usdToInr;
+  let step;
+  if (exactInr < 100)        step = 10;
+  else if (exactInr < 1000)  step = 100;
+  else if (exactInr < 10000) step = 1000;
+  else                       step = 10000;
+  const niceInr = Math.ceil(exactInr / step) * step - 1; // X99 ending
+  const niceMrpUsd = niceInr / usdToInr;
+
+  // Recompute the displayed discount from the rounded MRP so the math
+  // shown to the user is internally consistent.
+  const actualDiscount = Math.max(1, Math.round((niceMrpUsd - displayUsd) / niceMrpUsd * 100));
+
+  return {
+    mrp: niceMrpUsd.toFixed(2),
+    discountPercent: actualDiscount,
+  };
+}
+
 // Parse a CJ listV2 response into our normalised meta shape.
 function parseListV2(data, pageSize) {
   let products = [];
@@ -773,10 +820,13 @@ app.get('/api/store/products', async (req, res) => {
 
       // Strip sensitive fields (CJ cost, profit, etc.) before sending to consumer
       const cleaned = pricing.applyStorePricing(rawProduct);
+      const offer = computeOfferPricing(pid, displayUsd);
       priced.push({
         ...cleaned,
         sellPrice: displayUsd.toFixed(2),
         price: displayUsd.toFixed(2),
+        mrp: offer?.mrp,
+        discountPercent: offer?.discountPercent,
         shippingMethod: knownGood ? hit.method : null,
         shippingAccurate: knownGood,
         shippingIncluded: true,
@@ -837,12 +887,15 @@ app.get('/api/store/shipping-for/:pid', async (req, res) => {
     } catch {}
 
     const displayUsd = computeDisplayUsd(wholesaleUsd, usd);
+    const offer = computeOfferPricing(pid, displayUsd);
     res.json({
       pid,
       available: true,
       shippingUsd: usd.toFixed(2),
       method,
       displayUsd: displayUsd.toFixed(2),
+      mrp: offer?.mrp,
+      discountPercent: offer?.discountPercent,
       cached,
     });
   } catch (err) {
@@ -900,6 +953,9 @@ app.get('/api/store/products/:pid', async (req, res) => {
 
     product.sellPrice = topDisplayUsd.toFixed(2);
     product.price = topDisplayUsd.toFixed(2);
+    const offer = computeOfferPricing(pid, topDisplayUsd);
+    product.mrp = offer?.mrp;
+    product.discountPercent = offer?.discountPercent;
     product.shippingUsd = shippingUsd.toFixed(2);
     product.shippingMethod = shippingMethod;
     product.shippingIncluded = true;

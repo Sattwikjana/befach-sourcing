@@ -671,20 +671,33 @@ function productCard(p) {
     accurate = true;
   }
 
+  // Synthetic "MRP / X% off" — server attaches a deterministic strike-
+  // through price and discount badge per product. If for some reason
+  // the server didn't include them (older cache entry), skip the
+  // strike-through; the real price still shows.
+  const mrpUsd = parseFloat(p.mrp || 0) || 0;
+  const discountPct = parseInt(p.discountPercent, 10) || 0;
+  const showOffer = mrpUsd > displayUsd && discountPct > 0;
+
   return `
     <a class="product-card fade-in"
        href="#/product/${encodeURIComponent(pid)}"
        data-pid="${esc(pid)}"
-       data-accurate="${accurate ? '1' : '0'}">
+       data-accurate="${accurate ? '1' : '0'}"
+       data-mrp="${mrpUsd}"
+       data-discount="${discountPct}">
       <div class="product-card-img-wrap">
         <img class="product-card-img" src="${imgProxy(image)}" alt="${esc(name)}"
           loading="lazy" onerror="this.onerror=null;this.src='/img/befach_logo.png'" />
         ${listed > 50 ? '<span class="product-card-badge">🔥 Popular</span>' : ''}
+        ${showOffer ? `<span class="product-card-discount">${discountPct}% OFF</span>` : ''}
       </div>
       <div class="product-card-body">
         <div class="product-card-title">${esc(name)}</div>
         <div class="product-card-prices">
           <span class="product-price-now" data-card-price>${fmtINR(displayUsd)}</span>
+          ${showOffer ? `<span class="product-price-mrp" data-card-mrp>${fmtINR(mrpUsd)}</span>` : ''}
+          ${showOffer ? `<span class="product-price-save">${discountPct}% off</span>` : ''}
         </div>
         <div class="product-card-ship">Shipping included</div>
       </div>
@@ -749,6 +762,11 @@ async function backfillCardShipping(gridEl) {
           setCachedDisplayUsd(pid, data.displayUsd);
           const priceEl = card.querySelector('[data-card-price]');
           if (priceEl) priceEl.textContent = fmtINR(data.displayUsd);
+          // MRP scales with the refined price — server returns the new
+          // strike-through value so the discount % stays consistent
+          // after backfill.
+          const mrpEl = card.querySelector('[data-card-mrp]');
+          if (mrpEl && data.mrp) mrpEl.textContent = fmtINR(data.mrp);
         }
         card.setAttribute('data-accurate', '1');
       } catch (e) {
@@ -1504,7 +1522,13 @@ async function renderProduct(pid) {
         ${sku ? `<div class="pd-sku">SKU: ${esc(sku)}</div>` : ''}
 
         <div class="pd-price-box">
-          <div class="pd-price" id="pdPrice">${fmtINR(selectedPriceUsd)}</div>
+          <div class="pd-price-row">
+            <span class="pd-price" id="pdPrice">${fmtINR(selectedPriceUsd)}</span>
+            ${(p.mrp && parseFloat(p.mrp) > selectedPriceUsd && p.discountPercent) ? `
+              <span class="pd-price-mrp">${fmtINR(p.mrp)}</span>
+              <span class="pd-price-save">${p.discountPercent}% off</span>
+            ` : ''}
+          </div>
           <div class="pd-price-hint">✅ Inclusive of taxes &amp; shipping to India</div>
         </div>
 

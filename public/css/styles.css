@@ -830,9 +830,34 @@ main {
   overflow: hidden;
   min-height: 38px;
 }
-.product-card-prices { display: flex; align-items: baseline; gap: 8px; }
+.product-card-prices { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .product-price-now { font-size: 17px; font-weight: 800; color: var(--text); }
 .product-price-old { font-size: 12px; color: var(--text-muted); text-decoration: line-through; }
+.product-price-mrp {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+  font-weight: 500;
+}
+.product-price-save {
+  font-size: 12px;
+  color: #137333;
+  font-weight: 700;
+}
+/* Discount badge in top-right corner of card image */
+.product-card-discount {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #e85d04;
+  color: #fff;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 6px rgba(232,93,4,0.35);
+}
 .product-card-sku { font-size: 11px; color: var(--text-muted); }
 .product-card-ship {
   font-size: 11px;
@@ -931,11 +956,28 @@ main {
   border-radius: var(--radius);
   padding: 14px 16px;
 }
+.pd-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 .pd-price {
   font-size: 30px;
   font-weight: 800;
   color: var(--brand-dark);
   letter-spacing: -0.8px;
+}
+.pd-price-mrp {
+  font-size: 16px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+  font-weight: 500;
+}
+.pd-price-save {
+  font-size: 14px;
+  color: #137333;
+  font-weight: 700;
 }
 .pd-price-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 
