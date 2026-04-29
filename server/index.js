@@ -684,11 +684,16 @@ app.get('/api/store/products', async (req, res) => {
     }
 
     // Fire-and-forget background warming so the next visit to this listing
-    // (or to one of these products) returns from cache. Capped per request
-    // to avoid blowing the daily CJ quota on a single page load. With the
-    // verified-account 86400/day budget we can afford to warm ~50/page
-    // (was 10 when we ran on the unverified ~1000/day quota).
-    const WARM_PER_REQUEST = 50;
+    // (or to one of these products) returns from cache. Capped per page
+    // to avoid blowing the daily CJ quota on a single load.
+    //
+    //   Free:     10/page   (~1000/day quota)
+    //   Verified: 50/page   (~86400/day, 1 req/sec)
+    //   Prime:   150/page   (~86400+/day, 4 req/sec) ← we are here
+    //
+    // The freight queue runs at low priority, so user-triggered detail
+    // clicks still jump ahead.
+    const WARM_PER_REQUEST = 150;
     for (const pid of unwarmedToWarm.slice(0, WARM_PER_REQUEST)) {
       getProductShippingUsd(pid, 'low').catch(() => {});
     }
@@ -1488,6 +1493,7 @@ function todayHomeKeywords() {
   return {
     featured:      pick(['trending', 'best seller', 'gift set', 'premium', 'editor pick', 'limited edition', 'top rated', 'new arrival']),
     trending:      pick(['earbuds', 'wireless headphones', 'smart watch', 'bluetooth speaker', 'power bank', 'phone holder', 'gaming mouse', 'mini projector', 'action camera', 'mechanical keyboard', 'smart glasses', 'drone', 'vr headset', 'air purifier']),
+    smart:         pick(['smart bulb', 'smart plug', 'smart light', 'smart band', 'smart sensor', 'smart camera', 'smart watch', 'smart scale', 'smart fan', 'smart lock', 'smart key finder', 'smart speaker']),
     homeLifestyle: pick(['led light', 'kitchen tools', 'wall art', 'desk lamp', 'storage organizer', 'cushion cover', 'blanket', 'bathroom mat', 'plant pot', 'humidifier', 'aroma diffuser', 'room decor', 'coffee mug', 'cookware']),
   };
 }
@@ -1517,11 +1523,14 @@ async function prewarm() {
 
   // Warm the actual keywords the home page will fetch today, so the
   // first user visit hits cache instead of paying the per-endpoint
-  // 900ms rate-limit serialise on every section.
+  // rate-limit serialise on every section. With Prime (4 req/sec) and
+  // separate listV2/legacy queues running in parallel, all 4 keyword
+  // sections warm in well under a second.
   const kw = todayHomeKeywords();
   await Promise.all([
     prewarmKeyword(kw.featured, 10),
     prewarmKeyword(kw.trending, 10),
+    prewarmKeyword(kw.smart, 10),
     prewarmKeyword(kw.homeLifestyle, 10),
   ]);
 

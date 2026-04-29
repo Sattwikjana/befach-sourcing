@@ -141,10 +141,15 @@ function isRetryable(err) {
  * Cached responses serve the vast majority of traffic; queues only
  * engage on genuine cache misses.
  */
-// 900ms gap = ~1.1 req/sec per endpoint. Verified CJ accounts get
-// 86400 req/day = 1 req/sec, so 900ms keeps a 10% safety margin while
-// using the budget that previously sat idle at 1500ms (0.67 req/sec).
-const MIN_GAP_MS = 900;
+// Per-endpoint queue gap. CJ's /interface frequency tiers:
+//   Free / sales 0–1 → 1 req/sec   → 900ms gap
+//   Plus  / sales 2  → 2 req/sec   → 480ms gap
+//   Prime / sales 3  → 4 req/sec   → 280ms gap   ← we are here
+//   Adv.  / sales 4–5 → 6 req/sec  → 180ms gap
+// 280ms = ~3.6 req/sec keeps 10% safety margin under the Prime limit so
+// transient clock drift doesn't trigger 429s. Override via CJ_MIN_GAP_MS
+// env var if you upgrade or downgrade plan.
+const MIN_GAP_MS = parseInt(process.env.CJ_MIN_GAP_MS, 10) || 280;
 const queues = new Map(); // path → { high: [], medium: [], low: [], lastAt, running }
 
 function enqueueCj(path, fn, priority = 'low') {
