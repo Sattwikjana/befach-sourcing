@@ -91,6 +91,13 @@ const FALLBACK_SHIPPING_USD = parseFloat(process.env.FALLBACK_SHIPPING_USD) || 3
 const CACHE_MAX_ENTRIES = 600;
 const CACHE = new Map(); // insertion order = LRU order
 
+// Bump this whenever the searchProductsMerged logic changes its output
+// shape or sort order. Old cached entries with a different version
+// won't be read, so users see the new behavior immediately on deploy
+// without waiting for the 30-min TTL to expire.
+const PRODUCTS_CACHE_VERSION = 'v3';
+const productsRawKey = (params) => `productsRaw:${PRODUCTS_CACHE_VERSION}:${JSON.stringify(params)}`;
+
 function cacheGet(key, ttlMs) {
   const e = CACHE.get(key);
   if (!e) return null;
@@ -637,7 +644,7 @@ app.get('/api/store/products', async (req, res) => {
     const { keyWord, page, size, categoryId, strictShippable } = req.query;
     const wantStrict = strictShippable === '1' || strictShippable === 'true';
     const pageSize = Math.min(parseInt(size) || 20, 40);
-    const rawKey = 'productsRaw:' + JSON.stringify({
+    const rawKey = productsRawKey({
       keyWord: keyWord || '', page: page || '1', size: size || '20', categoryId: categoryId || '',
     });
 
@@ -1540,7 +1547,7 @@ function todayHomeKeywords() {
 // Warm a specific keyword search and cache it under the same key the
 // /api/store/products endpoint uses. Single keyword → one merged search.
 async function prewarmKeyword(keyword, size = 10, page = 1) {
-  const rawKey = 'productsRaw:' + JSON.stringify({
+  const rawKey = productsRawKey({
     keyWord: keyword || '', page: String(page), size: String(size), categoryId: '',
   });
   if (cacheGet(rawKey, 30 * 60 * 1000)) return; // already warm
@@ -1593,7 +1600,7 @@ async function prewarm() {
       if (!sub) return;
       const id = sub.categoryId || sub.categorySecondId || sub.categoryFirstId;
       if (!id) return;
-      const rawKey = 'productsRaw:' + JSON.stringify({
+      const rawKey = productsRawKey({
         keyWord: '', page: '1', size: '8', categoryId: id,
       });
       if (cacheGet(rawKey, 30 * 60 * 1000)) return;
@@ -1608,7 +1615,7 @@ async function prewarm() {
 
   // Background-warm shipping for the first batch of products so first
   // detail-click is fast. Pulls from the featured cache we just wrote.
-  const featuredKey = 'productsRaw:' + JSON.stringify({
+  const featuredKey = productsRawKey({
     keyWord: kw.featured, page: '1', size: '10', categoryId: '',
   });
   const featuredMeta = cacheGet(featuredKey, Infinity);
@@ -1643,7 +1650,7 @@ async function warmExtendedCatalog(maxPages = 4) {
       else if (data.data?.content) data.data.content.forEach(g => { if (g.productList) products.push(...g.productList); });
 
       // Cache the raw list at the same key the list endpoint uses
-      const rawKey = 'productsRaw:' + JSON.stringify({ keyWord: '', page: String(page), size: '24', categoryId: '' });
+      const rawKey = productsRawKey({ keyWord: '', page: String(page), size: '24', categoryId: '' });
       cacheSet(rawKey, {
         products,
         total: data.data?.total || data.data?.totalRecords || products.length,
