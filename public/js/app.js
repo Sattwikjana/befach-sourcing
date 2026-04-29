@@ -913,15 +913,6 @@ async function renderHome() {
           <div class="products-grid fashion-grid" id="womenGrid">${productSkeleton(8)}</div>
         </section>
 
-        <!-- SMART GADGETS -->
-        <section class="section">
-          <div class="section-head">
-            <h2 class="section-title">⚡ Smart Gadgets</h2>
-            <a href="#/search?q=smart" class="section-link" id="smartMore">View all →</a>
-          </div>
-          <div class="products-grid" id="smartGrid">${productSkeleton(10)}</div>
-        </section>
-
         <!-- HOME & LIFESTYLE -->
         <section class="section">
           <div class="section-head">
@@ -1142,7 +1133,6 @@ async function loadHomeProducts() {
     men:           document.getElementById('menGrid'),
     women:         document.getElementById('womenGrid'),
     trending:      document.getElementById('trendingGrid'),
-    smart:         document.getElementById('smartGrid'),
     homeLifestyle: document.getElementById('homeLifestyleGrid'),
   };
   const showErr = (el, msg) => { if (el) el.innerHTML = `<p class="muted">${esc(msg)}</p>`; };
@@ -1162,11 +1152,6 @@ async function loadHomeProducts() {
     'power bank', 'phone holder', 'gaming mouse', 'mini projector',
     'action camera', 'mechanical keyboard', 'smart glasses', 'drone',
     'vr headset', 'air purifier',
-  ];
-  const smartPool = [
-    'smart bulb', 'smart plug', 'smart light', 'smart band',
-    'smart sensor', 'smart camera', 'smart watch', 'smart scale',
-    'smart fan', 'smart lock', 'smart key finder', 'smart speaker',
   ];
   const homePool = [
     'led light', 'kitchen tools', 'wall art', 'desk lamp', 'storage organizer',
@@ -1197,13 +1182,16 @@ async function loadHomeProducts() {
   const womenChild = childPick(womenCat);
   const menChild   = childPick(menCat);
 
+  // 5 sections — was 6 (Smart Gadgets dropped, overlapped with Trending Tech).
+  // Each fires its own /api/store/products call which is rate-limited at the
+  // CJ /product/listV2 endpoint to ~1 req/sec, so each extra section adds
+  // ~900ms to cold-load time. 5 sections feels populated without dragging.
   const sections = [
-    { grid: grids.featured,      kind: 'kw', keyword: pick(featuredPool), size: 10, moreId: 'featuredMore',      label: 'featured products' },
+    { grid: grids.featured,      kind: 'kw',  keyword: pick(featuredPool), size: 10, moreId: 'featuredMore',      label: 'featured products' },
     { grid: grids.men,           kind: 'cat', cat: menChild   || menCat,   size: 8,  moreId: null,                label: "men's fashion" },
-    { grid: grids.trending,      kind: 'kw', keyword: pick(trendingPool), size: 10, moreId: 'trendingMore',      label: 'tech & gadgets' },
+    { grid: grids.trending,      kind: 'kw',  keyword: pick(trendingPool), size: 10, moreId: 'trendingMore',      label: 'tech & gadgets' },
     { grid: grids.women,         kind: 'cat', cat: womenChild || womenCat, size: 8,  moreId: null,                label: "women's fashion" },
-    { grid: grids.smart,         kind: 'kw', keyword: pick(smartPool),    size: 10, moreId: 'smartMore',         label: 'smart gadgets' },
-    { grid: grids.homeLifestyle, kind: 'kw', keyword: pick(homePool),     size: 10, moreId: 'homeLifestyleMore', label: 'home & lifestyle' },
+    { grid: grids.homeLifestyle, kind: 'kw',  keyword: pick(homePool),     size: 10, moreId: 'homeLifestyleMore', label: 'home & lifestyle' },
   ];
 
   // Point keyword-based section "View all →" links at the same query we

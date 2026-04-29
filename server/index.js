@@ -602,7 +602,13 @@ app.get('/api/store/products', async (req, res) => {
       keyWord: keyWord || '', page: page || '1', size: size || '20', categoryId: categoryId || '',
     });
 
-    let meta = cacheGet(rawKey, 5 * 60 * 1000);
+    // Cache for 30 min. The home page rotates keywords by day-of-year so
+    // today's pick stays the same all day; product detail pages and search
+    // pages also benefit from longer TTL since CJ's catalog rarely
+    // changes within the day. (Was 5 min — too aggressive; users on
+    // returning visits saw the cold-CJ rate-limit queue serialise and
+    // perceived the site as slow.)
+    let meta = cacheGet(rawKey, 30 * 60 * 1000);
     if (!meta) {
       meta = await searchProductsMerged({
         keyWord,
@@ -1472,6 +1478,36 @@ app.get('*', (req, res) => {
 //  Right after startup, fetch the home page's most-needed data so
 //  the first real user doesn't pay the cold CJ latency.
 // ══════════════════════════════════════════════════════════════════
+// Mirror of the frontend's day-of-year rotation in loadHomeProducts.
+// Keep these in sync — different picks here would warm the wrong cache
+// keys and the home page would still hit cold CJ on first visit.
+function todayHomeKeywords() {
+  const today = new Date();
+  const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 86400000);
+  const pick = (arr) => arr[dayOfYear % arr.length];
+  return {
+    featured:      pick(['trending', 'best seller', 'gift set', 'premium', 'editor pick', 'limited edition', 'top rated', 'new arrival']),
+    trending:      pick(['earbuds', 'wireless headphones', 'smart watch', 'bluetooth speaker', 'power bank', 'phone holder', 'gaming mouse', 'mini projector', 'action camera', 'mechanical keyboard', 'smart glasses', 'drone', 'vr headset', 'air purifier']),
+    homeLifestyle: pick(['led light', 'kitchen tools', 'wall art', 'desk lamp', 'storage organizer', 'cushion cover', 'blanket', 'bathroom mat', 'plant pot', 'humidifier', 'aroma diffuser', 'room decor', 'coffee mug', 'cookware']),
+  };
+}
+
+// Warm a specific keyword search and cache it under the same key the
+// /api/store/products endpoint uses. Single keyword → one merged search.
+async function prewarmKeyword(keyword, size = 10, page = 1) {
+  const rawKey = 'productsRaw:' + JSON.stringify({
+    keyWord: keyword || '', page: String(page), size: String(size), categoryId: '',
+  });
+  if (cacheGet(rawKey, 30 * 60 * 1000)) return; // already warm
+  try {
+    const meta = await searchProductsMerged({ keyWord: keyword, page, size });
+    cacheSet(rawKey, meta);
+    console.log(`[prewarm] "${keyword}" (${meta.products.length}/${meta.total}) ✓`);
+  } catch (e) {
+    console.warn(`[prewarm] "${keyword}" failed:`, e.message);
+  }
+}
+
 async function prewarm() {
   console.log('[prewarm] warming caches...');
   try {
@@ -1479,38 +1515,67 @@ async function prewarm() {
     console.log('[prewarm] categories ✓');
   } catch (e) { console.warn('[prewarm] categories failed:', e.message); }
 
-  let homeProducts = [];
-  try {
-    const data = await cj.searchProducts({ page: 1, size: 24 });
-    if (data.data?.list) {
-      homeProducts = data.data.list;
-    } else if (data.data?.content) {
-      data.data.content.forEach(g => { if (g.productList) homeProducts.push(...g.productList); });
-    }
-    const rawKey = 'productsRaw:' + JSON.stringify({ keyWord: '', page: '1', size: '24', categoryId: '' });
-    cacheSet(rawKey, {
-      products: homeProducts,
-      total: data.data?.total || data.data?.totalRecords || homeProducts.length,
-      totalPages: data.data?.totalPages || 1,
-    });
-    console.log(`[prewarm] products page 1 (${homeProducts.length} items) ✓`);
-  } catch (e) { console.warn('[prewarm] products failed:', e.message); }
+  // Warm the actual keywords the home page will fetch today, so the
+  // first user visit hits cache instead of paying the per-endpoint
+  // 900ms rate-limit serialise on every section.
+  const kw = todayHomeKeywords();
+  await Promise.all([
+    prewarmKeyword(kw.featured, 10),
+    prewarmKeyword(kw.trending, 10),
+    prewarmKeyword(kw.homeLifestyle, 10),
+  ]);
 
-  // Fire-and-forget shipping warming for the home products. The CJ
-  // queue serializes these at low priority — user-triggered requests
-  // (product detail clicks, order placement) jump ahead via the
-  // priority queue.
-  if (homeProducts.length) {
-    console.log(`[prewarm] warming shipping for ${homeProducts.length} products in background...`);
+  // Pre-warm the men's & women's fashion sections too. They fetch by
+  // categoryId of a rotating second-level subcategory, which the
+  // frontend resolves at load time. Mirror that resolution here.
+  try {
+    const cats = cacheGet('categories', Infinity) || [];
+    const findCat = (re) => cats.find(c => re.test(c.categoryFirstName || ''));
+    const womenCat = findCat(/^women.?s\s+clothing/i);
+    const menCat   = findCat(/^men.?s\s+clothing/i);
+    const today = new Date();
+    const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 86400000);
+    const childPick = (cat) => {
+      const subs = cat?.categoryFirstList || [];
+      return subs.length ? subs[dayOfYear % subs.length] : cat;
+    };
+    const womenSub = childPick(womenCat);
+    const menSub   = childPick(menCat);
+    const warmCat = async (sub, label) => {
+      if (!sub) return;
+      const id = sub.categoryId || sub.categorySecondId || sub.categoryFirstId;
+      if (!id) return;
+      const rawKey = 'productsRaw:' + JSON.stringify({
+        keyWord: '', page: '1', size: '8', categoryId: id,
+      });
+      if (cacheGet(rawKey, 30 * 60 * 1000)) return;
+      try {
+        const meta = await searchProductsMerged({ categoryId: id, page: 1, size: 8 });
+        cacheSet(rawKey, meta);
+        console.log(`[prewarm] ${label} (${meta.products.length}) ✓`);
+      } catch (e) { console.warn(`[prewarm] ${label} failed:`, e.message); }
+    };
+    await Promise.all([warmCat(menSub, "men's fashion"), warmCat(womenSub, "women's fashion")]);
+  } catch (e) { console.warn('[prewarm] fashion sections failed:', e.message); }
+
+  // Background-warm shipping for the first batch of products so first
+  // detail-click is fast. Pulls from the featured cache we just wrote.
+  const featuredKey = 'productsRaw:' + JSON.stringify({
+    keyWord: kw.featured, page: '1', size: '10', categoryId: '',
+  });
+  const featuredMeta = cacheGet(featuredKey, Infinity);
+  const featuredProducts = featuredMeta?.products || [];
+  if (featuredProducts.length) {
+    console.log(`[prewarm] warming shipping for ${featuredProducts.length} featured products in background...`);
     let done = 0, unshippable = 0;
-    for (const p of homeProducts) {
+    for (const p of featuredProducts) {
       const pid = p.pid || p.id || p.productId;
       if (!pid) continue;
       getProductShippingUsd(pid).then(r => {
         done++;
         if (!r.available) unshippable++;
-        if (done === homeProducts.length) {
-          console.log(`[prewarm] shipping warm ✓ (${done} products, ${unshippable} unshippable filtered)`);
+        if (done === featuredProducts.length) {
+          console.log(`[prewarm] shipping warm ✓ (${done} products, ${unshippable} unshippable)`);
         }
       }).catch(() => {});
     }
