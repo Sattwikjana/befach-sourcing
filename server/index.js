@@ -663,11 +663,19 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
 // because shipping cache fills in the background and we want list pages
 // to reflect that the moment it updates. On each request we re-bake
 // shipping from the disk-backed shipping cache.
+// CJ SKU shape: "CJ" + 6+ alphanumerics. Examples seen in catalog:
+// "CJYD2338013", "CJYD186929102BY". When the user pastes one of these
+// into search we route directly to a product-by-sku lookup instead of
+// running a useless name-search keyword query (which always returns 0).
+const SKU_PATTERN = /^CJ[A-Z0-9]{6,}$/i;
+
 app.get('/api/store/products', async (req, res) => {
   try {
     const { keyWord, page, size, categoryId, strictShippable } = req.query;
     const wantStrict = strictShippable === '1' || strictShippable === 'true';
     const pageSize = Math.min(parseInt(size) || 20, 40);
+    const trimmedKw = (keyWord || '').trim();
+
     const rawKey = productsRawKey({
       keyWord: keyWord || '', page: page || '1', size: size || '20', categoryId: categoryId || '',
     });
@@ -679,6 +687,29 @@ app.get('/api/store/products', async (req, res) => {
     // returning visits saw the cold-CJ rate-limit queue serialise and
     // perceived the site as slow.)
     let meta = cacheGet(rawKey, 30 * 60 * 1000);
+
+    // SKU short-circuit: if the keyword looks like a CJ SKU
+    // ("CJYD186929102BY", "CJYD2338013", etc.), the keyword path
+    // would always return 0 — CJ's keyWord search doesn't index
+    // SKUs. Instead resolve directly via /product/query?productSku=
+    // and return that single product. Saves a useless multi-page
+    // CJ search and lets users find anything they paste from the
+    // CJ seller dashboard.
+    if (!meta && trimmedKw && SKU_PATTERN.test(trimmedKw)) {
+      try {
+        const data = await cj.getProductBySku(trimmedKw);
+        const product = data?.data;
+        if (product && (product.pid || product.id || product.productId)) {
+          meta = { products: [product], total: 1, totalPages: 1 };
+          cacheSet(rawKey, meta);
+        }
+      } catch (e) {
+        console.warn(`[products] SKU lookup "${trimmedKw}" failed:`, e.message);
+        // Fall through to normal keyword path so a non-SKU string that
+        // happens to match the regex still gets searched normally.
+      }
+    }
+
     if (!meta) {
       meta = await searchProductsMerged({
         keyWord,

@@ -270,9 +270,17 @@ async function getProductList({ page = 1, pageSize = 20, categoryId, productName
   return cjGet('/product/list', params);
 }
 
-/** Get product details by product ID */
+/** Get product details by product ID (UUID-style pid). */
 async function getProductDetail(pid, opts = {}) {
   return cjGet('/product/query', { pid }, opts);
+}
+
+/** Get product details by CJ SKU (the "CJYD..." codes shown in their
+ *  seller dashboard). CJ's /product/query endpoint accepts either pid
+ *  or productSku — this is the SKU path so we can resolve catalog
+ *  items the user paste-searches with. */
+async function getProductBySku(sku, opts = {}) {
+  return cjGet('/product/query', { productSku: sku }, opts);
 }
 
 /** Get all variants for a product */
@@ -389,6 +397,7 @@ module.exports = {
   searchProducts,
   getProductList,
   getProductDetail,
+  getProductBySku,
   getProductVariants,
   getVariantStock,
   addToMyProducts,
