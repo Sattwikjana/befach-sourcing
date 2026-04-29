@@ -2562,8 +2562,94 @@ body.page-home .header-nav { margin-left: auto; }
 .trust-text span { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
 /* ── CIRCULAR CATEGORY STRIP ──────────────────────────────────── */
-.cat-strip { margin: 0 0 32px; }
+.cat-strip { position: relative; margin: 0 0 32px; }
 .cat-strip .section-head { margin-bottom: 16px; }
+
+/* Hover-flyout that drops down from the strip with the full subcategory
+   tree (second-level groups + every third-level subcategory under each).
+   Sits in a host element so it can use position:absolute relative to the
+   strip itself. */
+.cat-strip-flyout-host {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+.cat-strip-flyout-host .cat-strip-flyout { pointer-events: auto; }
+.cat-strip-flyout {
+  margin-top: 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(15,23,42,0.18);
+  padding: 24px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.cat-strip-flyout[hidden] { display: none; }
+.cat-strip-flyout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.cat-strip-flyout-head h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.cat-strip-flyout-allbtn {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand);
+  text-decoration: none;
+}
+.cat-strip-flyout-allbtn:hover { color: var(--brand-dark); }
+.cat-strip-flyout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 18px 24px;
+}
+.cat-strip-flyout-group { font-size: 13px; }
+.cat-strip-flyout-group-head {
+  display: block;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--text);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.cat-strip-flyout-group-head:hover { color: var(--brand); }
+.cat-strip-flyout-group-items { display: flex; flex-direction: column; gap: 3px; }
+.cat-strip-flyout-group-items a {
+  color: var(--text-secondary);
+  padding: 1px 0;
+  font-size: 12.5px;
+}
+.cat-strip-flyout-group-items a:hover { color: var(--brand); }
+.cat-strip-flyout-empty {
+  text-align: center;
+  padding: 20px 12px;
+}
+.cat-strip-flyout-empty p {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+}
+
+/* On phones the hover flyout is awkward — touchscreens have no hover.
+   Hide the flyout host on small screens so the icon-only strip just
+   navigates to the listing on tap (mobile drawer accordion already
+   exposes the full tree). */
+@media (max-width: 860px) {
+  .cat-strip-flyout-host { display: none; }
+}
+
 .cat-strip-row {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));

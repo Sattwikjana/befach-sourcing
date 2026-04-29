@@ -828,7 +828,7 @@ async function renderHome() {
       </div>
     </section>
 
-    <!-- CIRCULAR CATEGORY STRIP -->
+    <!-- CIRCULAR CATEGORY STRIP (with hover-to-expand subcategory mega-flyout) -->
     <section class="cat-strip">
       <div class="section-head">
         <h2 class="section-title">Shop by Category</h2>
@@ -836,6 +836,10 @@ async function renderHome() {
       </div>
       <div class="cat-strip-row" id="catStrip">
         ${Array(10).fill('<div class="cat-strip-skel skeleton"></div>').join('')}
+      </div>
+      <!-- Mega-menu populated by JS on hover. Positioned absolute via .cat-strip-flyout-host. -->
+      <div class="cat-strip-flyout-host">
+        <div class="cat-strip-flyout" id="catStripFlyout" hidden></div>
       </div>
     </section>
 
@@ -918,10 +922,10 @@ async function renderHome() {
       <div class="products-grid fashion-grid" id="womenGrid">${productSkeleton(8)}</div>
     </section>
 
-    <!-- AFFORDABLE SMART PRODUCTS -->
+    <!-- SMART GADGETS (everyday smart products, varied prices) -->
     <section class="section">
       <div class="section-head">
-        <h2 class="section-title">⚡ Smart Picks Under ₹999</h2>
+        <h2 class="section-title">⚡ Smart Gadgets</h2>
         <a href="#/search?q=smart" class="section-link" id="smartMore">View all →</a>
       </div>
       <div class="products-grid" id="smartGrid">${productSkeleton(10)}</div>
@@ -950,7 +954,10 @@ async function renderHome() {
 }
 
 // Horizontal circular-icon category strip on the home page.
-// Shows every top-level CJ category — clicks land on the full listing.
+// Shows every top-level CJ category. Hovering an icon opens a full-width
+// mega-flyout with all second/third-level subcategories — same data the
+// All Categories page uses. Clicks on the icon itself go to the category
+// listing; clicks inside the flyout drill straight to the subcategory.
 function renderCategoryStrip() {
   const el = document.getElementById('catStrip');
   if (!el) return;
@@ -959,13 +966,75 @@ function renderCategoryStrip() {
     el.innerHTML = '<p class="muted" style="padding:12px">Categories unavailable</p>';
     return;
   }
-  el.innerHTML = cats.map(cat => {
+  el.innerHTML = cats.map((cat, idx) => {
     const name = cat.categoryFirstName || '';
-    return `<a class="cat-strip-item" href="${categoryHref(cat)}">
+    return `<a class="cat-strip-item" data-idx="${idx}" href="${categoryHref(cat)}">
       <div class="cat-strip-icon">${catIcon(name)}</div>
       <span class="cat-strip-name">${esc(name)}</span>
     </a>`;
   }).join('');
+
+  const flyout = document.getElementById('catStripFlyout');
+  el.querySelectorAll('.cat-strip-item').forEach(item => {
+    item.addEventListener('mouseenter', () => showCatStripFlyout(parseInt(item.getAttribute('data-idx'))));
+    item.addEventListener('focus',      () => showCatStripFlyout(parseInt(item.getAttribute('data-idx'))));
+  });
+
+  // Hide the flyout when cursor leaves both the strip and the flyout
+  const maybeHide = () => {
+    setTimeout(() => {
+      if (!el.matches(':hover') && !flyout?.matches(':hover')) hideCatStripFlyout();
+    }, 120);
+  };
+  el.addEventListener('mouseleave', maybeHide);
+  flyout?.addEventListener('mouseleave', maybeHide);
+}
+
+function showCatStripFlyout(idx) {
+  const flyout = document.getElementById('catStripFlyout');
+  if (!flyout) return;
+  const cat = state.categories[idx];
+  if (!cat) return;
+
+  const groups = cat.categoryFirstList || [];
+  const title = cat.categoryFirstName || '';
+
+  if (!groups.length) {
+    flyout.innerHTML = `
+      <div class="cat-strip-flyout-empty">
+        <p>Browse all <strong>${esc(title)}</strong> products</p>
+        <a class="btn btn-primary" href="${categoryHref(cat)}">Shop ${esc(title)} →</a>
+      </div>
+    `;
+  } else {
+    flyout.innerHTML = `
+      <div class="cat-strip-flyout-head">
+        <h3>${esc(title)}</h3>
+        <a class="cat-strip-flyout-allbtn" href="${categoryHref(cat)}">View all in ${esc(title)} →</a>
+      </div>
+      <div class="cat-strip-flyout-grid">
+        ${groups.map(g => {
+          const gName = g.categorySecondName || '';
+          const thirds = g.categorySecondList || [];
+          const gHref = categoryHref(g);
+          return `
+            <div class="cat-strip-flyout-group">
+              <a class="cat-strip-flyout-group-head" href="${gHref}">${esc(gName)}</a>
+              ${thirds.length ? `<div class="cat-strip-flyout-group-items">
+                ${thirds.map(t => `<a href="${categoryHref(t)}">${esc(t.categoryName || '')}</a>`).join('')}
+              </div>` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+  flyout.hidden = false;
+}
+
+function hideCatStripFlyout() {
+  const flyout = document.getElementById('catStripFlyout');
+  if (flyout) flyout.hidden = true;
 }
 
 // ── Left-sidebar category list with hover-to-expand subcategory flyout ──
@@ -1072,9 +1141,8 @@ async function loadHomeProducts() {
   };
   const showErr = (el, msg) => { if (el) el.innerHTML = `<p class="muted">${esc(msg)}</p>`; };
 
-  // Each home-page section pulls a different keyword so the rows feel
-  // visually distinct. Keywords rotate by day-of-year so the home page
-  // refreshes daily instead of showing the same items forever.
+  // Keywords rotate by day-of-year so the home page refreshes daily
+  // instead of showing the same items forever.
   const today = new Date();
   const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 86400000);
   const pick = (arr) => arr[dayOfYear % arr.length];
@@ -1082,14 +1150,6 @@ async function loadHomeProducts() {
   const featuredPool = [
     'trending', 'best seller', 'gift set', 'premium',
     'editor pick', 'limited edition', 'top rated', 'new arrival',
-  ];
-  const menPool = [
-    'men shirt', 'men jeans', 'men jacket', 'men watch',
-    'men sneakers', 'men hoodie', 'men sunglasses', 'men wallet',
-  ];
-  const womenPool = [
-    'women dress', 'women top', 'women handbag', 'women heels',
-    'women earrings', 'women jewellery', 'women jeans', 'women sunglasses',
   ];
   const trendingPool = [
     'earbuds', 'wireless headphones', 'smart watch', 'bluetooth speaker',
@@ -1108,30 +1168,62 @@ async function loadHomeProducts() {
     'aroma diffuser', 'room decor', 'coffee mug', 'cookware',
   ];
 
+  // Make sure we have the CJ category tree before fetching fashion rows.
+  // The Men's/Women's Fashion sections fetch by *categoryId* — keyword search
+  // returned pet sunglasses, kids glasses, etc. when "women sunglasses" was
+  // the rotating pick because both endpoints' name-matching is too loose.
+  // CategoryId fetches stay inside the actual Women's Clothing / Men's
+  // Clothing trees on CJ, so the rows reflect what the user expects.
+  await loadCategories();
+  const findCat = (re) => (state.categories || []).find(c => re.test(c.categoryFirstName || ''));
+  const womenCat = findCat(/women.?s\s+clothing/i) || findCat(/^women/i);
+  const menCat   = findCat(/men.?s\s+clothing/i)   || findCat(/^men/i);
+
+  // Pick a child of the top-level women/men category so each daily load
+  // surfaces a different slice (Dresses one day, Tops the next, etc.)
+  // rather than always landing on whatever CJ orders first.
+  const childPick = (cat) => {
+    const subs = cat?.categoryFirstList || [];
+    return subs.length ? subs[dayOfYear % subs.length] : null;
+  };
+  const womenChild = childPick(womenCat);
+  const menChild   = childPick(menCat);
+
   const sections = [
-    { grid: grids.featured,      keyword: pick(featuredPool), size: 10, moreId: 'featuredMore',      label: 'featured products' },
-    { grid: grids.men,           keyword: pick(menPool),      size: 8,  moreId: null,                label: "men's fashion" },
-    { grid: grids.trending,      keyword: pick(trendingPool), size: 10, moreId: 'trendingMore',      label: 'tech & gadgets' },
-    { grid: grids.women,         keyword: pick(womenPool),    size: 8,  moreId: null,                label: "women's fashion" },
-    { grid: grids.smart,         keyword: pick(smartPool),    size: 10, moreId: 'smartMore',         label: 'smart picks' },
-    { grid: grids.homeLifestyle, keyword: pick(homePool),     size: 10, moreId: 'homeLifestyleMore', label: 'home & lifestyle' },
+    { grid: grids.featured,      kind: 'kw', keyword: pick(featuredPool), size: 10, moreId: 'featuredMore',      label: 'featured products' },
+    { grid: grids.men,           kind: 'cat', cat: menChild   || menCat,   size: 8,  moreId: null,                label: "men's fashion" },
+    { grid: grids.trending,      kind: 'kw', keyword: pick(trendingPool), size: 10, moreId: 'trendingMore',      label: 'tech & gadgets' },
+    { grid: grids.women,         kind: 'cat', cat: womenChild || womenCat, size: 8,  moreId: null,                label: "women's fashion" },
+    { grid: grids.smart,         kind: 'kw', keyword: pick(smartPool),    size: 10, moreId: 'smartMore',         label: 'smart gadgets' },
+    { grid: grids.homeLifestyle, kind: 'kw', keyword: pick(homePool),     size: 10, moreId: 'homeLifestyleMore', label: 'home & lifestyle' },
   ];
 
-  // Point each section's "View all →" link at the same keyword we're
-  // showing in the row, so navigation matches what the user sees.
+  // Point keyword-based section "View all →" links at the same query we
+  // displayed. The fashion sections already have hard-coded hrefs.
   sections.forEach(s => {
-    if (!s.moreId) return;
+    if (s.kind !== 'kw' || !s.moreId) return;
     const link = document.getElementById(s.moreId);
     if (link) link.href = `#/search?q=${encodeURIComponent(s.keyword)}`;
   });
 
-  // Fire all sections in parallel — different keywords share the same
-  // endpoint so the server queue serialises them, but the 5-min cache
-  // makes subsequent home loads near-instant.
+  // Fire all sections in parallel — the server's per-endpoint queue
+  // serialises CJ calls, but the 5-min cache makes repeat home loads
+  // near-instant.
   await Promise.all(sections.map(async (s) => {
     if (!s.grid) return;
     try {
-      const res = await apiGet(`/api/store/products?keyWord=${encodeURIComponent(s.keyword)}&size=${s.size}&page=1`);
+      let url;
+      if (s.kind === 'cat') {
+        if (!s.cat) {
+          showErr(s.grid, `No ${s.label} products available right now.`);
+          return;
+        }
+        const id = s.cat.categoryId || s.cat.categorySecondId || s.cat.categoryFirstId || '';
+        url = `/api/store/products?categoryId=${encodeURIComponent(id)}&size=${s.size}&page=1`;
+      } else {
+        url = `/api/store/products?keyWord=${encodeURIComponent(s.keyword)}&size=${s.size}&page=1`;
+      }
+      const res = await apiGet(url);
       const products = res.products || [];
       if (!products.length) {
         showErr(s.grid, `No ${s.label} products available right now.`);
