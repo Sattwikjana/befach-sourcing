@@ -95,7 +95,7 @@ const CACHE = new Map(); // insertion order = LRU order
 // shape or sort order. Old cached entries with a different version
 // won't be read, so users see the new behavior immediately on deploy
 // without waiting for the 30-min TTL to expire.
-const PRODUCTS_CACHE_VERSION = 'v4';
+const PRODUCTS_CACHE_VERSION = 'v5';
 const productsRawKey = (params) => `productsRaw:${PRODUCTS_CACHE_VERSION}:${JSON.stringify(params)}`;
 
 function cacheGet(key, ttlMs) {
@@ -549,13 +549,17 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
     return tokens.every(t => name.includes(t));
   };
 
-  // Multi-word queries get DEEP legacy pagination so we can find genuine
-  // strict-AND matches that legacy buries past page 1 (its OR-matched
-  // ranking puts "Smart Bracelet" and "Wine Glasses" before actual smart
-  // glasses for the query "smart glasses"). With Prime's 4 req/sec the
-  // legacy queue can absorb 5 parallel-fired pages in ~1.4s — only paid
-  // on cache miss, then 30-min cache absorbs repeats.
-  const legacyPagesToFetch = isMultiWord ? 5 : 1;
+  // Pagination depth tuned for perceived latency:
+  //   - size > 12 (real search page) + multi-word → 2 legacy pages
+  //     ≈ 560ms on the legacy queue, parallel with listV2's 280ms.
+  //     Probes showed 5 pages cost 3s cold and the marginal coverage
+  //     past page 2 is small for most queries.
+  //   - small sizes (home rows, related lists) → 1 page so home
+  //     sections all complete in ~280ms.
+  //   - single-word → 1 page (legacy already matches strictly with
+  //     a single token, no need for deeper fetch).
+  const isWideSearch = size > 12;
+  const legacyPagesToFetch = isMultiWord && isWideSearch ? 2 : 1;
   const legacyCalls = [];
   for (let i = 0; i < legacyPagesToFetch; i++) {
     legacyCalls.push(cj.getProductList({
