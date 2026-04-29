@@ -704,10 +704,10 @@ async function backfillCardShipping(gridEl) {
         if (abort.signal.aborted || !card.isConnected) continue;
 
         if (data.available === false) {
-          // Fade out smoothly instead of pop-removing — much less jarring
-          // when CJ flags many products as unshippable on the same page.
-          card.classList.add('fading-out');
-          setTimeout(() => { try { card.remove(); } catch {} }, 280);
+          // Keep the card visible — the user wants to see the full catalog.
+          // Price stays at the fallback estimate; checkout enforces real
+          // shipping if they actually try to buy it.
+          card.setAttribute('data-accurate', '1');
           continue;
         }
 
@@ -1094,28 +1094,14 @@ async function renderSearch(query, page = 1, opts = {}) {
   `;
 
   try {
-    // Strict mode: server returns ONLY products it has confirmed are shippable
-    // to India. No card-vanishing UX. If the result is sparse on a fresh
-    // keyword (server hasn't warmed those products yet), we retry without
-    // strict so the user isn't stuck on an empty page.
-    const buildQs = (strict) => {
-      const qs = new URLSearchParams({ page: String(page), size: '20' });
-      if (query) qs.set('keyWord', query);
-      if (opts.categoryId) qs.set('categoryId', opts.categoryId);
-      if (strict) qs.set('strictShippable', '1');
-      return qs;
-    };
-
-    let res = await apiGet('/api/store/products?' + buildQs(true).toString());
-    const STRICT_FALLBACK_THRESHOLD = 8;
-    // Fall back to non-strict whenever the strict result is sparse — the
-    // earlier `unverifiedCount > 0` clause meant fresh categories with
-    // EVERY product unverified would dodge the fallback and show zero
-    // products (because strict mode skips them). We always retry now;
-    // background warming continues either way.
-    if ((res.products || []).length < STRICT_FALLBACK_THRESHOLD) {
-      res = await apiGet('/api/store/products?' + buildQs(false).toString());
-    }
+    // Always show every product CJ returns (minus the admin blocklist). The
+    // server fills in real India shipping where it's been quoted, and the
+    // fallback estimate everywhere else. Backfill refines prices in the
+    // background as warming completes.
+    const qs = new URLSearchParams({ page: String(page), size: '20' });
+    if (query) qs.set('keyWord', query);
+    if (opts.categoryId) qs.set('categoryId', opts.categoryId);
+    const res = await apiGet('/api/store/products?' + qs.toString());
 
     const products = res.products || [];
     const total = res.total || 0;

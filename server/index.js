@@ -486,18 +486,16 @@ app.get('/api/store/products', async (req, res) => {
       cacheSet(rawKey, meta);
     }
 
-    // For each product:
-    //   1. Cached AND unshippable → drop it entirely.
-    //   2. Cached AND shippable     → real display price (wholesale + shipping) × (1+markup).
-    //   3. Not cached                → behaviour depends on strictShippable flag.
+    // For each product, show it. Pricing falls into three buckets:
+    //   1. Cached AND shippable to India → real (wholesale + shipping) × (1+markup).
+    //   2. Cached AND known-unshippable  → fallback shipping price (still visible
+    //      so the user can see the catalog; checkout enforces real shipping).
+    //   3. Not cached                    → fallback shipping price; queue a
+    //      background warm so the next visit gets the real number.
     //
-    //  - strictShippable=1 (search & category pages): drop unverified products
-    //    so the user never sees a card that vanishes 30s later when the
-    //    backfill discovers it can't ship to India. Cleaner UX, smaller
-    //    initial result set on fresh keywords. Fire-and-forget warm runs
-    //    in the background so future visits include them.
-    //  - strictShippable=0 (default, e.g. home page): include unverified
-    //    with approximate price; client backfills + fades out unshippable.
+    // The previous "strict-shippable" mode that hid unverified products was
+    // dropping entire categories on first visit because every product looked
+    // unverified to a cold cache. Disabled — admin blocklist still applies.
     const priced = [];
     const unwarmedToWarm = [];
     for (const rawProduct of meta.products) {
@@ -508,15 +506,10 @@ app.get('/api/store/products', async (req, res) => {
       if (isBlocked(pid)) continue;
 
       const hit = peekShippingCache(pid);
+      if (!hit && pid) unwarmedToWarm.push(pid);
 
-      if (hit && !hit.available) continue; // known unshippable → hide
-
-      if (!hit) {
-        if (pid) unwarmedToWarm.push(pid);
-        if (wantStrict) continue; // strict mode: don't expose unverified products
-      }
-
-      const shippingUsd = hit ? hit.usd : FALLBACK_SHIPPING_USD;
+      const knownGood = !!(hit && hit.available);
+      const shippingUsd = knownGood ? hit.usd : FALLBACK_SHIPPING_USD;
       const displayUsd = computeDisplayUsd(wholesaleUsd, shippingUsd);
 
       // Strip sensitive fields (CJ cost, profit, etc.) before sending to consumer
@@ -525,9 +518,10 @@ app.get('/api/store/products', async (req, res) => {
         ...cleaned,
         sellPrice: displayUsd.toFixed(2),
         price: displayUsd.toFixed(2),
-        shippingMethod: hit ? hit.method : null,
-        shippingAccurate: !!hit,
+        shippingMethod: knownGood ? hit.method : null,
+        shippingAccurate: knownGood,
         shippingIncluded: true,
+        shippingAvailable: !hit || hit.available !== false,
       });
     }
 
