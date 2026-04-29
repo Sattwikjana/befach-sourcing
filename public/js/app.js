@@ -84,7 +84,10 @@ drawerCatToggle?.addEventListener('click', () => {
   drawerCatToggle.classList.toggle('open', !open);
 });
 
-/** Called by loadCategories() once the category list is ready. */
+/** Called by loadCategories() once the category list is ready.
+ *  Renders the full CJ tree: top-level (collapsed by default) → tap to expand
+ *  to second-level groups → each group lists every third-level subcategory.
+ *  Mirrors what the seller sees in CJ's own dashboard. */
 function populateDrawerCategories() {
   if (!drawerCatsEl) return;
   const cats = state.categories || [];
@@ -92,16 +95,47 @@ function populateDrawerCategories() {
     drawerCatsEl.innerHTML = '<span class="drawer-cats-loading muted">Categories unavailable</span>';
     return;
   }
-  drawerCatsEl.innerHTML = cats.map(cat => {
+  drawerCatsEl.innerHTML = cats.map((cat, idx) => {
     const name = cat.categoryFirstName || '';
+    const groups = cat.categoryFirstList || [];
+    const groupsHtml = groups.map(g => {
+      const gName = g.categorySecondName || '';
+      const thirds = g.categorySecondList || [];
+      const thirdsHtml = thirds.map(t => `
+        <a class="drawer-cat-third" href="${categoryHref(t)}">${esc(t.categoryName || '')}</a>
+      `).join('');
+      return `
+        <div class="drawer-cat-group">
+          <a class="drawer-cat-second" href="${categoryHref(g)}">${esc(gName)}</a>
+          ${thirdsHtml ? `<div class="drawer-cat-thirds">${thirdsHtml}</div>` : ''}
+        </div>
+      `;
+    }).join('');
     return `
-      <a class="drawer-cat-link" href="${categoryHref(cat)}">
-        <span class="drawer-cat-icon">${catIcon(name)}</span>
-        <span class="drawer-cat-name">${esc(name)}</span>
-      </a>
+      <div class="drawer-cat-row">
+        <button type="button" class="drawer-cat-top" data-idx="${idx}">
+          <span class="drawer-cat-icon">${catIcon(name)}</span>
+          <span class="drawer-cat-name">${esc(name)}</span>
+          ${groups.length ? '<span class="drawer-cat-chev">▾</span>' : ''}
+        </button>
+        <a class="drawer-cat-shop" href="${categoryHref(cat)}">Shop all ${esc(name)} →</a>
+        ${groupsHtml ? `<div class="drawer-cat-groups" hidden>${groupsHtml}</div>` : ''}
+      </div>
     `;
   }).join('');
-  // Re-attach close handler to the freshly-injected links
+
+  // Tap a top-level row to toggle its second/third-level children
+  drawerCatsEl.querySelectorAll('.drawer-cat-top').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const groups = btn.parentElement.querySelector('.drawer-cat-groups');
+      if (!groups) return;
+      const open = !groups.hidden;
+      groups.hidden = open;
+      btn.classList.toggle('open', !open);
+    });
+  });
+
+  // Any leaf link closes the drawer
   drawerCatsEl.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
 }
 
@@ -562,11 +596,10 @@ window.megaSelect = function(idx) {
       <div class="mega-group">
         <a class="mega-group-head" href="${groupHref}">${esc(secondName)}</a>
         <div class="mega-group-items">
-          ${thirds.slice(0, 8).map(t => {
+          ${thirds.map(t => {
             const tName = t.categoryName || '';
             return `<a href="${categoryHref(t)}">${esc(tName)}</a>`;
           }).join('')}
-          ${thirds.length > 8 ? `<a class="mega-more" href="${groupHref}">+${thirds.length - 8} more</a>` : ''}
         </div>
       </div>
     `;
@@ -900,11 +933,10 @@ function showSidebarFlyout(idx) {
         <div class="flyout-group">
           <a class="flyout-group-head" href="${gHref}">${esc(gName)}</a>
           <div class="flyout-group-items">
-            ${thirds.slice(0, 10).map(t => {
+            ${thirds.map(t => {
               const tName = t.categoryName || '';
               return `<a href="${categoryHref(t)}">${esc(tName)}</a>`;
             }).join('')}
-            ${thirds.length > 10 ? `<a class="flyout-more" href="${gHref}">+${thirds.length - 10} more</a>` : ''}
           </div>
         </div>
       `;
@@ -1014,12 +1046,18 @@ async function renderAllCategories() {
         <span class="cat-block-icon">${catIcon(name)}</span>
         <span class="cat-block-name">${esc(name)}</span>
       </a>
-      <div class="cat-block-subs">
-        ${subs.slice(0, 8).map(s => {
+      <div class="cat-block-groups">
+        ${subs.map(s => {
           const subName = s.categorySecondName || '';
-          return `<a href="${categoryHref(s)}">${esc(subName)}</a>`;
+          const thirds = s.categorySecondList || [];
+          const subHref = categoryHref(s);
+          return `<div class="cat-block-group">
+            <a class="cat-block-group-head" href="${subHref}">${esc(subName)}</a>
+            ${thirds.length ? `<div class="cat-block-group-items">
+              ${thirds.map(t => `<a href="${categoryHref(t)}">${esc(t.categoryName || '')}</a>`).join('')}
+            </div>` : ''}
+          </div>`;
         }).join('')}
-        ${subs.length > 8 ? `<a href="${catHref}" class="muted">+${subs.length - 8} more</a>` : ''}
       </div>
     </div>`;
   }).join('');

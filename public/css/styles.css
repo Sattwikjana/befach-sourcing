@@ -653,7 +653,7 @@ main {
 }
 .categories-grid-full {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: 1fr;
   gap: 16px;
 }
 .category-card {
@@ -721,6 +721,33 @@ main {
 .cat-block-subs { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .cat-block-subs a { color: var(--text-secondary); padding: 2px 0; }
 .cat-block-subs a:hover { color: var(--brand); }
+
+/* All-Categories page: nested second/third-level groups under each top
+   category. Mirrors CJ's own dashboard (Outerwear & Jackets > Blazers, ...)
+   so customers see the full catalog tree without slicing. */
+.cat-block-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px 18px;
+}
+.cat-block-group { font-size: 13px; }
+.cat-block-group-head {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.cat-block-group-head:hover { color: var(--brand); }
+.cat-block-group-items { display: flex; flex-direction: column; gap: 3px; }
+.cat-block-group-items a {
+  color: var(--text-secondary);
+  padding: 1px 0;
+  font-size: 12.5px;
+}
+.cat-block-group-items a:hover { color: var(--brand); }
 
 /* ═══════════════════════════════════════════════════════════════
    Product grid + card
@@ -2029,60 +2056,103 @@ body.page-home .header-nav { margin-left: auto; }
 }
 .drawer-cats {
   background: #fafafa;
-  padding: 8px 12px 12px;
+  padding: 8px 0;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px 4px;
-  max-height: 50vh;
+  max-height: 60vh;
   overflow-y: auto;
 }
 .drawer-cats[hidden] { display: none; }
 .drawer-cats-loading {
-  grid-column: 1 / -1;
+  display: block;
   padding: 12px;
   text-align: center;
   font-size: 13px;
 }
-.drawer-cat-link {
+
+/* Nested category accordion inside the mobile drawer.
+   - .drawer-cat-row     = one top-level CJ category
+   - .drawer-cat-top     = tappable header (toggles children)
+   - .drawer-cat-shop    = "Shop all X →" link straight to the listing
+   - .drawer-cat-groups  = container for second-level groups (hidden until tap)
+   - .drawer-cat-second  = second-level group header (also a link)
+   - .drawer-cat-thirds  = container for third-level subcategories
+   - .drawer-cat-third   = leaf subcategory link */
+.drawer-cat-row { border-bottom: 1px solid var(--border); }
+.drawer-cat-row:last-child { border-bottom: none; }
+.drawer-cat-top {
+  width: 100%;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 10px 4px;
-  border-radius: var(--radius-sm);
-  text-decoration: none;
+  gap: 10px;
+  padding: 12px 14px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
   color: var(--text);
-  font-size: 11.5px;
-  text-align: center;
-  line-height: 1.25;
-  background: #fff;
-  border: 1px solid var(--border);
-  transition: border-color 0.12s, background 0.12s;
+  text-align: left;
 }
-.drawer-cat-link:hover,
-.drawer-cat-link:active {
-  border-color: var(--brand);
-  background: var(--brand-light);
-  color: var(--brand-dark);
-}
+.drawer-cat-top.open { background: #f0f2f5; }
 .drawer-cat-icon {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
-  background: #f4f6f9;
+  background: #fff;
   border-radius: 50%;
-  font-size: 18px;
+  font-size: 16px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
 }
 .drawer-cat-name {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  flex: 1;
+  font-weight: 600;
+  font-size: 14px;
+}
+.drawer-cat-chev {
+  font-size: 14px;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+.drawer-cat-top.open .drawer-cat-chev { transform: rotate(180deg); }
+.drawer-cat-shop {
+  display: block;
+  padding: 6px 14px 10px 56px;
+  font-size: 12px;
+  color: var(--brand);
   font-weight: 500;
 }
+.drawer-cat-groups[hidden] { display: none; }
+.drawer-cat-groups {
+  background: #fff;
+  border-top: 1px solid var(--border);
+  padding: 6px 0;
+}
+.drawer-cat-group { padding: 6px 14px 6px 56px; }
+.drawer-cat-second {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+  padding: 4px 0;
+}
+.drawer-cat-second:hover { color: var(--brand); }
+.drawer-cat-thirds {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 4px 8px;
+  border-left: 2px solid var(--border);
+  margin-left: 2px;
+}
+.drawer-cat-third {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  padding: 3px 0 3px 8px;
+}
+.drawer-cat-third:hover { color: var(--brand); }
 
 /* ═══════════════════════════════════════════════════════════════
    Sticky bottom CTA bar (product detail, cart) — mobile-only
@@ -2134,7 +2204,7 @@ body.page-home .header-nav { margin-left: auto; }
 @media (max-width: 1100px) {
   .products-grid { grid-template-columns: repeat(4, 1fr); }
   .categories-grid { grid-template-columns: repeat(4, 1fr); }
-  .categories-grid-full { grid-template-columns: repeat(3, 1fr); }
+  .categories-grid-full { grid-template-columns: 1fr; }
   .admin-stats { grid-template-columns: repeat(2, 1fr); }
   .admin-grid { grid-template-columns: 1fr; }
   .admin-grid > :last-child { grid-column: auto; }
@@ -2244,7 +2314,7 @@ body.page-home .header-nav { margin-left: auto; }
   /* Grids */
   .products-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .categories-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .categories-grid-full { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .categories-grid-full { grid-template-columns: 1fr; gap: 12px; }
   .banner-row { grid-template-columns: 1fr; gap: 12px; }
   .banner { padding: 28px 20px; min-height: 140px; }
   .banner h3 { font-size: 22px; }
