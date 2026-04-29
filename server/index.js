@@ -432,6 +432,29 @@ app.get('/api/store/config', (req, res) => {
   });
 });
 
+// TEMP debug: compare listV2 vs legacy list for the same query so we can
+// see which endpoint returns more results. Remove once we've decided.
+app.get('/api/store/_debug/compare', async (req, res) => {
+  const { q, categoryId } = req.query;
+  try {
+    const [v2, legacy] = await Promise.all([
+      cj.searchProducts({ keyWord: q, categoryId, page: 1, size: 20 }),
+      cj.getProductList({ productNameEn: q, categoryId, page: 1, pageSize: 20 }),
+    ]);
+    const v2Total = v2.data?.total || v2.data?.totalRecords || 0;
+    const v2Sample = (v2.data?.list || []).slice(0, 3).map(p => p.productNameEn || p.productName);
+    const legacyTotal = legacy.data?.total || legacy.data?.totalRecords || 0;
+    const legacySample = (legacy.data?.list || []).slice(0, 3).map(p => p.productNameEn || p.productName);
+    res.json({
+      query: { q: q || null, categoryId: categoryId || null },
+      listV2: { total: v2Total, sample: v2Sample },
+      legacyList: { total: legacyTotal, sample: legacySample },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Categories (cached 1h)
 app.get('/api/store/categories', async (req, res) => {
   try {
