@@ -1107,12 +1107,13 @@ async function renderSearch(query, page = 1, opts = {}) {
     };
 
     let res = await apiGet('/api/store/products?' + buildQs(true).toString());
-    const STRICT_FALLBACK_THRESHOLD = 4;
-    if ((res.products || []).length < STRICT_FALLBACK_THRESHOLD && (res.unverifiedCount || 0) > 0) {
-      // Either truly few results OR we're warming a fresh search — fall back
-      // so the user sees something while the cache fills. Background warming
-      // (kicked off by the strict call above) means a refresh in ~30s will
-      // produce a clean strict result.
+    const STRICT_FALLBACK_THRESHOLD = 8;
+    // Fall back to non-strict whenever the strict result is sparse — the
+    // earlier `unverifiedCount > 0` clause meant fresh categories with
+    // EVERY product unverified would dodge the fallback and show zero
+    // products (because strict mode skips them). We always retry now;
+    // background warming continues either way.
+    if ((res.products || []).length < STRICT_FALLBACK_THRESHOLD) {
       res = await apiGet('/api/store/products?' + buildQs(false).toString());
     }
 

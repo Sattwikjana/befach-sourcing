@@ -533,8 +533,10 @@ app.get('/api/store/products', async (req, res) => {
 
     // Fire-and-forget background warming so the next visit to this listing
     // (or to one of these products) returns from cache. Capped per request
-    // to avoid blowing the daily CJ quota on a single page load.
-    const WARM_PER_REQUEST = 10;
+    // to avoid blowing the daily CJ quota on a single page load. With the
+    // verified-account 86400/day budget we can afford to warm ~50/page
+    // (was 10 when we ran on the unverified ~1000/day quota).
+    const WARM_PER_REQUEST = 50;
     for (const pid of unwarmedToWarm.slice(0, WARM_PER_REQUEST)) {
       getProductShippingUsd(pid, 'low').catch(() => {});
     }
@@ -1413,6 +1415,8 @@ app.listen(PORT, () => {
   console.log(`  Ship:      ${DEFAULT_SHIP_FROM} → ${DEFAULT_SHIP_TO}`);
   console.log(`  Admin pw:  ${process.env.ADMIN_PASSWORD ? 'set' : 'MISSING'}`);
   console.log('');
-  // Fire-and-forget so the server starts accepting requests immediately
-  prewarm();
+  // Fire-and-forget so the server starts accepting requests immediately.
+  // After the home page is hot, keep filling the cache with deeper pages
+  // so first-click on any category returns warm shipping data faster.
+  prewarm().then(() => warmExtendedCatalog(8)).catch(() => {});
 });

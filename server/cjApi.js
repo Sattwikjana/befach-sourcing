@@ -141,10 +141,10 @@ function isRetryable(err) {
  * Cached responses serve the vast majority of traffic; queues only
  * engage on genuine cache misses.
  */
-// 1500ms gap = ~0.67 req/sec per endpoint. CJ's documented limit is
-// 1 req/sec but new accounts are throttled tighter — 1500ms gives
-// established and new keys both enough headroom to avoid 429s.
-const MIN_GAP_MS = 1500;
+// 900ms gap = ~1.1 req/sec per endpoint. Verified CJ accounts get
+// 86400 req/day = 1 req/sec, so 900ms keeps a 10% safety margin while
+// using the budget that previously sat idle at 1500ms (0.67 req/sec).
+const MIN_GAP_MS = 900;
 const queues = new Map(); // path → { high: [], medium: [], low: [], lastAt, running }
 
 function enqueueCj(path, fn, priority = 'low') {
