@@ -95,7 +95,7 @@ const CACHE = new Map(); // insertion order = LRU order
 // shape or sort order. Old cached entries with a different version
 // won't be read, so users see the new behavior immediately on deploy
 // without waiting for the 30-min TTL to expire.
-const PRODUCTS_CACHE_VERSION = 'v3';
+const PRODUCTS_CACHE_VERSION = 'v4';
 const productsRawKey = (params) => `productsRaw:${PRODUCTS_CACHE_VERSION}:${JSON.stringify(params)}`;
 
 function cacheGet(key, ttlMs) {
@@ -589,39 +589,59 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
     }
   });
 
-  // Strict-AND filter on legacy. Single-word queries pass through (legacy
-  // already matches strictly when there's only one token).
+  // Strict-AND filter both endpoints for multi-word queries. listV2's
+  // elasticsearch returns category-tagged matches that don't contain
+  // every keyword in the name (e.g. "Pet Glasses Dog" for "smart
+  // glasses"), so we drop those too — not just legacy. If filtering
+  // leaves us with too few results we fall back to unfiltered below.
   const legacyFiltered = isMultiWord ? legacyAllItems.filter(matchesAll) : legacyAllItems;
+  const v2Filtered     = isMultiWord ? v2.products.filter(matchesAll)    : v2.products;
 
-  // Union by pid. listV2 wins on duplicates (richer fields).
-  const seen = new Set();
-  const merged = [];
-  for (const item of [...v2.products, ...legacyFiltered]) {
-    const pid = item.pid || item.id || item.productId;
-    if (!pid || seen.has(pid)) continue;
-    seen.add(pid);
-    merged.push(item);
+  const unionByPid = (...lists) => {
+    const seen = new Set();
+    const out = [];
+    for (const list of lists) for (const item of list) {
+      const pid = item.pid || item.id || item.productId;
+      if (!pid || seen.has(pid)) continue;
+      seen.add(pid);
+      out.push(item);
+    }
+    return out;
+  };
+
+  let merged = unionByPid(v2Filtered, legacyFiltered);
+
+  // Fallback: if strict-AND filtering gave us nothing useful (CJ's catalog
+  // genuinely has very few products literally named "smart glasses" —
+  // most are tagged by category instead), fall back to the unfiltered
+  // listV2 results so the user sees *something* relevant rather than an
+  // empty page. The sort below still tries to float real matches up.
+  let usedFallback = false;
+  if (isMultiWord && merged.length < 4) {
+    merged = unionByPid(v2Filtered, legacyFiltered, v2.products, legacyAllItems);
+    usedFallback = true;
   }
 
-  // Sort: strict-AND name matches first, then everything else preserved
-  // in original order. For "smart glasses" this floats real smart-glasses
-  // products above pet/dog glasses that listV2 surfaced because of
-  // category-level "glasses" tagging without "smart" in the name.
+  // Sort: strict name matches first regardless of source ranking. For
+  // "smart glasses" this puts real smart-glasses items above pet glasses
+  // that survive only via the fallback union.
   if (isMultiWord) {
     const strictMatches = [];
     const otherMatches = [];
     for (const p of merged) (matchesAll(p) ? strictMatches : otherMatches).push(p);
-    merged.length = 0;
-    merged.push(...strictMatches, ...otherMatches);
+    merged = [...strictMatches, ...otherMatches];
   }
 
-  // Total estimate: legacy is the broader index. For multi-word queries we
-  // scale by the strict-match rate observed across the pages we fetched —
-  // a more accurate estimate than the page-1-only sample we used before.
+  // Total estimate. When we used the fallback path, the filtered counts
+  // are misleadingly low — fall back to listV2 total. Otherwise scale
+  // legacy total by the observed across-pages strict-match rate.
   let total;
-  if (isMultiWord && legacyAllItems.length > 0) {
+  if (isMultiWord && !usedFallback && legacyAllItems.length > 0) {
     const matchRate = legacyFiltered.length / legacyAllItems.length;
-    total = Math.max(Math.round(legacyRawTotal * matchRate), v2.total, merged.length);
+    total = Math.max(Math.round(legacyRawTotal * matchRate), v2Filtered.length, merged.length);
+  } else if (isMultiWord && usedFallback) {
+    // Fallback view: total is what listV2 has + any extra strict matches.
+    total = Math.max(v2.total, merged.length);
   } else {
     total = Math.max(legacyRawTotal, v2.total, merged.length);
   }
