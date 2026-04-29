@@ -34,3 +34,6 @@ coverage/
 # Contains user accounts, orders, sessions, shipping cache.
 # Never commit to git.
 server/data/
+
+# Claude Code local state — IDE workspace settings, scheduled-task locks, etc.
+.claude/
