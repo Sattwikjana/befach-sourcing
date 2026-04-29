@@ -1060,12 +1060,16 @@ function renderHomeSidebar() {
     item.addEventListener('focus', () => showSidebarFlyout(parseInt(item.getAttribute('data-idx'))));
   });
 
-  // Hide the flyout when cursor leaves both the sidebar and the flyout
+  // Hide the flyout when cursor leaves both the sidebar and the flyout.
+  // 250ms grace so a slow mouse moving across the grid-gap between them
+  // doesn't trigger a premature hide. Combined with the flush positioning
+  // below (left = sidebar.offsetWidth, no +8 gap), there's no longer a
+  // no-hover dead zone for the cursor to cross — same UX as CJ.
   const flyout = document.getElementById('sidebarFlyout');
   const hideMaybe = () => {
     setTimeout(() => {
       if (!el.matches(':hover') && !flyout.matches(':hover')) hideSidebarFlyout();
-    }, 100);
+    }, 250);
   };
   el.addEventListener('mouseleave', hideMaybe);
   flyout?.addEventListener('mouseleave', hideMaybe);
@@ -1112,10 +1116,16 @@ function showSidebarFlyout(idx) {
     }).join('');
   }
 
-  // Position the flyout: top-aligned with the sidebar, to its right
-  const sRect = sidebar.getBoundingClientRect();
+  // Position the flyout flush against the sidebar's right edge. The
+  // .home-layout grid has a 20px gap between sidebar and main content,
+  // and earlier we added another 8px on top — together that left the
+  // cursor crossing ~28px of dead zone where neither sidebar nor flyout
+  // was hovered, and the flyout would hide before the user reached it.
+  // Sticking the flyout exactly at sidebar.offsetWidth (= sidebar's
+  // right edge in the relative parent) makes it abut the sidebar with
+  // no gap, matching CJ's seller-portal mega-menu UX.
   flyout.style.top = '0';
-  flyout.style.left = (sidebar.offsetWidth + 8) + 'px';
+  flyout.style.left = sidebar.offsetWidth + 'px';
   flyout.hidden = false;
 }
 

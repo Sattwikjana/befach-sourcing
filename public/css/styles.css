@@ -414,6 +414,22 @@ main {
   align-content: start;
 }
 .sidebar-flyout[hidden] { display: none !important; }
+
+/* Invisible "hover bridge" extending 28px to the left of the flyout —
+   covers the .home-layout grid-gap so a cursor moving from a sidebar
+   item into the flyout never enters a no-hover dead zone. Without
+   this, slow mouse moves used to trigger hideSidebarFlyout()
+   mid-traversal. */
+.sidebar-flyout::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -28px;
+  width: 28px;
+  background: transparent;
+  pointer-events: auto;
+}
 .flyout-group { min-width: 0; }
 .flyout-group-head {
   display: inline-block;
