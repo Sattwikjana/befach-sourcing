@@ -535,30 +535,58 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
     return parseListV2(data, size);
   }
 
-  const [v2Result, legacyResult] = await Promise.allSettled([
+  const tokens = String(keyWord).toLowerCase().split(/\s+/).filter(Boolean);
+  const isMultiWord = tokens.length > 1;
+  const matchesAll = (p) => {
+    const name = String(p.productNameEn || p.productName || '').toLowerCase();
+    return tokens.every(t => name.includes(t));
+  };
+
+  // Multi-word queries get DEEP legacy pagination so we can find genuine
+  // strict-AND matches that legacy buries past page 1 (its OR-matched
+  // ranking puts "Smart Bracelet" and "Wine Glasses" before actual smart
+  // glasses for the query "smart glasses"). With Prime's 4 req/sec the
+  // legacy queue can absorb 5 parallel-fired pages in ~1.4s — only paid
+  // on cache miss, then 30-min cache absorbs repeats.
+  const legacyPagesToFetch = isMultiWord ? 5 : 1;
+  const legacyCalls = [];
+  for (let i = 0; i < legacyPagesToFetch; i++) {
+    legacyCalls.push(cj.getProductList({
+      productNameEn: keyWord,
+      categoryId,
+      page: page + i,
+      pageSize: 20,
+    }));
+  }
+
+  const [v2Result, ...legacyResults] = await Promise.allSettled([
     cj.searchProducts({ keyWord, categoryId, page, size }),
-    cj.getProductList({ productNameEn: keyWord, categoryId, page, pageSize: size }),
+    ...legacyCalls,
   ]);
 
   const v2 = v2Result.status === 'fulfilled'
     ? parseListV2(v2Result.value, size)
     : { products: [], total: 0, totalPages: 1 };
 
-  const legacyData = legacyResult.status === 'fulfilled' ? legacyResult.value : null;
-  const legacyItems = legacyData?.data?.list || [];
-  const legacyRawTotal = legacyData?.data?.total || legacyItems.length;
+  // Aggregate legacy items across all fetched pages. Track the page-1
+  // total separately because that's the legacy index's authoritative
+  // OR-matched count (later pages don't update the total).
+  let legacyAllItems = [];
+  let legacyRawTotal = 0;
+  legacyResults.forEach((r, idx) => {
+    if (r.status !== 'fulfilled') return;
+    const items = r.value?.data?.list || [];
+    legacyAllItems = legacyAllItems.concat(items);
+    if (idx === 0) {
+      legacyRawTotal = r.value?.data?.total || items.length;
+    }
+  });
 
-  // Strict-AND filter for multi-word queries; single-word legacy already matches strictly
-  const tokens = String(keyWord).toLowerCase().split(/\s+/).filter(Boolean);
-  const isMultiWord = tokens.length > 1;
-  const legacyFiltered = isMultiWord
-    ? legacyItems.filter(p => {
-        const name = String(p.productNameEn || p.productName || '').toLowerCase();
-        return tokens.every(t => name.includes(t));
-      })
-    : legacyItems;
+  // Strict-AND filter on legacy. Single-word queries pass through (legacy
+  // already matches strictly when there's only one token).
+  const legacyFiltered = isMultiWord ? legacyAllItems.filter(matchesAll) : legacyAllItems;
 
-  // Union by pid — listV2 wins on duplicates because it carries richer fields
+  // Union by pid. listV2 wins on duplicates (richer fields).
   const seen = new Set();
   const merged = [];
   for (const item of [...v2.products, ...legacyFiltered]) {
@@ -568,13 +596,24 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
     merged.push(item);
   }
 
-  // Total estimate: legacy is the broader index, so it sets the ceiling.
-  // For multi-word queries, scale legacyRawTotal by the per-page strict-match
-  // rate to estimate how many of the OR-matched results actually contain all
-  // tokens. Single-word queries use legacy total directly.
+  // Sort: strict-AND name matches first, then everything else preserved
+  // in original order. For "smart glasses" this floats real smart-glasses
+  // products above pet/dog glasses that listV2 surfaced because of
+  // category-level "glasses" tagging without "smart" in the name.
+  if (isMultiWord) {
+    const strictMatches = [];
+    const otherMatches = [];
+    for (const p of merged) (matchesAll(p) ? strictMatches : otherMatches).push(p);
+    merged.length = 0;
+    merged.push(...strictMatches, ...otherMatches);
+  }
+
+  // Total estimate: legacy is the broader index. For multi-word queries we
+  // scale by the strict-match rate observed across the pages we fetched —
+  // a more accurate estimate than the page-1-only sample we used before.
   let total;
-  if (isMultiWord && legacyItems.length > 0) {
-    const matchRate = legacyFiltered.length / legacyItems.length;
+  if (isMultiWord && legacyAllItems.length > 0) {
+    const matchRate = legacyFiltered.length / legacyAllItems.length;
     total = Math.max(Math.round(legacyRawTotal * matchRate), v2.total, merged.length);
   } else {
     total = Math.max(legacyRawTotal, v2.total, merged.length);
