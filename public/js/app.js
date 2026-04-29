@@ -777,79 +777,164 @@ function parseProductImage(p) {
 // ══════════════════════════════════════════════════════════════
 async function renderHome() {
   app.innerHTML = `
-    <div class="home-layout">
-      <!-- Left sidebar: category list with hover-to-expand (CJ-style) -->
-      <aside class="home-sidebar" id="homeSidebar">
-        ${Array(14).fill('<div class="sidebar-cat skeleton" style="height:48px;margin:4px 0"></div>').join('')}
-      </aside>
-
-      <!-- Right: hero + trending + banners + for-you -->
-      <div class="home-main">
-        <section class="hero">
-          <div class="hero-inner">
-            <div class="hero-copy">
-              <h1 class="hero-title">Shop the world.<br/><span class="accent">Delivered to your door.</span></h1>
-              <p class="hero-sub">Millions of products sourced globally. Best prices, fast shipping, secure checkout.</p>
-              <form class="hero-search" id="heroSearchForm">
-                <input type="text" id="heroSearchInput" placeholder="Search earbuds, watches, LED lights..." autofocus />
-                <button type="submit">Search</button>
-              </form>
-              <div class="hero-trust">
-                <span>🚚 Fast shipping</span>
-                <span>🌍 200+ countries</span>
-                <span>🔄 Easy returns</span>
-                <span>🔒 Secure checkout</span>
-              </div>
-              <p class="hero-byline">A <strong>${esc(COMPANY_INFO.legalName)}</strong> venture · GSTIN &amp; IEC compliant.</p>
-            </div>
+    <!-- HERO: global sourcing → doorstep delivery -->
+    <section class="home-hero">
+      <div class="home-hero-inner">
+        <div class="home-hero-copy">
+          <span class="home-hero-eyebrow">🌍 Sourced from across the globe</span>
+          <h1 class="home-hero-title">Shop the world.<br/><span class="accent">Delivered to your doorstep.</span></h1>
+          <p class="home-hero-sub">Millions of curated products from suppliers worldwide. Premium quality, best prices, fast &amp; secure delivery — direct to your door in India.</p>
+          <form class="home-hero-search" id="heroSearchForm">
+            <input type="text" id="heroSearchInput" placeholder="Search smart watches, earbuds, dresses, gadgets..." autocomplete="off" />
+            <button type="submit" aria-label="Search">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+              <span>Search</span>
+            </button>
+          </form>
+          <div class="home-hero-stats">
+            <div><strong>200+</strong><span>Countries</span></div>
+            <div><strong>1M+</strong><span>Products</span></div>
+            <div><strong>5–12</strong><span>Days delivery</span></div>
           </div>
-        </section>
-
-        <section class="section">
-          <div class="section-head">
-            <h2>🔥 Trending tech &amp; gadgets</h2>
-            <a href="#/search?q=earbuds" class="section-link" id="trendingMore">See more →</a>
-          </div>
-          <div class="products-grid" id="trendingGrid">${productSkeleton(10)}</div>
-        </section>
-
-        <section class="section banner-row">
-          <div class="banner banner-a">
-            <div>
-              <h3>New arrivals</h3>
-              <p>Fresh drops weekly</p>
-              <a href="#/search?q=new arrivals" class="banner-cta">Shop new →</a>
-            </div>
-          </div>
-          <div class="banner banner-b">
-            <div>
-              <h3>Best sellers</h3>
-              <p>What the world is buying</p>
-              <a href="#/search?q=best sellers" class="banner-cta">Shop now →</a>
-            </div>
-          </div>
-        </section>
-
-        <section class="section">
-          <div class="section-head">
-            <h2>💎 Style &amp; jewellery picks</h2>
-            <a href="#/search?q=watch" class="section-link" id="forYouMore">See more →</a>
-          </div>
-          <div class="products-grid" id="forYouGrid">${productSkeleton(10)}</div>
-        </section>
-
-        <section class="section">
-          <div class="section-head">
-            <h2>🏠 Home &amp; lifestyle</h2>
-            <a href="#/search?q=led light" class="section-link" id="homeLifestyleMore">See more →</a>
-          </div>
-          <div class="products-grid" id="homeLifestyleGrid">${productSkeleton(10)}</div>
-        </section>
+          <p class="home-hero-byline">A <strong>${esc(COMPANY_INFO.legalName)}</strong> venture · GSTIN &amp; IEC compliant</p>
+        </div>
+        <div class="home-hero-art" aria-hidden="true">
+          <div class="home-hero-globe">🌍</div>
+          <span class="home-hero-orbit home-hero-orbit-1">📦</span>
+          <span class="home-hero-orbit home-hero-orbit-2">✈️</span>
+          <span class="home-hero-orbit home-hero-orbit-3">🛍️</span>
+          <span class="home-hero-orbit home-hero-orbit-4">⚡</span>
+        </div>
       </div>
+    </section>
 
-      <!-- Flyout panel: appears to the right of a hovered sidebar category -->
-      <div class="sidebar-flyout" id="sidebarFlyout" hidden></div>
-    </div>
+    <!-- TRUST BADGES -->
+    <section class="trust-row">
+      <div class="trust-item">
+        <div class="trust-icon">🌍</div>
+        <div class="trust-text"><strong>Globally Sourced</strong><span>From 200+ countries</span></div>
+      </div>
+      <div class="trust-item">
+        <div class="trust-icon">🚚</div>
+        <div class="trust-text"><strong>Doorstep Delivery</strong><span>Fast &amp; tracked</span></div>
+      </div>
+      <div class="trust-item">
+        <div class="trust-icon">🔒</div>
+        <div class="trust-text"><strong>Secure Payment</strong><span>Razorpay protected</span></div>
+      </div>
+      <div class="trust-item">
+        <div class="trust-icon">💬</div>
+        <div class="trust-text"><strong>24/7 Support</strong><span>We're here to help</span></div>
+      </div>
+    </section>
+
+    <!-- CIRCULAR CATEGORY STRIP -->
+    <section class="cat-strip">
+      <div class="section-head">
+        <h2 class="section-title">Shop by Category</h2>
+        <a href="#/category" class="section-link">View all →</a>
+      </div>
+      <div class="cat-strip-row" id="catStrip">
+        ${Array(10).fill('<div class="cat-strip-skel skeleton"></div>').join('')}
+      </div>
+    </section>
+
+    <!-- PROMO BANNERS -->
+    <section class="promo-blocks">
+      <a href="#/search?q=women dress" class="promo-big">
+        <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
+        <div class="promo-big-copy">
+          <span class="promo-eyebrow">SUMMER COLLECTION</span>
+          <h2>Women's Fashion</h2>
+          <p>Up to 65% OFF on premium picks</p>
+          <span class="promo-cta">Shop Women →</span>
+        </div>
+      </a>
+      <div class="promo-stack">
+        <a href="#/search?q=smart watch" class="promo-small promo-tech">
+          <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png')"></div>
+          <div class="promo-small-copy">
+            <span class="promo-eyebrow">TECH DEALS</span>
+            <h3>Smart Gadgets</h3>
+            <p>Affordable. Smart.</p>
+            <span class="promo-cta">Shop →</span>
+          </div>
+        </a>
+        <a href="#/search?q=men shirt" class="promo-small promo-men">
+          <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
+          <div class="promo-small-copy">
+            <span class="promo-eyebrow">MEN'S FASHION</span>
+            <h3>Up to 40% Off</h3>
+            <p>Premium styles</p>
+            <span class="promo-cta">Shop →</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- FEATURED PRODUCTS -->
+    <section class="section">
+      <div class="section-head">
+        <h2 class="section-title">Featured Products</h2>
+        <a href="#/search?q=trending" class="section-link" id="featuredMore">View all →</a>
+      </div>
+      <div class="products-grid" id="featuredGrid">${productSkeleton(10)}</div>
+    </section>
+
+    <!-- MEN'S FASHION -->
+    <section class="fashion-section">
+      <div class="fashion-banner fashion-banner-men">
+        <div class="fashion-banner-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
+        <div class="fashion-banner-copy">
+          <span class="fashion-eyebrow">MEN'S COLLECTION</span>
+          <h2>Men's Fashion</h2>
+          <p>Premium styles, sourced globally</p>
+          <a class="fashion-cta" href="#/search?q=men shirt">Shop Now →</a>
+        </div>
+      </div>
+      <div class="products-grid fashion-grid" id="menGrid">${productSkeleton(8)}</div>
+    </section>
+
+    <!-- TRENDING TECH & GADGETS -->
+    <section class="section">
+      <div class="section-head">
+        <h2 class="section-title">🔥 Trending Tech &amp; Gadgets</h2>
+        <a href="#/search?q=earbuds" class="section-link" id="trendingMore">View all →</a>
+      </div>
+      <div class="products-grid" id="trendingGrid">${productSkeleton(10)}</div>
+    </section>
+
+    <!-- WOMEN'S FASHION -->
+    <section class="fashion-section">
+      <div class="fashion-banner fashion-banner-women">
+        <div class="fashion-banner-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
+        <div class="fashion-banner-copy">
+          <span class="fashion-eyebrow">WOMEN'S COLLECTION</span>
+          <h2>Women's Fashion</h2>
+          <p>Hand-picked from worldwide suppliers</p>
+          <a class="fashion-cta" href="#/search?q=women dress">Shop Now →</a>
+        </div>
+      </div>
+      <div class="products-grid fashion-grid" id="womenGrid">${productSkeleton(8)}</div>
+    </section>
+
+    <!-- AFFORDABLE SMART PRODUCTS -->
+    <section class="section">
+      <div class="section-head">
+        <h2 class="section-title">⚡ Smart Picks Under ₹999</h2>
+        <a href="#/search?q=smart" class="section-link" id="smartMore">View all →</a>
+      </div>
+      <div class="products-grid" id="smartGrid">${productSkeleton(10)}</div>
+    </section>
+
+    <!-- HOME & LIFESTYLE -->
+    <section class="section">
+      <div class="section-head">
+        <h2 class="section-title">🏠 Home &amp; Lifestyle</h2>
+        <a href="#/search?q=led light" class="section-link" id="homeLifestyleMore">View all →</a>
+      </div>
+      <div class="products-grid" id="homeLifestyleGrid">${productSkeleton(10)}</div>
+    </section>
   `;
 
   const heroInput = document.getElementById('heroSearchInput');
@@ -860,8 +945,27 @@ async function renderHome() {
     navigate(`/search?q=${encodeURIComponent(q)}`);
   });
 
-  loadCategories().then(() => renderHomeSidebar());
+  loadCategories().then(() => renderCategoryStrip());
   loadHomeProducts();
+}
+
+// Horizontal circular-icon category strip on the home page.
+// Shows every top-level CJ category — clicks land on the full listing.
+function renderCategoryStrip() {
+  const el = document.getElementById('catStrip');
+  if (!el) return;
+  const cats = state.categories || [];
+  if (!cats.length) {
+    el.innerHTML = '<p class="muted" style="padding:12px">Categories unavailable</p>';
+    return;
+  }
+  el.innerHTML = cats.map(cat => {
+    const name = cat.categoryFirstName || '';
+    return `<a class="cat-strip-item" href="${categoryHref(cat)}">
+      <div class="cat-strip-icon">${catIcon(name)}</div>
+      <span class="cat-strip-name">${esc(name)}</span>
+    </a>`;
+  }).join('');
 }
 
 // ── Left-sidebar category list with hover-to-expand subcategory flyout ──
@@ -958,31 +1062,45 @@ function hideSidebarFlyout() {
 }
 
 async function loadHomeProducts() {
-  const trendingGrid = document.getElementById('trendingGrid');
-  const forYouGrid = document.getElementById('forYouGrid');
-  const homeLifestyleGrid = document.getElementById('homeLifestyleGrid');
+  const grids = {
+    featured:      document.getElementById('featuredGrid'),
+    men:           document.getElementById('menGrid'),
+    women:         document.getElementById('womenGrid'),
+    trending:      document.getElementById('trendingGrid'),
+    smart:         document.getElementById('smartGrid'),
+    homeLifestyle: document.getElementById('homeLifestyleGrid'),
+  };
   const showErr = (el, msg) => { if (el) el.innerHTML = `<p class="muted">${esc(msg)}</p>`; };
 
-  // Three themed sections — each fires its own /api/store/products call with
-  // a different keyword, so the rows are visually distinct (different
-  // products, different vibes). Keywords rotate by day-of-year so the home
-  // page feels fresh every visit instead of showing the same items forever.
+  // Each home-page section pulls a different keyword so the rows feel
+  // visually distinct. Keywords rotate by day-of-year so the home page
+  // refreshes daily instead of showing the same items forever.
   const today = new Date();
-  const dayOfYear = Math.floor(
-    (today - new Date(today.getFullYear(), 0, 0)) / 86400000
-  );
+  const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 86400000);
   const pick = (arr) => arr[dayOfYear % arr.length];
 
+  const featuredPool = [
+    'trending', 'best seller', 'gift set', 'premium',
+    'editor pick', 'limited edition', 'top rated', 'new arrival',
+  ];
+  const menPool = [
+    'men shirt', 'men jeans', 'men jacket', 'men watch',
+    'men sneakers', 'men hoodie', 'men sunglasses', 'men wallet',
+  ];
+  const womenPool = [
+    'women dress', 'women top', 'women handbag', 'women heels',
+    'women earrings', 'women jewellery', 'women jeans', 'women sunglasses',
+  ];
   const trendingPool = [
     'earbuds', 'wireless headphones', 'smart watch', 'bluetooth speaker',
     'power bank', 'phone holder', 'gaming mouse', 'mini projector',
     'action camera', 'mechanical keyboard', 'smart glasses', 'drone',
     'vr headset', 'air purifier',
   ];
-  const stylePool = [
-    'watch', 'sunglasses', 'necklace', 'bracelet', 'ring', 'earrings',
-    'handbag', 'wallet', 'hair clip', 'pendant', 'silk scarf', 'leather belt',
-    'mens watch', 'womens jewellery',
+  const smartPool = [
+    'smart bulb', 'smart plug', 'smart light', 'smart band',
+    'smart sensor', 'smart camera', 'smart watch', 'smart scale',
+    'smart fan', 'smart lock', 'smart key finder', 'smart speaker',
   ];
   const homePool = [
     'led light', 'kitchen tools', 'wall art', 'desk lamp', 'storage organizer',
@@ -991,25 +1109,29 @@ async function loadHomeProducts() {
   ];
 
   const sections = [
-    { grid: trendingGrid,       keyword: pick(trendingPool), label: 'tech & gadgets',     moreId: 'trendingMore' },
-    { grid: forYouGrid,         keyword: pick(stylePool),    label: 'style & jewellery',  moreId: 'forYouMore' },
-    { grid: homeLifestyleGrid,  keyword: pick(homePool),     label: 'home & lifestyle',   moreId: 'homeLifestyleMore' },
+    { grid: grids.featured,      keyword: pick(featuredPool), size: 10, moreId: 'featuredMore',      label: 'featured products' },
+    { grid: grids.men,           keyword: pick(menPool),      size: 8,  moreId: null,                label: "men's fashion" },
+    { grid: grids.trending,      keyword: pick(trendingPool), size: 10, moreId: 'trendingMore',      label: 'tech & gadgets' },
+    { grid: grids.women,         keyword: pick(womenPool),    size: 8,  moreId: null,                label: "women's fashion" },
+    { grid: grids.smart,         keyword: pick(smartPool),    size: 10, moreId: 'smartMore',         label: 'smart picks' },
+    { grid: grids.homeLifestyle, keyword: pick(homePool),     size: 10, moreId: 'homeLifestyleMore', label: 'home & lifestyle' },
   ];
 
-  // Point each section's "See more →" link at the same keyword we're
+  // Point each section's "View all →" link at the same keyword we're
   // showing in the row, so navigation matches what the user sees.
   sections.forEach(s => {
+    if (!s.moreId) return;
     const link = document.getElementById(s.moreId);
     if (link) link.href = `#/search?q=${encodeURIComponent(s.keyword)}`;
   });
 
-  // Fire all three in parallel (different endpoints don't share rate limit
-  // here — they're all on /product/listV2, which the server queue serialises,
-  // but the cache hit on subsequent loads makes this near-instant).
+  // Fire all sections in parallel — different keywords share the same
+  // endpoint so the server queue serialises them, but the 5-min cache
+  // makes subsequent home loads near-instant.
   await Promise.all(sections.map(async (s) => {
     if (!s.grid) return;
     try {
-      const res = await apiGet(`/api/store/products?keyWord=${encodeURIComponent(s.keyword)}&size=12&page=1`);
+      const res = await apiGet(`/api/store/products?keyWord=${encodeURIComponent(s.keyword)}&size=${s.size}&page=1`);
       const products = res.products || [];
       if (!products.length) {
         showErr(s.grid, `No ${s.label} products available right now.`);
