@@ -446,6 +446,45 @@ app.get('/api/store/categories', async (req, res) => {
   }
 });
 
+// Walk the cached category tree and return the human name for a CJ id.
+// Used by the products endpoint to fall back to keyword search when
+// listV2's categoryId index returns nothing — many leaf categories
+// (e.g. "Woman Prescription Glasses") respond to a keyword search of
+// the same name with 1000+ products but to a categoryId query with 0.
+function categoryNameForId(id) {
+  if (!id) return '';
+  const tree = cacheGet('categories', Infinity) || [];
+  for (const top of tree) {
+    if (top.categoryFirstId === id) return top.categoryFirstName || '';
+    for (const sec of (top.categoryFirstList || [])) {
+      if (sec.categorySecondId === id) return sec.categorySecondName || '';
+      for (const tri of (sec.categorySecondList || [])) {
+        if (tri.categoryId === id) return tri.categoryName || '';
+      }
+    }
+  }
+  return '';
+}
+
+// Parse a CJ listV2 response into our normalised meta shape.
+function parseListV2(data, pageSize) {
+  let products = [];
+  let total = 0;
+  let totalPages = 1;
+  if (data.data?.list) {
+    products = data.data.list;
+    total = data.data.total || products.length;
+    totalPages = Math.ceil(total / pageSize);
+  } else if (data.data?.content) {
+    data.data.content.forEach(group => {
+      if (group.productList) products.push(...group.productList);
+    });
+    total = data.data.totalRecords || products.length;
+    totalPages = data.data.totalPages || Math.ceil(total / pageSize);
+  }
+  return { products, total, totalPages };
+}
+
 // Product list / search.
 //
 // We cache the RAW CJ product list (5 min TTL) — not the final payload —
@@ -456,6 +495,7 @@ app.get('/api/store/products', async (req, res) => {
   try {
     const { keyWord, page, size, categoryId, strictShippable } = req.query;
     const wantStrict = strictShippable === '1' || strictShippable === 'true';
+    const pageSize = Math.min(parseInt(size) || 20, 40);
     const rawKey = 'productsRaw:' + JSON.stringify({
       keyWord: keyWord || '', page: page || '1', size: size || '20', categoryId: categoryId || '',
     });
@@ -465,24 +505,34 @@ app.get('/api/store/products', async (req, res) => {
       const data = await cj.searchProducts({
         keyWord,
         page: parseInt(page) || 1,
-        size: Math.min(parseInt(size) || 20, 40),
+        size: pageSize,
         categoryId,
       });
-      let products = [];
-      let total = 0;
-      let totalPages = 1;
-      if (data.data?.list) {
-        products = data.data.list;
-        total = data.data.total || products.length;
-        totalPages = Math.ceil(total / (parseInt(size) || 20));
-      } else if (data.data?.content) {
-        data.data.content.forEach(group => {
-          if (group.productList) products.push(...group.productList);
-        });
-        total = data.data.totalRecords || products.length;
-        totalPages = data.data.totalPages || Math.ceil(total / (parseInt(size) || 20));
+      meta = parseListV2(data, parseInt(size) || 20);
+
+      // CJ's listV2 categoryId index has gaps — many leaf-level categories
+      // return 0 even though products clearly exist. If we got nothing AND
+      // we were querying by id, retry with the category name as a keyword.
+      // This recovers entire empty pages (e.g. Woman/Man Prescription
+      // Glasses → 1000+ products via keyword).
+      if (meta.products.length === 0 && categoryId && !keyWord) {
+        const fallbackName = categoryNameForId(categoryId);
+        if (fallbackName) {
+          console.log(`[products] categoryId ${categoryId} empty → retrying as keyword "${fallbackName}"`);
+          try {
+            const data2 = await cj.searchProducts({
+              keyWord: fallbackName,
+              page: parseInt(page) || 1,
+              size: pageSize,
+            });
+            const meta2 = parseListV2(data2, parseInt(size) || 20);
+            if (meta2.products.length > 0) meta = meta2;
+          } catch (e) {
+            console.warn(`[products] keyword fallback failed:`, e.message);
+          }
+        }
       }
-      meta = { products, total, totalPages };
+
       cacheSet(rawKey, meta);
     }
 
