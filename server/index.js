@@ -508,6 +508,85 @@ function parseListV2(data, pageSize) {
   return { products, total, totalPages };
 }
 
+// Smart keyword search that merges CJ's two product endpoints to maximize
+// catalog coverage. Why both:
+//
+//   - /product/listV2 is precise but severely under-indexed. Probing showed
+//     "earbuds" → 2 results, "watch" → 360, "glasses" → 1, while CJ's seller
+//     dashboard shows thousands for those same queries.
+//   - /product/list (legacy) hits the full catalog (15k+ "watch" results),
+//     but for multi-word queries it does word-OR matching: "smart glasses"
+//     returns 9149 because it also matches "Smart Bracelet", "Wine Glasses",
+//     etc.
+//
+// Strategy:
+//   1. Fetch both endpoints in parallel.
+//   2. For multi-word queries, post-filter legacy results to those whose
+//      productNameEn contains EVERY query token (case-insensitive AND).
+//      This collapses "smart glasses" from 9149 fuzzy hits down to actual
+//      smart-glasses products.
+//   3. Union by productId, dedupe, and return.
+//
+// For pure category browse (no keyWord) we just use listV2 — categoryId
+// filtering on the legacy endpoint is unreliable.
+async function searchProductsMerged({ keyWord, categoryId, page, size }) {
+  if (!keyWord) {
+    const data = await cj.searchProducts({ keyWord, categoryId, page, size });
+    return parseListV2(data, size);
+  }
+
+  const [v2Result, legacyResult] = await Promise.allSettled([
+    cj.searchProducts({ keyWord, categoryId, page, size }),
+    cj.getProductList({ productNameEn: keyWord, categoryId, page, pageSize: size }),
+  ]);
+
+  const v2 = v2Result.status === 'fulfilled'
+    ? parseListV2(v2Result.value, size)
+    : { products: [], total: 0, totalPages: 1 };
+
+  const legacyData = legacyResult.status === 'fulfilled' ? legacyResult.value : null;
+  const legacyItems = legacyData?.data?.list || [];
+  const legacyRawTotal = legacyData?.data?.total || legacyItems.length;
+
+  // Strict-AND filter for multi-word queries; single-word legacy already matches strictly
+  const tokens = String(keyWord).toLowerCase().split(/\s+/).filter(Boolean);
+  const isMultiWord = tokens.length > 1;
+  const legacyFiltered = isMultiWord
+    ? legacyItems.filter(p => {
+        const name = String(p.productNameEn || p.productName || '').toLowerCase();
+        return tokens.every(t => name.includes(t));
+      })
+    : legacyItems;
+
+  // Union by pid — listV2 wins on duplicates because it carries richer fields
+  const seen = new Set();
+  const merged = [];
+  for (const item of [...v2.products, ...legacyFiltered]) {
+    const pid = item.pid || item.id || item.productId;
+    if (!pid || seen.has(pid)) continue;
+    seen.add(pid);
+    merged.push(item);
+  }
+
+  // Total estimate: legacy is the broader index, so it sets the ceiling.
+  // For multi-word queries, scale legacyRawTotal by the per-page strict-match
+  // rate to estimate how many of the OR-matched results actually contain all
+  // tokens. Single-word queries use legacy total directly.
+  let total;
+  if (isMultiWord && legacyItems.length > 0) {
+    const matchRate = legacyFiltered.length / legacyItems.length;
+    total = Math.max(Math.round(legacyRawTotal * matchRate), v2.total, merged.length);
+  } else {
+    total = Math.max(legacyRawTotal, v2.total, merged.length);
+  }
+
+  return {
+    products: merged,
+    total,
+    totalPages: Math.max(Math.ceil(total / size), 1),
+  };
+}
+
 // Product list / search.
 //
 // We cache the RAW CJ product list (5 min TTL) — not the final payload —
@@ -525,30 +604,30 @@ app.get('/api/store/products', async (req, res) => {
 
     let meta = cacheGet(rawKey, 5 * 60 * 1000);
     if (!meta) {
-      const data = await cj.searchProducts({
+      meta = await searchProductsMerged({
         keyWord,
+        categoryId,
         page: parseInt(page) || 1,
         size: pageSize,
-        categoryId,
       });
-      meta = parseListV2(data, parseInt(size) || 20);
 
       // CJ's listV2 categoryId index has gaps — many leaf-level categories
       // return 0 even though products clearly exist. If we got nothing AND
       // we were querying by id, retry with the category name as a keyword.
       // This recovers entire empty pages (e.g. Woman/Man Prescription
-      // Glasses → 1000+ products via keyword).
+      // Glasses → 1000+ products via keyword). The merged search above
+      // already calls both endpoints, so this fallback only fires when the
+      // category is genuinely empty in both.
       if (meta.products.length === 0 && categoryId && !keyWord) {
         const fallbackName = categoryNameForId(categoryId);
         if (fallbackName) {
           console.log(`[products] categoryId ${categoryId} empty → retrying as keyword "${fallbackName}"`);
           try {
-            const data2 = await cj.searchProducts({
+            const meta2 = await searchProductsMerged({
               keyWord: fallbackName,
               page: parseInt(page) || 1,
               size: pageSize,
             });
-            const meta2 = parseListV2(data2, parseInt(size) || 20);
             if (meta2.products.length > 0) meta = meta2;
           } catch (e) {
             console.warn(`[products] keyword fallback failed:`, e.message);
