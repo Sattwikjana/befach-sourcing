@@ -2382,6 +2382,24 @@ body.page-home .header-nav { margin-left: auto; }
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
+
+/* Compact hero variant — used inside .home-layout (with the persistent
+   left sidebar) so the hero doesn't dominate the page. The original
+   hero is kept available for any future full-width landing page. */
+.home-hero-compact { padding: 28px 24px; margin-bottom: 18px; }
+.home-hero-compact .home-hero-inner { gap: 24px; }
+.home-hero-compact .home-hero-title { font-size: 30px; }
+.home-hero-compact .home-hero-sub { font-size: 14.5px; margin-bottom: 18px; }
+.home-hero-compact .home-hero-eyebrow { margin-bottom: 12px; padding: 4px 10px; font-size: 11px; }
+.home-hero-compact .home-hero-search { margin-bottom: 16px; }
+.home-hero-compact .home-hero-search input { padding: 12px 16px; font-size: 14px; }
+.home-hero-compact .home-hero-search button { padding: 0 18px; font-size: 14px; }
+.home-hero-compact .home-hero-stats { gap: 24px; margin-bottom: 0; }
+.home-hero-compact .home-hero-stats strong { font-size: 18px; }
+.home-hero-compact .home-hero-stats span { font-size: 11px; }
+.home-hero-compact .home-hero-art { max-width: 200px; }
+.home-hero-compact .home-hero-globe { font-size: 110px; }
+.home-hero-compact .home-hero-orbit { width: 44px; height: 44px; font-size: 22px; }
 .home-hero::before {
   content: "";
   position: absolute;

@@ -777,168 +777,164 @@ function parseProductImage(p) {
 // ══════════════════════════════════════════════════════════════
 async function renderHome() {
   app.innerHTML = `
-    <!-- HERO: global sourcing → doorstep delivery -->
-    <section class="home-hero">
-      <div class="home-hero-inner">
-        <div class="home-hero-copy">
-          <span class="home-hero-eyebrow">🌍 Sourced from across the globe</span>
-          <h1 class="home-hero-title">Shop the world.<br/><span class="accent">Delivered to your doorstep.</span></h1>
-          <p class="home-hero-sub">Millions of curated products from suppliers worldwide. Premium quality, best prices, fast &amp; secure delivery — direct to your door in India.</p>
-          <form class="home-hero-search" id="heroSearchForm">
-            <input type="text" id="heroSearchInput" placeholder="Search smart watches, earbuds, dresses, gadgets..." autocomplete="off" />
-            <button type="submit" aria-label="Search">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-              <span>Search</span>
-            </button>
-          </form>
-          <div class="home-hero-stats">
-            <div><strong>200+</strong><span>Countries</span></div>
-            <div><strong>1M+</strong><span>Products</span></div>
-            <div><strong>5–12</strong><span>Days delivery</span></div>
+    <div class="home-layout">
+      <!-- Left sidebar: persistent CJ-style category list with hover-flyout -->
+      <aside class="home-sidebar" id="homeSidebar">
+        ${Array(14).fill('<div class="sidebar-cat skeleton" style="height:48px;margin:4px 0"></div>').join('')}
+      </aside>
+
+      <div class="home-main">
+        <!-- HERO (compact) — global sourcing → doorstep delivery -->
+        <section class="home-hero home-hero-compact">
+          <div class="home-hero-inner">
+            <div class="home-hero-copy">
+              <span class="home-hero-eyebrow">🌍 Sourced from across the globe</span>
+              <h1 class="home-hero-title">Shop the world. <span class="accent">Delivered to your doorstep.</span></h1>
+              <p class="home-hero-sub">Millions of curated products from suppliers worldwide — direct to your door.</p>
+              <form class="home-hero-search" id="heroSearchForm">
+                <input type="text" id="heroSearchInput" placeholder="Search smart watches, earbuds, dresses, gadgets..." autocomplete="off" />
+                <button type="submit" aria-label="Search">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+                  <span>Search</span>
+                </button>
+              </form>
+              <div class="home-hero-stats">
+                <div><strong>200+</strong><span>Countries</span></div>
+                <div><strong>1M+</strong><span>Products</span></div>
+                <div><strong>5–12</strong><span>Days delivery</span></div>
+              </div>
+            </div>
+            <div class="home-hero-art" aria-hidden="true">
+              <div class="home-hero-globe">🌍</div>
+              <span class="home-hero-orbit home-hero-orbit-1">📦</span>
+              <span class="home-hero-orbit home-hero-orbit-2">✈️</span>
+              <span class="home-hero-orbit home-hero-orbit-3">🛍️</span>
+              <span class="home-hero-orbit home-hero-orbit-4">⚡</span>
+            </div>
           </div>
-          <p class="home-hero-byline">A <strong>${esc(COMPANY_INFO.legalName)}</strong> venture · GSTIN &amp; IEC compliant</p>
-        </div>
-        <div class="home-hero-art" aria-hidden="true">
-          <div class="home-hero-globe">🌍</div>
-          <span class="home-hero-orbit home-hero-orbit-1">📦</span>
-          <span class="home-hero-orbit home-hero-orbit-2">✈️</span>
-          <span class="home-hero-orbit home-hero-orbit-3">🛍️</span>
-          <span class="home-hero-orbit home-hero-orbit-4">⚡</span>
-        </div>
-      </div>
-    </section>
+        </section>
 
-    <!-- TRUST BADGES -->
-    <section class="trust-row">
-      <div class="trust-item">
-        <div class="trust-icon">🌍</div>
-        <div class="trust-text"><strong>Globally Sourced</strong><span>From 200+ countries</span></div>
-      </div>
-      <div class="trust-item">
-        <div class="trust-icon">🚚</div>
-        <div class="trust-text"><strong>Doorstep Delivery</strong><span>Fast &amp; tracked</span></div>
-      </div>
-      <div class="trust-item">
-        <div class="trust-icon">🔒</div>
-        <div class="trust-text"><strong>Secure Payment</strong><span>Razorpay protected</span></div>
-      </div>
-      <div class="trust-item">
-        <div class="trust-icon">💬</div>
-        <div class="trust-text"><strong>24/7 Support</strong><span>We're here to help</span></div>
-      </div>
-    </section>
-
-    <!-- CIRCULAR CATEGORY STRIP (with hover-to-expand subcategory mega-flyout) -->
-    <section class="cat-strip">
-      <div class="section-head">
-        <h2 class="section-title">Shop by Category</h2>
-        <a href="#/category" class="section-link">View all →</a>
-      </div>
-      <div class="cat-strip-row" id="catStrip">
-        ${Array(10).fill('<div class="cat-strip-skel skeleton"></div>').join('')}
-      </div>
-      <!-- Mega-menu populated by JS on hover. Positioned absolute via .cat-strip-flyout-host. -->
-      <div class="cat-strip-flyout-host">
-        <div class="cat-strip-flyout" id="catStripFlyout" hidden></div>
-      </div>
-    </section>
-
-    <!-- PROMO BANNERS -->
-    <section class="promo-blocks">
-      <a href="#/search?q=women dress" class="promo-big">
-        <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
-        <div class="promo-big-copy">
-          <span class="promo-eyebrow">SUMMER COLLECTION</span>
-          <h2>Women's Fashion</h2>
-          <p>Up to 65% OFF on premium picks</p>
-          <span class="promo-cta">Shop Women →</span>
-        </div>
-      </a>
-      <div class="promo-stack">
-        <a href="#/search?q=smart watch" class="promo-small promo-tech">
-          <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png')"></div>
-          <div class="promo-small-copy">
-            <span class="promo-eyebrow">TECH DEALS</span>
-            <h3>Smart Gadgets</h3>
-            <p>Affordable. Smart.</p>
-            <span class="promo-cta">Shop →</span>
+        <!-- TRUST BADGES -->
+        <section class="trust-row">
+          <div class="trust-item">
+            <div class="trust-icon">🌍</div>
+            <div class="trust-text"><strong>Globally Sourced</strong><span>From 200+ countries</span></div>
           </div>
-        </a>
-        <a href="#/search?q=men shirt" class="promo-small promo-men">
-          <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
-          <div class="promo-small-copy">
-            <span class="promo-eyebrow">MEN'S FASHION</span>
-            <h3>Up to 40% Off</h3>
-            <p>Premium styles</p>
-            <span class="promo-cta">Shop →</span>
+          <div class="trust-item">
+            <div class="trust-icon">🚚</div>
+            <div class="trust-text"><strong>Doorstep Delivery</strong><span>Fast &amp; tracked</span></div>
           </div>
-        </a>
-      </div>
-    </section>
+          <div class="trust-item">
+            <div class="trust-icon">🔒</div>
+            <div class="trust-text"><strong>Secure Payment</strong><span>Razorpay protected</span></div>
+          </div>
+          <div class="trust-item">
+            <div class="trust-icon">💬</div>
+            <div class="trust-text"><strong>24/7 Support</strong><span>We're here to help</span></div>
+          </div>
+        </section>
 
-    <!-- FEATURED PRODUCTS -->
-    <section class="section">
-      <div class="section-head">
-        <h2 class="section-title">Featured Products</h2>
-        <a href="#/search?q=trending" class="section-link" id="featuredMore">View all →</a>
-      </div>
-      <div class="products-grid" id="featuredGrid">${productSkeleton(10)}</div>
-    </section>
+        <!-- PROMO BANNERS -->
+        <section class="promo-blocks">
+          <a href="#/search?q=women dress" class="promo-big">
+            <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
+            <div class="promo-big-copy">
+              <span class="promo-eyebrow">SUMMER COLLECTION</span>
+              <h2>Women's Fashion</h2>
+              <p>Up to 65% OFF on premium picks</p>
+              <span class="promo-cta">Shop Women →</span>
+            </div>
+          </a>
+          <div class="promo-stack">
+            <a href="#/search?q=smart watch" class="promo-small promo-tech">
+              <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png')"></div>
+              <div class="promo-small-copy">
+                <span class="promo-eyebrow">TECH DEALS</span>
+                <h3>Smart Gadgets</h3>
+                <p>Affordable. Smart.</p>
+                <span class="promo-cta">Shop →</span>
+              </div>
+            </a>
+            <a href="#/search?q=men shirt" class="promo-small promo-men">
+              <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
+              <div class="promo-small-copy">
+                <span class="promo-eyebrow">MEN'S FASHION</span>
+                <h3>Up to 40% Off</h3>
+                <p>Premium styles</p>
+                <span class="promo-cta">Shop →</span>
+              </div>
+            </a>
+          </div>
+        </section>
 
-    <!-- MEN'S FASHION -->
-    <section class="fashion-section">
-      <div class="fashion-banner fashion-banner-men">
-        <div class="fashion-banner-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
-        <div class="fashion-banner-copy">
-          <span class="fashion-eyebrow">MEN'S COLLECTION</span>
-          <h2>Men's Fashion</h2>
-          <p>Premium styles, sourced globally</p>
-          <a class="fashion-cta" href="#/search?q=men shirt">Shop Now →</a>
-        </div>
-      </div>
-      <div class="products-grid fashion-grid" id="menGrid">${productSkeleton(8)}</div>
-    </section>
+        <!-- FEATURED PRODUCTS -->
+        <section class="section">
+          <div class="section-head">
+            <h2 class="section-title">Featured Products</h2>
+            <a href="#/search?q=trending" class="section-link" id="featuredMore">View all →</a>
+          </div>
+          <div class="products-grid" id="featuredGrid">${productSkeleton(10)}</div>
+        </section>
 
-    <!-- TRENDING TECH & GADGETS -->
-    <section class="section">
-      <div class="section-head">
-        <h2 class="section-title">🔥 Trending Tech &amp; Gadgets</h2>
-        <a href="#/search?q=earbuds" class="section-link" id="trendingMore">View all →</a>
-      </div>
-      <div class="products-grid" id="trendingGrid">${productSkeleton(10)}</div>
-    </section>
+        <!-- MEN'S FASHION -->
+        <section class="fashion-section">
+          <div class="fashion-banner fashion-banner-men">
+            <div class="fashion-banner-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
+            <div class="fashion-banner-copy">
+              <span class="fashion-eyebrow">MEN'S COLLECTION</span>
+              <h2>Men's Fashion</h2>
+              <p>Premium styles, sourced globally</p>
+              <a class="fashion-cta" href="#/search?q=men shirt">Shop Now →</a>
+            </div>
+          </div>
+          <div class="products-grid fashion-grid" id="menGrid">${productSkeleton(8)}</div>
+        </section>
 
-    <!-- WOMEN'S FASHION -->
-    <section class="fashion-section">
-      <div class="fashion-banner fashion-banner-women">
-        <div class="fashion-banner-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
-        <div class="fashion-banner-copy">
-          <span class="fashion-eyebrow">WOMEN'S COLLECTION</span>
-          <h2>Women's Fashion</h2>
-          <p>Hand-picked from worldwide suppliers</p>
-          <a class="fashion-cta" href="#/search?q=women dress">Shop Now →</a>
-        </div>
-      </div>
-      <div class="products-grid fashion-grid" id="womenGrid">${productSkeleton(8)}</div>
-    </section>
+        <!-- TRENDING TECH & GADGETS -->
+        <section class="section">
+          <div class="section-head">
+            <h2 class="section-title">🔥 Trending Tech &amp; Gadgets</h2>
+            <a href="#/search?q=earbuds" class="section-link" id="trendingMore">View all →</a>
+          </div>
+          <div class="products-grid" id="trendingGrid">${productSkeleton(10)}</div>
+        </section>
 
-    <!-- SMART GADGETS (everyday smart products, varied prices) -->
-    <section class="section">
-      <div class="section-head">
-        <h2 class="section-title">⚡ Smart Gadgets</h2>
-        <a href="#/search?q=smart" class="section-link" id="smartMore">View all →</a>
-      </div>
-      <div class="products-grid" id="smartGrid">${productSkeleton(10)}</div>
-    </section>
+        <!-- WOMEN'S FASHION -->
+        <section class="fashion-section">
+          <div class="fashion-banner fashion-banner-women">
+            <div class="fashion-banner-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
+            <div class="fashion-banner-copy">
+              <span class="fashion-eyebrow">WOMEN'S COLLECTION</span>
+              <h2>Women's Fashion</h2>
+              <p>Hand-picked from worldwide suppliers</p>
+              <a class="fashion-cta" href="#/search?q=women dress">Shop Now →</a>
+            </div>
+          </div>
+          <div class="products-grid fashion-grid" id="womenGrid">${productSkeleton(8)}</div>
+        </section>
 
-    <!-- HOME & LIFESTYLE -->
-    <section class="section">
-      <div class="section-head">
-        <h2 class="section-title">🏠 Home &amp; Lifestyle</h2>
-        <a href="#/search?q=led light" class="section-link" id="homeLifestyleMore">View all →</a>
+        <!-- SMART GADGETS -->
+        <section class="section">
+          <div class="section-head">
+            <h2 class="section-title">⚡ Smart Gadgets</h2>
+            <a href="#/search?q=smart" class="section-link" id="smartMore">View all →</a>
+          </div>
+          <div class="products-grid" id="smartGrid">${productSkeleton(10)}</div>
+        </section>
+
+        <!-- HOME & LIFESTYLE -->
+        <section class="section">
+          <div class="section-head">
+            <h2 class="section-title">🏠 Home &amp; Lifestyle</h2>
+            <a href="#/search?q=led light" class="section-link" id="homeLifestyleMore">View all →</a>
+          </div>
+          <div class="products-grid" id="homeLifestyleGrid">${productSkeleton(10)}</div>
+        </section>
       </div>
-      <div class="products-grid" id="homeLifestyleGrid">${productSkeleton(10)}</div>
-    </section>
+
+      <!-- Sidebar hover-flyout panel (positioned absolute over main area) -->
+      <div class="sidebar-flyout" id="sidebarFlyout" hidden></div>
+    </div>
   `;
 
   const heroInput = document.getElementById('heroSearchInput');
@@ -949,7 +945,7 @@ async function renderHome() {
     navigate(`/search?q=${encodeURIComponent(q)}`);
   });
 
-  loadCategories().then(() => renderCategoryStrip());
+  loadCategories().then(() => renderHomeSidebar());
   loadHomeProducts();
 }
 
@@ -1176,8 +1172,10 @@ async function loadHomeProducts() {
   // Clothing trees on CJ, so the rows reflect what the user expects.
   await loadCategories();
   const findCat = (re) => (state.categories || []).find(c => re.test(c.categoryFirstName || ''));
-  const womenCat = findCat(/women.?s\s+clothing/i) || findCat(/^women/i);
-  const menCat   = findCat(/men.?s\s+clothing/i)   || findCat(/^men/i);
+  // Anchor with ^ — without it, "men" matched the "men" *inside* "wo**men**'s
+  // Clothing", so the men's row got dressed and bridal gowns instead of shirts.
+  const womenCat = findCat(/^women.?s\s+clothing/i) || findCat(/^women/i);
+  const menCat   = findCat(/^men.?s\s+clothing/i)   || findCat(/^men\b/i);
 
   // Pick a child of the top-level women/men category so each daily load
   // surfaces a different slice (Dresses one day, Tops the next, etc.)
