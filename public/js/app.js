@@ -804,15 +804,15 @@ async function renderHome() {
       </aside>
 
       <div class="home-main">
-        <!-- HERO (compact) — global sourcing → doorstep delivery -->
+        <!-- HERO (compact) — premium global imports, doorstep delivery -->
         <section class="home-hero home-hero-compact">
           <div class="home-hero-inner">
             <div class="home-hero-copy">
-              <span class="home-hero-eyebrow">🌍 Sourced from across the globe</span>
-              <h1 class="home-hero-title">Shop the world. <span class="accent">Delivered to your doorstep.</span></h1>
-              <p class="home-hero-sub">Millions of curated products from suppliers worldwide — direct to your door.</p>
+              <span class="home-hero-eyebrow">Curated from across the globe</span>
+              <h1 class="home-hero-title">The world's makers. <span class="accent">Your doorstep.</span></h1>
+              <p class="home-hero-sub">Premium products, hand-picked from artisans and ateliers in 200+ countries — delivered to India in 10–15 days.</p>
               <form class="home-hero-search" id="heroSearchForm">
-                <input type="text" id="heroSearchInput" placeholder="Search smart watches, earbuds, dresses, gadgets..." autocomplete="off" />
+                <input type="text" id="heroSearchInput" placeholder="Search dresses, watches, lighting, fragrances..." autocomplete="off" />
                 <button type="submit" aria-label="Search">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
                   <span>Search</span>
@@ -820,8 +820,8 @@ async function renderHome() {
               </form>
               <div class="home-hero-stats">
                 <div><strong>200+</strong><span>Countries</span></div>
-                <div><strong>1M+</strong><span>Products</span></div>
-                <div><strong>5–12</strong><span>Days delivery</span></div>
+                <div><strong>10–15</strong><span>Days to your door</span></div>
+                <div><strong>Premium</strong><span>Quality, every order</span></div>
               </div>
             </div>
             <div class="home-hero-art" aria-hidden="true">
@@ -829,7 +829,7 @@ async function renderHome() {
               <span class="home-hero-orbit home-hero-orbit-1">📦</span>
               <span class="home-hero-orbit home-hero-orbit-2">✈️</span>
               <span class="home-hero-orbit home-hero-orbit-3">🛍️</span>
-              <span class="home-hero-orbit home-hero-orbit-4">⚡</span>
+              <span class="home-hero-orbit home-hero-orbit-4">✨</span>
             </div>
           </div>
         </section>
@@ -837,20 +837,20 @@ async function renderHome() {
         <!-- TRUST BADGES -->
         <section class="trust-row">
           <div class="trust-item">
-            <div class="trust-icon">🌍</div>
-            <div class="trust-text"><strong>Globally Sourced</strong><span>From 200+ countries</span></div>
+            <div class="trust-icon">✦</div>
+            <div class="trust-text"><strong>Premium Quality</strong><span>Every order, hand-checked</span></div>
           </div>
           <div class="trust-item">
-            <div class="trust-icon">🚚</div>
-            <div class="trust-text"><strong>Doorstep Delivery</strong><span>Fast &amp; tracked</span></div>
+            <div class="trust-icon">✈</div>
+            <div class="trust-text"><strong>10–15 Day Delivery</strong><span>Tracked, all the way home</span></div>
           </div>
           <div class="trust-item">
-            <div class="trust-icon">🔒</div>
-            <div class="trust-text"><strong>Secure Payment</strong><span>Razorpay protected</span></div>
+            <div class="trust-icon">🛡</div>
+            <div class="trust-text"><strong>Secure Checkout</strong><span>Razorpay-backed payments</span></div>
           </div>
           <div class="trust-item">
-            <div class="trust-icon">💬</div>
-            <div class="trust-text"><strong>24/7 Support</strong><span>We're here to help</span></div>
+            <div class="trust-icon">✿</div>
+            <div class="trust-text"><strong>Concierge Care</strong><span>Real humans, 24/7</span></div>
           </div>
         </section>
 
