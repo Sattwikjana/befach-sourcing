@@ -1554,6 +1554,33 @@ main {
 }
 .admin-table code { font-size: 12px; background: var(--surface-alt); padding: 2px 6px; border-radius: 4px; }
 
+/* Card-head row for the Customers panel: lets the section title and a
+   live-counter sit on the same line. */
+.card-head-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.card-head-row h2 { margin: 0; }
+
+/* Customers admin table: live-status dot column, mailto links etc. */
+.admin-users-table th:first-child,
+.admin-users-table td:first-child { width: 28px; padding-right: 0; }
+.user-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  vertical-align: middle;
+}
+.user-dot-live {
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(15,81,50,0.15);
+}
+
 .admin-pricing-row { margin-bottom: 10px; }
 .admin-pricing-row label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; }
 .markup-row { display: flex; align-items: center; gap: 6px; }

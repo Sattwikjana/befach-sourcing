@@ -147,6 +147,25 @@ function updateProfile(userId, patch) {
   return publicUser(u);
 }
 
+// ── List users for the admin Customers panel ──
+// Returns every registered account (without passwords) plus a count of
+// active sessions so admins can see who's currently signed in.
+function listUsers() {
+  // Build a map of userId → most recent session expiry to figure out
+  // which accounts are currently logged in (session not yet expired).
+  const liveSessionByUser = new Map();
+  for (const [, s] of Object.entries(sessions)) {
+    if (!s || s.expires < Date.now()) continue;
+    const prev = liveSessionByUser.get(s.userId);
+    if (!prev || s.expires > prev) liveSessionByUser.set(s.userId, s.expires);
+  }
+  return users.map(u => ({
+    ...publicUser(u),
+    sessionLive: liveSessionByUser.has(u.id),
+    sessionExpiresAt: liveSessionByUser.get(u.id) || null,
+  }));
+}
+
 // ── Express middleware: attaches req.user if logged in ──
 function attachUser(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME] ||
@@ -176,6 +195,7 @@ module.exports = {
   logout,
   userForToken,
   updateProfile,
+  listUsers,
   attachUser,
   setSessionCookie,
   clearSessionCookie,

@@ -702,6 +702,13 @@ async function renderAdmin() {
         <div id="adminBalance">Loading…</div>
       </section>
     </div>
+    <section class="card" style="margin-top:18px">
+      <div class="card-head-row">
+        <h2>Customers <span class="muted small" id="adminUsersCount"></span></h2>
+        <span class="muted small" id="adminUsersLive"></span>
+      </div>
+      <div id="adminUsers">Loading…</div>
+    </section>
   `;
 
   try {
@@ -770,6 +777,51 @@ async function renderAdmin() {
     `;
   } catch (err) {
     document.getElementById('adminBalance').innerHTML = `<p class="muted">${esc(err.message)}</p>`;
+  }
+
+  // Customers panel — registered users with order rollup. Live-session
+  // dot tells admin who's currently signed in.
+  try {
+    const u = await adminFetch('/api/admin/users');
+    const users = u.users || [];
+    const countEl = document.getElementById('adminUsersCount');
+    const liveEl = document.getElementById('adminUsersLive');
+    if (countEl) countEl.textContent = `(${users.length})`;
+    if (liveEl) liveEl.textContent = `${u.activeSessions || 0} signed in right now`;
+    document.getElementById('adminUsers').innerHTML = users.length ? `
+      <table class="admin-table admin-users-table">
+        <thead>
+          <tr>
+            <th></th><th>Name</th><th>Email</th><th>Phone</th>
+            <th>Joined</th><th>Orders</th><th>Lifetime</th><th>Last order</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${users.map(usr => `
+            <tr>
+              <td>
+                <span class="user-dot user-dot-${usr.sessionLive ? 'live' : 'off'}"
+                      title="${usr.sessionLive ? 'Signed in now' : 'Not signed in'}"></span>
+              </td>
+              <td>
+                <strong>${esc(usr.name || '—')}</strong>
+                <div class="muted small"><code>${esc(usr.id)}</code></div>
+              </td>
+              <td>
+                <a href="mailto:${esc(usr.email)}">${esc(usr.email)}</a>
+              </td>
+              <td>${esc(usr.phone || '—')}</td>
+              <td>${usr.createdAt ? new Date(usr.createdAt).toLocaleDateString('en-IN') : '—'}</td>
+              <td><strong>${usr.orderCount}</strong></td>
+              <td>${fmtINR(usr.totalRevenue || 0)}</td>
+              <td>${usr.lastOrderAt ? new Date(usr.lastOrderAt).toLocaleDateString('en-IN') : '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : '<p class="muted">No customers have signed up yet.</p>';
+  } catch (err) {
+    document.getElementById('adminUsers').innerHTML = `<p class="muted">Failed to load: ${esc(err.message)}</p>`;
   }
 }
 

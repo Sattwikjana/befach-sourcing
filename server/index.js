@@ -1461,6 +1461,46 @@ app.get('/api/admin/dashboard', adminAuth, (req, res) => {
   res.json(orders.getDashboardStats());
 });
 
+// Admin Customers panel — every signed-up user with an order rollup.
+// Joins users.json against orders.json so the table shows lifetime
+// order count + revenue per customer alongside contact info. Live
+// session indicator surfaces who's currently logged in (active session).
+app.get('/api/admin/users', adminAuth, (req, res) => {
+  try {
+    const userList = auth.listUsers();
+    // Build a per-user rollup from the orders ledger
+    const rollup = {};
+    for (const o of orders.getAllOrders({ page: 1, pageSize: 100000 }).orders || []) {
+      const uid = o.userId;
+      if (!uid) continue; // guest checkout — no user account
+      if (!rollup[uid]) rollup[uid] = { orderCount: 0, totalRevenue: 0, lastOrderAt: null };
+      rollup[uid].orderCount += 1;
+      rollup[uid].totalRevenue += parseFloat(o.productTotal || o.grandTotal || 0) || 0;
+      const t = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+      if (t > (rollup[uid].lastOrderAt || 0)) rollup[uid].lastOrderAt = t;
+    }
+    const enriched = userList.map(u => ({
+      ...u,
+      orderCount: rollup[u.id]?.orderCount || 0,
+      totalRevenue: rollup[u.id]?.totalRevenue || 0,
+      lastOrderAt: rollup[u.id]?.lastOrderAt ? new Date(rollup[u.id].lastOrderAt).toISOString() : null,
+    }));
+    // Sort: live sessions first, then most-recent customers
+    enriched.sort((a, b) => {
+      if (a.sessionLive !== b.sessionLive) return a.sessionLive ? -1 : 1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+    res.json({
+      total: enriched.length,
+      activeSessions: enriched.filter(u => u.sessionLive).length,
+      users: enriched,
+    });
+  } catch (err) {
+    console.error('[admin/users]', err.message);
+    res.status(500).json({ error: 'Failed to load users', detail: err.message });
+  }
+});
+
 app.get('/api/admin/orders', adminAuth, (req, res) => {
   const { page, pageSize } = req.query;
   res.json(orders.getAllOrders({
