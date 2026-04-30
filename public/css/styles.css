@@ -104,14 +104,14 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   text-decoration: none;
   flex-shrink: 0;
 }
-/* SVG logo: scales to fit the header height while keeping aspect ratio.
-   The SVG itself contains the wordmark + tagline; no separate text
-   elements needed. Replace /img/gcom-logo.svg with a PNG export from
-   the brand source for pixel-perfect rendering, no markup change. */
+/* The PNG includes the wordmark + tagline stacked, so the image needs
+   enough vertical room for both lines to be legible. At 44px tall the
+   tagline shrank to ~8px and disappeared; 72px gives the wordmark
+   ~50px (heavy and confident) and the tagline ~14px (readable). */
 .brand-logo-img {
-  height: 44px;
+  height: 72px;
   width: auto;
-  max-width: 220px;
+  max-width: 320px;
   display: block;
 }
 
@@ -2294,8 +2294,9 @@ body.page-home .header-nav { margin-left: auto; }
     gap: 10px;
     padding: 10px 14px;
   }
-  /* Brand SVG shrinks on mobile to keep the search bar room */
-  .brand-logo-img { height: 36px; max-width: 160px; }
+  /* Brand logo on tablet — slightly smaller, still tall enough for the
+     stacked tagline to read */
+  .brand-logo-img { height: 56px; max-width: 240px; }
   .header-search {
     grid-column: 1 / -1;
     order: 3;
@@ -2415,7 +2416,9 @@ body.page-home .header-nav { margin-left: auto; }
 @media (max-width: 500px) {
   main { padding: 12px; }
   .header-inner { padding: 8px 12px; gap: 8px; }
-  .brand-logo-img { height: 32px; max-width: 130px; }
+  /* On a phone the wordmark+tagline at 44px would smush again — keep
+     the brand area roomy enough for the tagline to be readable */
+  .brand-logo-img { height: 48px; max-width: 200px; }
   .page-title { font-size: 20px; }
   .hero { padding: 32px 16px; border-radius: 12px; }
   .hero-title { font-size: 24px; }
