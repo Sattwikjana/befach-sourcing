@@ -101,19 +101,36 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 .brand {
   display: flex;
   align-items: center;
+  gap: 14px;
   text-decoration: none;
   flex-shrink: 0;
 }
-/* The PNG includes the wordmark + tagline stacked, so the image needs
-   enough vertical room for both lines to be legible. At 44px tall the
-   tagline shrank to ~8px and disappeared; 72px gives the wordmark
-   ~50px (heavy and confident) and the tagline ~14px (readable). */
+/* Logo image — wordmark only now (tagline rendered as separate
+   text alongside, see .brand-tagline-side). 52px tall gives a
+   confident header presence without dominating. */
 .brand-logo-img {
-  height: 72px;
+  height: 52px;
   width: auto;
-  max-width: 320px;
+  max-width: 200px;
   display: block;
 }
+/* Tagline rendered as text next to the logo, two lines stacked.
+   "ONE WORLD." in black, "ENDLESS CHOICES." in champagne gold —
+   matches the typography inside the logo file itself. */
+.brand-tagline-side {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 700;
+  white-space: nowrap;
+  border-left: 1px solid var(--border);
+  padding-left: 14px;
+}
+.brand-tagline-black { color: var(--brand); }
+.brand-tagline-gold { color: var(--accent-dark); }
 
 .header-search {
   display: flex;
@@ -2141,12 +2158,24 @@ body.page-home .header-nav { margin-left: auto; }
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.drawer-brand-link { display: flex; align-items: center; }
+.drawer-brand-link { display: flex; align-items: center; gap: 12px; }
 .drawer-brand-img {
-  height: 48px;
+  height: 40px;
   width: auto;
-  max-width: 180px;
+  max-width: 140px;
   display: block;
+}
+.drawer-brand-tagline {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 700;
+  white-space: nowrap;
+  border-left: 1px solid var(--border);
+  padding-left: 10px;
 }
 .drawer-close {
   background: transparent;
@@ -2430,9 +2459,10 @@ body.page-home .header-nav { margin-left: auto; }
     gap: 10px;
     padding: 10px 14px;
   }
-  /* Brand logo on tablet — slightly smaller, still tall enough for the
-     stacked tagline to read */
-  .brand-logo-img { height: 56px; max-width: 240px; }
+  /* Brand on tablet — keep logo + side tagline */
+  .brand-logo-img { height: 44px; max-width: 170px; }
+  .brand-tagline-side { font-size: 10px; padding-left: 10px; }
+  .brand { gap: 10px; }
   .header-search {
     grid-column: 1 / -1;
     order: 3;
@@ -2552,9 +2582,10 @@ body.page-home .header-nav { margin-left: auto; }
 @media (max-width: 500px) {
   main { padding: 12px; }
   .header-inner { padding: 8px 12px; gap: 8px; }
-  /* On a phone the wordmark+tagline at 44px would smush again — keep
-     the brand area roomy enough for the tagline to be readable */
-  .brand-logo-img { height: 48px; max-width: 200px; }
+  /* Phone: hide the side tagline to give the search bar room.
+     Logo alone keeps brand identity. */
+  .brand-logo-img { height: 38px; max-width: 130px; }
+  .brand-tagline-side { display: none; }
   .page-title { font-size: 20px; }
   .hero { padding: 32px 16px; border-radius: 12px; }
   .hero-title { font-size: 24px; }
