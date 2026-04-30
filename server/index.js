@@ -792,16 +792,18 @@ app.get('/api/store/products', async (req, res) => {
       cacheSet(rawKey, meta);
     }
 
-    // For each product, show it. Pricing falls into three buckets:
+    // For each product, decide whether to show it:
     //   1. Cached AND shippable to India → real (wholesale + shipping) × (1+markup).
-    //   2. Cached AND known-unshippable  → fallback shipping price (still visible
-    //      so the user can see the catalog; checkout enforces real shipping).
-    //   3. Not cached                    → fallback shipping price; queue a
-    //      background warm so the next visit gets the real number.
+    //   2. Cached AND known-unshippable  → SKIP. User explicitly asked not
+    //      to see "Not available in your region" anywhere; we'd rather show
+    //      a smaller catalog than tease unshippable items.
+    //   3. Not cached                    → keep with fallback shipping
+    //      price + queue background warm. If warming returns unshippable
+    //      the frontend backfill will remove the card.
     //
-    // The previous "strict-shippable" mode that hid unverified products was
-    // dropping entire categories on first visit because every product looked
-    // unverified to a cold cache. Disabled — admin blocklist still applies.
+    // The earlier "show every product" mode was reversed because clicking
+    // a card that turned out unshippable led to the bad-UX 404 page. The
+    // admin blocklist still applies on top of this.
     const priced = [];
     const unwarmedToWarm = [];
     for (const rawProduct of meta.products) {
@@ -812,6 +814,11 @@ app.get('/api/store/products', async (req, res) => {
       if (isBlocked(pid)) continue;
 
       const hit = peekShippingCache(pid);
+
+      // Skip known-unshippable products entirely. They'd just show the
+      // confusing "Not available in your region" page on click.
+      if (hit && hit.available === false) continue;
+
       if (!hit && pid) unwarmedToWarm.push(pid);
 
       const knownGood = !!(hit && hit.available);

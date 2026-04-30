@@ -750,10 +750,12 @@ async function backfillCardShipping(gridEl) {
         if (abort.signal.aborted || !card.isConnected) continue;
 
         if (data.available === false) {
-          // Keep the card visible — the user wants to see the full catalog.
-          // Price stays at the fallback estimate; checkout enforces real
-          // shipping if they actually try to buy it.
-          card.setAttribute('data-accurate', '1');
+          // Unshippable to India — drop the card from the grid so the
+          // user never clicks through to the "Not available in your
+          // region" page. The server's product list endpoint already
+          // skips known-unshippable items, but on a cold cache the
+          // first request lets them through; this catches them.
+          card.remove();
           continue;
         }
 
