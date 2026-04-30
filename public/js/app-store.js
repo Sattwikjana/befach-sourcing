@@ -1171,22 +1171,13 @@ async function renderOrders() {
   }
 }
 
-/* Wishlist — purely client-side, persists to localStorage. Lets users
-   ❤ products without needing the server-side feature built out. The
-   product detail page reads/writes the same key, so adds/removes
-   roundtrip without a backend call. */
-const WISHLIST_KEY = 'gcom_wishlist_v1';
-function loadWishlist() {
-  try { return JSON.parse(localStorage.getItem(WISHLIST_KEY) || '[]'); } catch { return []; }
-}
-function saveWishlist(pids) {
-  try { localStorage.setItem(WISHLIST_KEY, JSON.stringify(pids)); } catch {}
-}
-window.loadWishlist = loadWishlist;
-window.saveWishlist = saveWishlist;
+/* Wishlist page — reads state.wishlist (managed in app.js as the
+   single source of truth). The persistence + server-sync layer
+   lives there too; here we just fetch product details for the saved
+   IDs and render. */
 
 async function renderWishlist() {
-  const pids = loadWishlist();
+  const pids = Array.isArray(state.wishlist) ? state.wishlist : [];
   app.innerHTML = `
     <div class="breadcrumb">
       <a href="#/">Home</a> <span>›</span>
