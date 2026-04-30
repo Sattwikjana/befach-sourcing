@@ -351,7 +351,11 @@ async function apiPost(path, body, extraHeaders = {}) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  CART (localStorage)
+//  CART (localStorage + server sync for signed-in users)
+//  Local optimistic update + fire-and-forget push to server keeps
+//  the UI snappy. On login we merge guest localStorage cart with
+//  the server cart so nothing the user added before signing in
+//  gets lost.
 // ══════════════════════════════════════════════════════════════
 const CART_KEY = 'befach_cart_v1';
 
@@ -365,8 +369,49 @@ function loadCart() {
 }
 function saveCart() {
   try { localStorage.setItem(CART_KEY, JSON.stringify(state.cart)); } catch {}
+  pushCartToServer();
   updateCartBadge();
 }
+// Push the current cart to the server. Debounced 300ms so a flurry
+// of quantity-stepper clicks doesn't fire ten requests.
+let _cartPushTimer = null;
+function pushCartToServer() {
+  if (!state.user) return;
+  if (_cartPushTimer) clearTimeout(_cartPushTimer);
+  _cartPushTimer = setTimeout(() => {
+    _cartPushTimer = null;
+    fetch('/api/auth/cart', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cart: state.cart }),
+    }).catch(() => {});
+  }, 300);
+}
+// Called after auth state is established (loadCurrentUser). Pulls the
+// server cart and merges with whatever the user had locally — keeps
+// items added as a guest, takes max quantity on overlaps.
+async function syncCartFromServer() {
+  if (!state.user) return;
+  try {
+    const res = await fetch('/api/auth/cart', { credentials: 'include' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const serverCart = Array.isArray(data.cart) ? data.cart : [];
+    const merged = [...state.cart];
+    for (const s of serverCart) {
+      const existing = merged.find(i => i.pid === s.pid && i.vid === s.vid);
+      if (!existing) merged.push(s);
+      else existing.quantity = Math.max(existing.quantity, s.quantity);
+    }
+    state.cart = merged;
+    try { localStorage.setItem(CART_KEY, JSON.stringify(state.cart)); } catch {}
+    updateCartBadge();
+    // Push merged result back so any new local items reach the server
+    pushCartToServer();
+  } catch {}
+}
+window.syncCartFromServer = syncCartFromServer;
 function updateCartBadge() {
   const n = state.cart.reduce((s, i) => s + (i.quantity || 0), 0);
   if (cartCountEl) cartCountEl.textContent = n;
@@ -399,6 +444,80 @@ function cartSubtotalUsd() {
   return state.cart.reduce((s, i) => s + (parseFloat(i.priceUsd) * i.quantity), 0);
 }
 updateCartBadge();
+
+// ══════════════════════════════════════════════════════════════
+//  WISHLIST (localStorage + server sync for signed-in users)
+//  Stores product IDs only — product details are fetched on demand
+//  when the user opens the wishlist page.
+// ══════════════════════════════════════════════════════════════
+const WISHLIST_KEY = 'gcom_wishlist_v1';
+state_wishlistInit();
+function state_wishlistInit() {
+  try {
+    const raw = localStorage.getItem(WISHLIST_KEY);
+    state.wishlist = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(state.wishlist)) state.wishlist = [];
+  } catch { state.wishlist = []; }
+}
+function saveWishlist() {
+  try { localStorage.setItem(WISHLIST_KEY, JSON.stringify(state.wishlist)); } catch {}
+  pushWishlistToServer();
+}
+let _wishlistPushTimer = null;
+function pushWishlistToServer() {
+  if (!state.user) return;
+  if (_wishlistPushTimer) clearTimeout(_wishlistPushTimer);
+  _wishlistPushTimer = setTimeout(() => {
+    _wishlistPushTimer = null;
+    fetch('/api/auth/wishlist', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wishlist: state.wishlist }),
+    }).catch(() => {});
+  }, 300);
+}
+async function syncWishlistFromServer() {
+  if (!state.user) return;
+  try {
+    const res = await fetch('/api/auth/wishlist', { credentials: 'include' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const serverList = Array.isArray(data.wishlist) ? data.wishlist : [];
+    // Union — keep everything the user had locally + everything on server
+    const merged = Array.from(new Set([...state.wishlist, ...serverList]));
+    state.wishlist = merged;
+    try { localStorage.setItem(WISHLIST_KEY, JSON.stringify(state.wishlist)); } catch {}
+    pushWishlistToServer();
+    refreshWishlistButtons();
+  } catch {}
+}
+window.syncWishlistFromServer = syncWishlistFromServer;
+function isInWishlist(pid) { return Array.isArray(state.wishlist) && state.wishlist.includes(pid); }
+function toggleWishlist(pid) {
+  if (!pid) return false;
+  if (!Array.isArray(state.wishlist)) state.wishlist = [];
+  const idx = state.wishlist.indexOf(pid);
+  let added;
+  if (idx === -1) { state.wishlist.push(pid); added = true; }
+  else            { state.wishlist.splice(idx, 1); added = false; }
+  saveWishlist();
+  refreshWishlistButtons();
+  return added;
+}
+// Re-paint every wishlist heart icon on the page after a toggle so all
+// instances of the same product (e.g. shown in two sections of the
+// home page) update together.
+function refreshWishlistButtons() {
+  document.querySelectorAll('[data-wish-pid]').forEach(btn => {
+    const pid = btn.getAttribute('data-wish-pid');
+    btn.classList.toggle('on', isInWishlist(pid));
+    btn.setAttribute('aria-pressed', isInWishlist(pid) ? 'true' : 'false');
+  });
+}
+window.toggleWishlist = toggleWishlist;
+window.isInWishlist = isInWishlist;
+window.refreshWishlistButtons = refreshWishlistButtons;
 
 // Expose for inline handlers
 window.addToCart = addToCart;
@@ -774,6 +893,8 @@ function productCard(p) {
   const discountPct = parseInt(p.discountPercent, 10) || 0;
   const showOffer = mrpUsd > displayUsd && discountPct > 0;
 
+  const inWishlist = isInWishlist(pid);
+
   return `
     <a class="product-card fade-in"
        href="#/product/${encodeURIComponent(pid)}"
@@ -786,6 +907,16 @@ function productCard(p) {
           loading="lazy" onerror="this.onerror=null;this.src='/img/befach_logo.png'" />
         ${listed > 50 ? '<span class="product-card-badge">🔥 Popular</span>' : ''}
         ${showOffer ? `<span class="product-card-discount">${discountPct}% OFF</span>` : ''}
+        <button type="button"
+                class="product-card-wish ${inWishlist ? 'on' : ''}"
+                data-wish-pid="${esc(pid)}"
+                aria-label="Add to wishlist"
+                aria-pressed="${inWishlist ? 'true' : 'false'}"
+                onclick="event.preventDefault(); event.stopPropagation(); window._cardWishToggle(this)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+          </svg>
+        </button>
       </div>
       <div class="product-card-body">
         <div class="product-card-title">${esc(name)}</div>
@@ -799,6 +930,28 @@ function productCard(p) {
     </a>
   `;
 }
+
+// Click handler for the heart-button on every product card. Stops the
+// click from bubbling up to the surrounding <a> (which would navigate
+// to the product detail page). Toggles wishlist state and shows a
+// short confirmation toast.
+window._cardWishToggle = function(btn) {
+  const pid = btn?.getAttribute('data-wish-pid');
+  if (!pid) return;
+  const added = toggleWishlist(pid);
+  showToast(added ? '♥ Added to wishlist' : 'Removed from wishlist');
+};
+// Same handler for the wishlist button on the product detail page —
+// just doesn't need preventDefault since the button isn't inside a
+// link there. Updates the label so the user gets clear feedback.
+window._pdWishToggle = function(btn) {
+  const pid = btn?.getAttribute('data-wish-pid');
+  if (!pid) return;
+  const added = toggleWishlist(pid);
+  const label = btn.querySelector('.btn-wish-pd-label');
+  if (label) label.textContent = added ? 'Saved' : 'Wishlist';
+  showToast(added ? '♥ Added to wishlist' : 'Removed from wishlist');
+};
 
 /**
  * Backfill real shipping for any cards with approximate prices.
@@ -1669,8 +1822,19 @@ async function renderProduct(pid) {
         </div>
 
         <div class="pd-actions">
-          <button class="btn btn-primary btn-lg" id="pdAddCart">🛒 Add to Cart</button>
-          <button class="btn btn-dark btn-lg" id="pdBuyNow">⚡ Buy Now</button>
+          <button class="btn btn-primary btn-lg" id="pdAddCart">Add to Cart</button>
+          <button class="btn btn-dark btn-lg" id="pdBuyNow">Buy Now</button>
+          <button type="button"
+                  class="btn-wish-pd ${isInWishlist(pid) ? 'on' : ''}"
+                  data-wish-pid="${esc(pid)}"
+                  aria-label="Save to wishlist"
+                  aria-pressed="${isInWishlist(pid) ? 'true' : 'false'}"
+                  onclick="window._pdWishToggle(this)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+            </svg>
+            <span class="btn-wish-pd-label">Wishlist</span>
+          </button>
         </div>
 
         <div class="pd-meta">

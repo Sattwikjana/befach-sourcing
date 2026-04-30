@@ -147,6 +147,35 @@ function updateProfile(userId, patch) {
   return publicUser(u);
 }
 
+// ── Per-user cart & wishlist persistence ──
+// Stored alongside the user record in users.json. Keeps cart & saved
+// products synced across devices: a customer who adds something on
+// their laptop sees it on their phone too as soon as they sign in.
+// Cart shape: [{ pid, vid, productName, image, priceUsd, quantity, ... }]
+// Wishlist:   [pid, pid, ...]
+function getUserCart(userId) {
+  const u = users.find(x => x.id === userId);
+  return u?.cart || [];
+}
+function setUserCart(userId, cart) {
+  const u = users.find(x => x.id === userId);
+  if (!u) throw new Error('User not found');
+  u.cart = Array.isArray(cart) ? cart.slice(0, 100) : [];
+  saveJson(USERS_FILE, users);
+  return u.cart;
+}
+function getUserWishlist(userId) {
+  const u = users.find(x => x.id === userId);
+  return u?.wishlist || [];
+}
+function setUserWishlist(userId, pids) {
+  const u = users.find(x => x.id === userId);
+  if (!u) throw new Error('User not found');
+  u.wishlist = Array.isArray(pids) ? pids.filter(p => typeof p === 'string').slice(0, 500) : [];
+  saveJson(USERS_FILE, users);
+  return u.wishlist;
+}
+
 // ── List users for the admin Customers panel ──
 // Returns every registered account (without passwords) plus a count of
 // active sessions so admins can see who's currently signed in.
@@ -195,6 +224,10 @@ module.exports = {
   logout,
   userForToken,
   updateProfile,
+  getUserCart,
+  setUserCart,
+  getUserWishlist,
+  setUserWishlist,
   listUsers,
   attachUser,
   setSessionCookie,

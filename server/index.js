@@ -400,6 +400,43 @@ app.patch('/api/auth/me', (req, res) => {
 });
 
 // Returns this user's orders. Logged-in users see all orders linked to them.
+// ── Cart & wishlist persistence (auth-required) ──
+// Both endpoints are full-replace PUT semantics: client owns the
+// authoritative state and pushes the entire array on every change.
+// That keeps frontend logic dead simple — no diff/patch protocol —
+// at the cost of a few extra bytes per write. Cart payloads are
+// tiny (4-10 items) so the overhead is negligible.
+
+app.get('/api/auth/cart', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not signed in' });
+  res.json({ cart: auth.getUserCart(req.user.id) });
+});
+
+app.put('/api/auth/cart', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not signed in' });
+  try {
+    const cart = Array.isArray(req.body?.cart) ? req.body.cart : [];
+    res.json({ cart: auth.setUserCart(req.user.id, cart) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/auth/wishlist', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not signed in' });
+  res.json({ wishlist: auth.getUserWishlist(req.user.id) });
+});
+
+app.put('/api/auth/wishlist', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not signed in' });
+  try {
+    const pids = Array.isArray(req.body?.wishlist) ? req.body.wishlist : [];
+    res.json({ wishlist: auth.setUserWishlist(req.user.id, pids) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get('/api/auth/orders', (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not signed in' });
   const all = orders.getAllOrders({ page: 1, pageSize: 1000 }).orders;

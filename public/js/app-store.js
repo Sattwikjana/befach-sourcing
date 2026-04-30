@@ -877,6 +877,13 @@ async function loadCurrentUser() {
     }
   } catch { state.user = null; }
   updateAuthSlot();
+  // Once we know who's signed in, pull their server-side cart and
+  // wishlist down and merge with whatever they had as a guest. This
+  // is what makes "I added something then refreshed" actually work.
+  if (state.user) {
+    if (typeof window.syncCartFromServer === 'function')     window.syncCartFromServer();
+    if (typeof window.syncWishlistFromServer === 'function') window.syncWishlistFromServer();
+  }
 }
 
 function updateAuthSlot() {
@@ -962,6 +969,9 @@ function renderLogin() {
       const { user } = await authPost('/api/auth/login', fd);
       state.user = user;
       updateAuthSlot();
+      // Pull server cart/wishlist and merge with the guest local state
+      if (typeof window.syncCartFromServer === 'function')     await window.syncCartFromServer();
+      if (typeof window.syncWishlistFromServer === 'function') await window.syncWishlistFromServer();
       showToast(`Welcome back, ${user.name.split(' ')[0]}`);
       navigate('/account');
     } catch (err) {
@@ -1009,6 +1019,11 @@ function renderRegister() {
       const { user } = await authPost('/api/auth/register', fd);
       state.user = user;
       updateAuthSlot();
+      // New account starts with empty server cart/wishlist; this
+      // pushes whatever the user accumulated as a guest up to the
+      // new account so they don't lose it on first login.
+      if (typeof window.syncCartFromServer === 'function')     await window.syncCartFromServer();
+      if (typeof window.syncWishlistFromServer === 'function') await window.syncWishlistFromServer();
       showToast(`Welcome, ${user.name.split(' ')[0]}!`);
       navigate('/account');
     } catch (err) {

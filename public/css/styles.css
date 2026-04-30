@@ -851,6 +851,46 @@ main {
   color: #137333;
   font-weight: 700;
 }
+/* Heart-shaped wishlist toggle, top-right corner. Outlined when off,
+   fills brand-red when on. Sits above the discount badge if both
+   are present — discount badge moves left in that case via CSS. */
+.product-card-wish {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s, color 0.12s, background 0.12s, border-color 0.12s;
+  z-index: 2;
+  -webkit-tap-highlight-color: transparent;
+}
+.product-card-wish:hover {
+  color: #d6336c;
+  border-color: #d6336c;
+  transform: scale(1.06);
+}
+.product-card-wish.on {
+  background: #fff;
+  color: #d6336c;
+  border-color: #d6336c;
+}
+.product-card-wish.on svg { fill: #d6336c; }
+.product-card-wish:active { transform: scale(0.94); }
+
+/* When the heart button is present, push the discount badge to the
+   left so the two don't collide. */
+.product-card-img-wrap:has(.product-card-wish) .product-card-discount {
+  right: 50px;
+}
+
 /* Discount badge in top-right corner of card image — champagne gold,
    reads "exclusive offer" rather than "marketplace clearance" */
 .product-card-discount {
@@ -1103,7 +1143,30 @@ main {
 .pd-stock.out { color: var(--danger); }
 .pd-stock.loading { color: var(--text-muted); }
 
-.pd-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pd-actions { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; }
+/* Detail-page wishlist button — outlined heart with a label, sits to
+   the right of Add to Cart / Buy Now. On smaller screens the label
+   hides and only the heart shows (see breakpoint below). */
+.btn-wish-pd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 18px;
+  min-height: 44px;
+  background: #fff;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.btn-wish-pd:hover { color: #d6336c; border-color: #d6336c; }
+.btn-wish-pd.on { color: #d6336c; border-color: #d6336c; background: #fef0f5; }
+.btn-wish-pd.on svg { fill: #d6336c; }
 
 .pd-meta {
   display: flex;
