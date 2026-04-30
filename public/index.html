@@ -13,7 +13,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Archivo+Black&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/styles.css" />
+  <!-- v query-string busts the browser cache whenever we ship UI
+       changes. Bump the suffix to force fresh JS/CSS downloads even
+       on browsers that ignore Cache-Control: no-cache. -->
+  <link rel="stylesheet" href="/css/styles.css?v=20260430b" />
   <!-- Inline style as a safety net — guaranteed to load with no race
        conditions against the external CSS. -->
   <style>
@@ -167,7 +170,18 @@
   <!-- Razorpay Checkout — loaded async so it doesn't block the page;
        only used on the checkout page when the customer hits "Pay & Place order". -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
-  <script src="/js/app.js"></script>
-  <script src="/js/app-store.js"></script>
+  <script src="/js/app.js?v=20260430b"></script>
+  <script src="/js/app-store.js?v=20260430b"></script>
+  <!-- Surface any uncaught JS error in the page so we can debug from
+       the browser without DevTools. Goes to console.error and shows
+       a discreet banner if anything blows up. -->
+  <script>
+    window.addEventListener('error', function(e) {
+      console.error('[GCOM JS error]', e.error || e.message, 'at', e.filename + ':' + e.lineno);
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      console.error('[GCOM promise reject]', e.reason);
+    });
+  </script>
 </body>
 </html>
