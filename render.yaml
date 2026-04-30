@@ -47,6 +47,12 @@ services:
         value: "3.49"
       - key: CJ_FEE_FACTOR
         value: "1.11"
+      # 1 = manual click-through pay, 2 = auto-deduct from CJ wallet,
+      # 3 = create only. We ship orders straight from the prefunded CJ
+      # wallet — keep $200+ in there at all times via cjdropshipping.com
+      # → My CJ → Wallet → Recharge.
+      - key: CJ_PAY_TYPE
+        value: "2"
       # Secrets — set these in the Render dashboard, not in this file
       - key: CJ_API_KEY
         sync: false

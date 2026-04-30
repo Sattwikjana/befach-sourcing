@@ -11,6 +11,17 @@ const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
+// CJ payment mode for new orders:
+//   1 = manual — CJ returns a cjPayUrl, admin clicks through and pays.
+//   2 = auto   — CJ deducts from your pre-funded wallet balance. ← default
+//   3 = create only, pay separately later.
+//
+// Override via CJ_PAY_TYPE env var. Auto-pay (2) is the right choice for
+// any store doing more than ~5 orders/day — keeps fulfillment moving
+// without admin intervention. Make sure the wallet has enough USD
+// (top up at cjdropshipping.com/myCJ → Wallet → Recharge).
+const CJ_PAY_TYPE = parseInt(process.env.CJ_PAY_TYPE, 10) || 2;
+
 /**
  * Normalize a phone number to the international format CJ expects.
  *   India:   "8008188807"   → "918008188807"
@@ -110,7 +121,7 @@ async function createOrder(orderData) {
     remark: `Befach Order ${orderId}`,
     fromCountryCode: process.env.DEFAULT_SHIP_FROM || 'CN',
     logisticName: logisticName || '',
-    payType: 1, // returns cjPayUrl for you to pay
+    payType: CJ_PAY_TYPE,
     // India customs requires the recipient's Aadhaar (12 digits) or PAN
     // (10 chars). CJ rejects with "Consignee ID required" if missing.
     consigneeID: consigneeID || '',
@@ -254,7 +265,7 @@ function previewCjPayload(orderId, overrides = {}) {
     email: order.customer.email || '',
     fromCountryCode: process.env.DEFAULT_SHIP_FROM || 'CN',
     logisticName: order.logisticName || '',
-    payType: 1,
+    payType: CJ_PAY_TYPE,
     consigneeID,
     products: order.items.map(item => ({ vid: item.vid, quantity: item.quantity })),
   };
@@ -295,7 +306,7 @@ async function retryCjPush(orderId, overrides = {}) {
     remark: `Befach Order ${order.id} (retry)`,
     fromCountryCode: process.env.DEFAULT_SHIP_FROM || 'CN',
     logisticName: order.logisticName || '',
-    payType: 1,
+    payType: CJ_PAY_TYPE,
     consigneeID,
     products: order.items.map(item => ({ vid: item.vid, quantity: item.quantity })),
   };
