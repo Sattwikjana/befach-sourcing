@@ -64,10 +64,12 @@ const hamburgerBtn = document.getElementById('headerHamburger');
 const drawerEl = document.getElementById('drawer');
 const drawerBackdrop = document.getElementById('drawerBackdrop');
 const drawerClose = document.getElementById('drawerClose');
-const drawerCatToggle = document.getElementById('drawerCatToggle');
-const drawerCatsEl = document.getElementById('drawerCats');
 
 function openDrawer() {
+  // Make sure the drawer reflects the latest auth state every time
+  // it opens — fixes the "Sign in shows after logging in" bug where
+  // the drawer markup was static and got out of sync with state.
+  renderDrawer();
   drawerEl?.classList.add('open');
   drawerBackdrop?.classList.add('show');
   document.body.style.overflow = 'hidden';
@@ -81,19 +83,100 @@ hamburgerBtn?.addEventListener('click', openDrawer);
 drawerClose?.addEventListener('click', closeDrawer);
 drawerBackdrop?.addEventListener('click', closeDrawer);
 
-// Expandable categories accordion inside the drawer
-drawerCatToggle?.addEventListener('click', () => {
-  if (!drawerCatsEl) return;
-  const open = !drawerCatsEl.hidden;
-  drawerCatsEl.hidden = open;
-  drawerCatToggle.classList.toggle('open', !open);
-});
+/**
+ * Build the entire drawer body fresh, based on the current auth state.
+ * Called when the drawer opens and whenever auth state changes
+ * (login, logout, user fetch). The markup is sectioned (Shop / Account /
+ * Support) with no emoji, no clutter — premium typography-only look.
+ */
+function renderDrawer() {
+  const body = document.getElementById('drawerBody');
+  if (!body) return;
+  const u = state.user;
+  const firstName = u ? esc(((u.name || u.email || 'You').split(' ')[0])) : '';
+  const initial = u ? esc((u.name || u.email || 'U').slice(0, 1).toUpperCase()) : '';
 
-/** Called by loadCategories() once the category list is ready.
- *  Renders the full CJ tree: top-level (collapsed by default) → tap to expand
- *  to second-level groups → each group lists every third-level subcategory.
- *  Mirrors what the seller sees in CJ's own dashboard. */
+  body.innerHTML = `
+    ${u ? `
+      <div class="drawer-user-card">
+        <span class="drawer-user-avatar">${initial}</span>
+        <div class="drawer-user-meta">
+          <span class="drawer-user-greeting">Hi, ${firstName}</span>
+          <span class="drawer-user-email">${esc(u.email || '')}</span>
+        </div>
+      </div>
+    ` : ''}
+
+    <div class="drawer-section">
+      <a href="#/" class="drawer-link">Home</a>
+      <button type="button" class="drawer-link drawer-toggle" id="drawerCatToggle">
+        <span>Shop by category</span>
+        <span class="drawer-chev">›</span>
+      </button>
+      <div class="drawer-cats" id="drawerCats" hidden>
+        <span class="drawer-cats-loading muted">Loading…</span>
+      </div>
+      <a href="#/cart" class="drawer-link">Cart</a>
+      <a href="#/wishlist" class="drawer-link">Wishlist</a>
+      <a href="#/track" class="drawer-link">Track order</a>
+    </div>
+
+    ${u ? `
+      <div class="drawer-section">
+        <div class="drawer-section-label">My account</div>
+        <a href="#/account" class="drawer-link">My profile</a>
+        <a href="#/orders" class="drawer-link">My orders</a>
+        <a href="#/returns" class="drawer-link">Returns &amp; refunds</a>
+        <button type="button" class="drawer-link drawer-link-signout" id="drawerSignOut">Sign out</button>
+      </div>
+    ` : `
+      <div class="drawer-section">
+        <div class="drawer-section-label">Account</div>
+        <a href="#/login" class="drawer-link">Sign in</a>
+        <a href="#/register" class="drawer-link drawer-link-cta">Create account</a>
+      </div>
+    `}
+
+    <div class="drawer-section">
+      <div class="drawer-section-label">Support</div>
+      <a href="#/faq" class="drawer-link">Help &amp; FAQ</a>
+      <a href="#/legal" class="drawer-link">Legal &amp; compliance</a>
+    </div>
+  `;
+
+  // Wire the categories accordion
+  const catToggle = document.getElementById('drawerCatToggle');
+  const catBody = document.getElementById('drawerCats');
+  catToggle?.addEventListener('click', () => {
+    if (!catBody) return;
+    const open = !catBody.hidden;
+    catBody.hidden = open;
+    catToggle.classList.toggle('open', !open);
+  });
+
+  // Sign-out
+  document.getElementById('drawerSignOut')?.addEventListener('click', async () => {
+    try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch {}
+    state.user = null;
+    if (typeof updateAuthSlot === 'function') updateAuthSlot();
+    showToast('Signed out');
+    closeDrawer();
+    navigate('/');
+  });
+
+  // Close drawer on any link click
+  body.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
+
+  // Refresh the nested category tree if it's already loaded
+  if (typeof populateDrawerCategories === 'function') populateDrawerCategories();
+}
+
+/** Refresh the full category tree inside the drawer's category accordion.
+ *  Called by loadCategories() once data is ready, and by renderDrawer()
+ *  on each open. Renders the same tree the desktop sidebar shows so
+ *  every CJ subcategory is reachable on mobile. */
 function populateDrawerCategories() {
+  const drawerCatsEl = document.getElementById('drawerCats');
   if (!drawerCatsEl) return;
   const cats = state.categories || [];
   if (!cats.length) {
@@ -144,11 +227,12 @@ function populateDrawerCategories() {
   drawerCatsEl.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
 }
 
-// Close drawer whenever any direct link is clicked
-drawerEl?.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
+// Drawer brand-link closes the drawer when tapped (it links to /)
+document.getElementById('drawerBrandLink')?.addEventListener('click', closeDrawer);
 
 window.openDrawer = openDrawer;
 window.closeDrawer = closeDrawer;
+window.renderDrawer = renderDrawer;
 window.populateDrawerCategories = populateDrawerCategories;
 const cartCountEl = document.getElementById('cartCount');
 
@@ -410,6 +494,9 @@ function handleRoute() {
   if (path === '/login') return renderLogin();
   if (path === '/register') return renderRegister();
   if (path === '/account') return renderAccount();
+  if (path === '/orders') return renderOrders();
+  if (path === '/wishlist') return renderWishlist();
+  if (path === '/returns') return renderReturns();
   return renderHome();
 }
 

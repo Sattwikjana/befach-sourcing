@@ -91,36 +91,21 @@
     </div>
   </header>
 
-  <!-- Mobile drawer + backdrop (hidden on desktop via CSS) -->
+  <!-- Mobile drawer + backdrop (hidden on desktop via CSS).
+       Body content is rendered by renderDrawer() in app.js so the
+       links shown reflect the current auth state — no more "Sign in"
+       button while logged in. -->
   <div class="drawer-backdrop" id="drawerBackdrop"></div>
   <aside class="drawer" id="drawer" aria-label="Mobile menu">
     <div class="drawer-head">
-      <div class="drawer-brand">
-        <span class="drawer-brand-name">GCOM</span>
-        <span class="drawer-brand-tag">One World. <span class="accent">Endless Choices.</span></span>
-      </div>
-      <button class="drawer-close" id="drawerClose" aria-label="Close menu">✕</button>
-    </div>
-    <div class="drawer-body" id="drawerBody">
-      <a href="#/" class="drawer-link">🏠 Home</a>
-
-      <!-- Expandable Categories — tap to open, lists all top-level categories -->
-      <button class="drawer-link drawer-toggle" id="drawerCatToggle" type="button">
-        <span>📂 All categories</span>
-        <span class="drawer-chev">▾</span>
+      <a href="#/" class="drawer-brand-link" id="drawerBrandLink">
+        <img src="/img/gcom-logo.png" alt="GCOM" class="drawer-brand-img" />
+      </a>
+      <button class="drawer-close" id="drawerClose" aria-label="Close menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
-      <div class="drawer-cats" id="drawerCats" hidden>
-        <!-- populated by JS once categories load -->
-        <span class="drawer-cats-loading muted">Loading…</span>
-      </div>
-
-      <a href="#/cart" class="drawer-link">🛒 Cart</a>
-      <a href="#/track" class="drawer-link">🚚 Track order</a>
-      <a href="#/account" class="drawer-link" id="drawerAccountLink">👤 Account</a>
-      <a href="#/login" class="drawer-link" id="drawerLoginLink" hidden>🔐 Sign in</a>
-      <a href="#/register" class="drawer-link" id="drawerRegisterLink" hidden>✨ Create account</a>
-      <a href="#/faq" class="drawer-link">❓ Help / FAQ</a>
     </div>
+    <div class="drawer-body" id="drawerBody"></div>
   </aside>
 
   <!-- ╭──────────────────────────────────────────────╮ -->

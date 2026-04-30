@@ -829,9 +829,6 @@ async function loadCurrentUser() {
 
 function updateAuthSlot() {
   const slot = document.getElementById('authSlot');
-  const drawerAccount = document.getElementById('drawerAccountLink');
-  const drawerLogin = document.getElementById('drawerLoginLink');
-  const drawerRegister = document.getElementById('drawerRegisterLink');
   if (state.user) {
     const first = (state.user.name || state.user.email || 'You').split(' ')[0];
     if (slot) slot.innerHTML = `
@@ -840,18 +837,19 @@ function updateAuthSlot() {
         <span class="nav-label">Hi, ${esc(first)}</span>
       </a>
     `;
-    if (drawerAccount) { drawerAccount.hidden = false; drawerAccount.textContent = `👤 Hi, ${first}`; }
-    if (drawerLogin) drawerLogin.hidden = true;
-    if (drawerRegister) drawerRegister.hidden = true;
   } else {
     if (slot) slot.innerHTML = `
       <a href="#/login" class="nav-link nav-signin" data-page="login">Sign in</a>
       <a href="#/register" class="nav-link nav-register-btn" data-page="register">Create account</a>
     `;
-    if (drawerAccount) drawerAccount.hidden = true;
-    if (drawerLogin) drawerLogin.hidden = false;
-    if (drawerRegister) drawerRegister.hidden = false;
   }
+  // Drawer body is now JS-rendered from renderDrawer() in app.js, so
+  // we have to ask it to rebuild whenever auth state changes (login,
+  // register, logout, current-user fetch). Otherwise the drawer keeps
+  // showing whatever was rendered last open — which is the bug the
+  // user reported (still seeing "Sign in" and "Create account" while
+  // signed in).
+  if (typeof window.renderDrawer === 'function') window.renderDrawer();
 }
 
 async function authPost(path, body) {
@@ -1055,6 +1053,164 @@ async function renderAccount() {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Standalone account-related pages reachable from the drawer:
+     /orders   → just the orders table from /account, full-width
+     /wishlist → localStorage-backed favourites grid
+     /returns  → mailto-driven return-request form
+   Each gates on auth, redirects to /login if signed out.
+   ═══════════════════════════════════════════════════════════════ */
+
+async function renderOrders() {
+  if (!state.user) return navigate('/login');
+  app.innerHTML = `
+    <div class="breadcrumb">
+      <a href="#/">Home</a> <span>›</span>
+      <a href="#/account">My account</a> <span>›</span>
+      <span class="current">My orders</span>
+    </div>
+    <h1 class="page-title">My orders</h1>
+    <p class="muted">Every order placed under <strong>${esc(state.user.email)}</strong>.</p>
+    <section class="card" id="ordersCard"><div id="myOrdersList">Loading…</div></section>
+  `;
+  try {
+    const res = await fetch('/api/auth/orders', { credentials: 'include' });
+    const data = await res.json();
+    const list = data.orders || [];
+    const el = document.getElementById('myOrdersList');
+    if (!list.length) {
+      el.innerHTML = `<p class="muted">No orders yet. <a href="#/">Start browsing</a></p>`;
+      return;
+    }
+    el.innerHTML = `
+      <table class="admin-table">
+        <thead><tr><th>Order</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${list.map(o => `
+            <tr>
+              <td><code>${esc(o.id)}</code></td>
+              <td>${new Date(o.createdAt).toLocaleDateString('en-IN')}</td>
+              <td>${o.items.length} item${o.items.length === 1 ? '' : 's'}</td>
+              <td><strong>${fmtINR(o.grandTotal)}</strong></td>
+              <td><span class="status-chip status-${esc((o.status || '').toLowerCase())}">${esc(o.status)}</span></td>
+              <td><a class="btn-sm btn-ghost" href="#/order/${encodeURIComponent(o.id)}">View</a></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (err) {
+    document.getElementById('myOrdersList').innerHTML = `<p class="muted">Couldn't load orders: ${esc(err.message)}</p>`;
+  }
+}
+
+/* Wishlist — purely client-side, persists to localStorage. Lets users
+   ❤ products without needing the server-side feature built out. The
+   product detail page reads/writes the same key, so adds/removes
+   roundtrip without a backend call. */
+const WISHLIST_KEY = 'gcom_wishlist_v1';
+function loadWishlist() {
+  try { return JSON.parse(localStorage.getItem(WISHLIST_KEY) || '[]'); } catch { return []; }
+}
+function saveWishlist(pids) {
+  try { localStorage.setItem(WISHLIST_KEY, JSON.stringify(pids)); } catch {}
+}
+window.loadWishlist = loadWishlist;
+window.saveWishlist = saveWishlist;
+
+async function renderWishlist() {
+  const pids = loadWishlist();
+  app.innerHTML = `
+    <div class="breadcrumb">
+      <a href="#/">Home</a> <span>›</span>
+      <span class="current">Wishlist</span>
+    </div>
+    <h1 class="page-title">Wishlist</h1>
+    <p class="muted">Products you've saved for later. Stored on this device.</p>
+    <div class="products-grid" id="wishlistGrid">
+      ${pids.length ? Array(pids.length).fill('<div class="product-card skeleton" style="height:280px"></div>').join('') : ''}
+    </div>
+    ${pids.length ? '' : `
+      <div class="empty-state">
+        <div class="empty-icon">♡</div>
+        <h3>Your wishlist is empty</h3>
+        <p class="muted">Tap the heart on any product to save it here.</p>
+        <a class="btn btn-primary" href="#/">Browse products</a>
+      </div>
+    `}
+  `;
+  if (!pids.length) return;
+  // Fetch each saved product in parallel and render. Failed lookups
+  // (deleted products, blocked items) silently drop from the list.
+  const grid = document.getElementById('wishlistGrid');
+  const results = await Promise.all(pids.map(async pid => {
+    try {
+      const r = await fetch(`/api/store/products/${encodeURIComponent(pid)}`);
+      if (!r.ok) return null;
+      const d = await r.json();
+      return d.product || null;
+    } catch { return null; }
+  }));
+  const products = results.filter(Boolean);
+  if (!products.length) {
+    grid.innerHTML = `<p class="muted">None of your saved products are available right now.</p>`;
+    return;
+  }
+  grid.innerHTML = products.map(p => window.productCard ? window.productCard(p) : '').join('');
+}
+
+/* Returns — simple intake form. Every order placed via Razorpay has
+   our customer-care email on the receipt; this page formalises the
+   request flow without needing a separate ticketing system. */
+function renderReturns() {
+  if (!state.user) return navigate('/login');
+  const c = COMPANY_INFO;
+  const supportEmail = c.email || 'sales@befach.com';
+  app.innerHTML = `
+    <div class="breadcrumb">
+      <a href="#/">Home</a> <span>›</span>
+      <a href="#/account">My account</a> <span>›</span>
+      <span class="current">Returns &amp; refunds</span>
+    </div>
+    <h1 class="page-title">Returns &amp; refunds</h1>
+    <section class="card">
+      <h2>Request a return</h2>
+      <p class="muted">If your item arrived damaged, defective, or not as described, we'll process a return or refund within 7 days of delivery. Tell us what happened and we'll be in touch within one business day.</p>
+      <form id="returnForm" class="checkout-form" style="margin-top:16px">
+        <label>Order ID
+          <input name="orderId" required placeholder="ord_..." />
+        </label>
+        <label>Reason
+          <select name="reason" required>
+            <option value="">Select a reason</option>
+            <option>Arrived damaged</option>
+            <option>Wrong item</option>
+            <option>Missing parts</option>
+            <option>Quality not as described</option>
+            <option>Changed my mind</option>
+            <option>Other</option>
+          </select>
+        </label>
+        <label>Tell us more
+          <textarea name="details" rows="5" placeholder="Photos / order detail / what went wrong" required></textarea>
+        </label>
+        <button class="btn btn-primary btn-lg" type="submit">Submit request</button>
+      </form>
+    </section>
+    <section class="card" style="margin-top:16px">
+      <h2>Need help right now?</h2>
+      <p>Email <a href="mailto:${esc(supportEmail)}">${esc(supportEmail)}</a> or <a href="#/faq">read the FAQ</a>.</p>
+    </section>
+  `;
+  document.getElementById('returnForm').onsubmit = (e) => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target).entries());
+    const subject = `Return request — ${fd.orderId} (${fd.reason})`;
+    const body = `Order ID: ${fd.orderId}\nReason: ${fd.reason}\n\n${fd.details}\n\n—\n${state.user.name || ''}\n${state.user.email || ''}`;
+    location.href = `mailto:${supportEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+}
+
 window.loadCurrentUser = loadCurrentUser;
 window.updateAuthSlot = updateAuthSlot;
 
@@ -1068,6 +1224,9 @@ window.renderFaq = renderFaq;
 window.renderLegal = renderLegal;
 window.renderLogin = renderLogin;
 window.renderRegister = renderRegister;
+window.renderOrders = renderOrders;
+window.renderWishlist = renderWishlist;
+window.renderReturns = renderReturns;
 window.renderAccount = renderAccount;
 
 // ══════════════════════════════════════════════════════════════
