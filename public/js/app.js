@@ -864,12 +864,13 @@ function setCachedDisplayUsd(pid, displayUsd) {
 // ══════════════════════════════════════════════════════════════
 //  PRODUCT CARD
 // ══════════════════════════════════════════════════════════════
-function productCard(p) {
+function productCard(p, idx) {
   const pid = p.pid || p.id || p.productId || '';
   const name = p.productNameEn || p.nameEn || p.productName || 'Untitled';
   const image = parseProductImage(p);
   const listed = p.listedNum || p.listedShopNum || 0;
   const serverAccurate = p.shippingAccurate === true;
+  const aboveFold = typeof idx === 'number' && idx < 8;
 
   // Always show SOMETHING — never a skeleton. The server already returns a
   // usable price (using a flat fallback shipping for products it hasn't
@@ -904,7 +905,11 @@ function productCard(p) {
        data-discount="${discountPct}">
       <div class="product-card-img-wrap">
         <img class="product-card-img" src="${imgProxy(image)}" alt="${esc(name)}"
-          loading="lazy" onerror="this.onerror=null;this.src='/img/befach_logo.png'" />
+          width="400" height="400"
+          loading="${aboveFold ? 'eager' : 'lazy'}"
+          fetchpriority="${aboveFold ? 'high' : 'low'}"
+          decoding="async"
+          onerror="this.onerror=null;this.src='/img/befach_logo.png'" />
         ${listed > 50 ? '<span class="product-card-badge">🔥 Popular</span>' : ''}
         ${showOffer ? `<span class="product-card-discount">${discountPct}% OFF</span>` : ''}
         <button type="button"
@@ -1782,12 +1787,16 @@ async function renderProduct(pid) {
       <div class="pd-gallery">
         <div class="pd-main-wrap">
           <img class="pd-main-img" id="pdMainImg" src="${imgProxy(images[0])}" alt="${esc(name)}"
+               width="600" height="600"
+               fetchpriority="high" decoding="async"
                onerror="this.onerror=null;this.src='/img/befach_logo.png'" />
         </div>
         <div class="pd-thumbs">
           ${images.slice(0, 8).map((src, i) => `
             <button class="pd-thumb ${i === 0 ? 'active' : ''}" data-src="${esc(imgProxy(src))}">
-              <img src="${imgProxy(src)}" alt="thumb ${i + 1}" onerror="this.style.visibility='hidden'" />
+              <img src="${imgProxy(src)}" alt="thumb ${i + 1}" width="80" height="80"
+                   loading="lazy" decoding="async"
+                   onerror="this.style.visibility='hidden'" />
             </button>
           `).join('')}
         </div>
