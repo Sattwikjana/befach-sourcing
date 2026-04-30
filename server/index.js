@@ -794,33 +794,44 @@ app.get('/api/store/products', async (req, res) => {
 
     // For each product, decide whether to show it:
     //   1. Cached AND shippable to India → real (wholesale + shipping) × (1+markup).
-    //   2. Cached AND known-unshippable  → SKIP. User explicitly asked not
-    //      to see "Not available in your region" anywhere; we'd rather show
-    //      a smaller catalog than tease unshippable items.
+    //   2. Cached AND known-unshippable  → SKIP (default). User explicitly
+    //      asked not to see "Not available in your region" anywhere.
     //   3. Not cached                    → keep with fallback shipping
     //      price + queue background warm. If warming returns unshippable
     //      the frontend backfill will remove the card.
     //
-    // The earlier "show every product" mode was reversed because clicking
-    // a card that turned out unshippable led to the bad-UX 404 page. The
-    // admin blocklist still applies on top of this.
+    // Lenient fallback: if filtering removes EVERY product (keyword landed
+    // on a row where shipping cache happens to mark all hits as
+    // unshippable), we re-run the loop without the unshippable skip so
+    // the section isn't empty. The frontend's backfill cleanup will prune
+    // genuinely-unshippable cards as it warms each pid.
+    //
+    // The admin blocklist always applies, both passes.
+    function buildPriced({ allowUnshippable }) {
+      const out = [];
+      const toWarm = [];
+      for (const rawProduct of meta.products) {
+        const pid = rawProduct.pid || rawProduct.id || rawProduct.productId || '';
+        const wholesaleUsd = parseFloat(rawProduct.sellPrice || rawProduct.nowPrice || 0);
+
+        if (isBlocked(pid)) continue;
+        const hit = peekShippingCache(pid);
+        if (!allowUnshippable && hit && hit.available === false) continue;
+        if (!hit && pid) toWarm.push(pid);
+
+        out.push({ rawProduct, pid, wholesaleUsd, hit });
+      }
+      return { items: out, toWarm };
+    }
+
+    let { items: pricedItems, toWarm: unwarmedToWarm } = buildPriced({ allowUnshippable: false });
+    if (pricedItems.length === 0 && (meta.products || []).length > 0) {
+      console.log(`[products] strict-shippable filter killed all results for keyWord="${keyWord || ''}" categoryId="${categoryId || ''}" — falling back to lenient`);
+      ({ items: pricedItems, toWarm: unwarmedToWarm } = buildPriced({ allowUnshippable: true }));
+    }
+
     const priced = [];
-    const unwarmedToWarm = [];
-    for (const rawProduct of meta.products) {
-      const pid = rawProduct.pid || rawProduct.id || rawProduct.productId || '';
-      const wholesaleUsd = parseFloat(rawProduct.sellPrice || rawProduct.nowPrice || 0);
-
-      // Admin-curated blocklist always wins
-      if (isBlocked(pid)) continue;
-
-      const hit = peekShippingCache(pid);
-
-      // Skip known-unshippable products entirely. They'd just show the
-      // confusing "Not available in your region" page on click.
-      if (hit && hit.available === false) continue;
-
-      if (!hit && pid) unwarmedToWarm.push(pid);
-
+    for (const { rawProduct, pid, wholesaleUsd, hit } of pricedItems) {
       const knownGood = !!(hit && hit.available);
       const shippingUsd = knownGood ? hit.usd : FALLBACK_SHIPPING_USD;
       const displayUsd = computeDisplayUsd(wholesaleUsd, shippingUsd);

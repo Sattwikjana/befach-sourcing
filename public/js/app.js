@@ -1217,52 +1217,79 @@ async function loadHomeProducts() {
   const womenChild = childPick(womenCat);
   const menChild   = childPick(menCat);
 
+  // Up to 3 candidate keywords per keyword-based section. If the first
+  // returns 0 (e.g. shipping cache flagged everything as unshippable
+  // for that specific keyword today), we transparently retry with the
+  // next pool entry instead of showing a broken-looking empty state.
+  // Cycles through the pool starting at today's day-of-year offset.
+  const candidates = (pool, count = 3) =>
+    Array.from({ length: count }, (_, i) => pool[(dayOfYear + i) % pool.length]);
+
   // 6 sections — restored Smart Gadgets now that Prime gives us 4 req/sec
   // (was dropped at 1 req/sec because each section adds ~280ms to the
   // listV2 queue, vs 900ms before — even cold loads stay under 2s).
   const sections = [
-    { grid: grids.featured,      kind: 'kw',  keyword: pick(featuredPool), size: 10, moreId: 'featuredMore',      label: 'featured products' },
-    { grid: grids.men,           kind: 'cat', cat: menChild   || menCat,   size: 8,  moreId: null,                label: "men's fashion" },
-    { grid: grids.trending,      kind: 'kw',  keyword: pick(trendingPool), size: 10, moreId: 'trendingMore',      label: 'tech & gadgets' },
-    { grid: grids.women,         kind: 'cat', cat: womenChild || womenCat, size: 8,  moreId: null,                label: "women's fashion" },
-    { grid: grids.smart,         kind: 'kw',  keyword: pick(smartPool),    size: 10, moreId: 'smartMore',         label: 'smart gadgets' },
-    { grid: grids.homeLifestyle, kind: 'kw',  keyword: pick(homePool),     size: 10, moreId: 'homeLifestyleMore', label: 'home & lifestyle' },
+    { grid: grids.featured,      kind: 'kw',  keywords: candidates(featuredPool), size: 10, moreId: 'featuredMore',      label: 'featured products' },
+    { grid: grids.men,           kind: 'cat', cat: menChild   || menCat,          size: 8,  moreId: null,                label: "men's fashion" },
+    { grid: grids.trending,      kind: 'kw',  keywords: candidates(trendingPool), size: 10, moreId: 'trendingMore',      label: 'tech & gadgets' },
+    { grid: grids.women,         kind: 'cat', cat: womenChild || womenCat,        size: 8,  moreId: null,                label: "women's fashion" },
+    { grid: grids.smart,         kind: 'kw',  keywords: candidates(smartPool),    size: 10, moreId: 'smartMore',         label: 'smart gadgets' },
+    { grid: grids.homeLifestyle, kind: 'kw',  keywords: candidates(homePool),     size: 10, moreId: 'homeLifestyleMore', label: 'home & lifestyle' },
   ];
 
-  // Point keyword-based section "View all →" links at the same query we
-  // displayed. The fashion sections already have hard-coded hrefs.
-  sections.forEach(s => {
-    if (s.kind !== 'kw' || !s.moreId) return;
-    const link = document.getElementById(s.moreId);
-    if (link) link.href = `#/search?q=${encodeURIComponent(s.keyword)}`;
-  });
+  // Point keyword-based section "View all →" links at the keyword we
+  // ended up *displaying* (set further down once a candidate succeeds).
+  // The fashion sections have hard-coded hrefs already.
 
-  // Fire all sections in parallel — the server's per-endpoint queue
-  // serialises CJ calls, but the 5-min cache makes repeat home loads
-  // near-instant.
+  // Hide a section's container outright when nothing is available — empty
+  // "No X products available right now" copy looks like a broken site.
+  // We walk up to the .section / .fashion-section ancestor and remove it.
+  function hideSectionGracefully(gridEl) {
+    if (!gridEl) return;
+    const sec = gridEl.closest('.section, .fashion-section');
+    if (sec) sec.remove();
+  }
+
+  // Fire all sections in parallel.
   await Promise.all(sections.map(async (s) => {
     if (!s.grid) return;
     try {
-      let url;
+      let products = [];
+      let chosenKeyword = null;
+
       if (s.kind === 'cat') {
-        if (!s.cat) {
-          showErr(s.grid, `No ${s.label} products available right now.`);
-          return;
-        }
+        if (!s.cat) { hideSectionGracefully(s.grid); return; }
         const id = s.cat.categoryId || s.cat.categorySecondId || s.cat.categoryFirstId || '';
-        url = `/api/store/products?categoryId=${encodeURIComponent(id)}&size=${s.size}&page=1`;
+        const res = await apiGet(`/api/store/products?categoryId=${encodeURIComponent(id)}&size=${s.size}&page=1`);
+        products = res.products || [];
       } else {
-        url = `/api/store/products?keyWord=${encodeURIComponent(s.keyword)}&size=${s.size}&page=1`;
+        // Try each candidate keyword in order, stop at the first that
+        // returns at least 4 products (gives us a populated row).
+        for (const kw of s.keywords) {
+          const res = await apiGet(`/api/store/products?keyWord=${encodeURIComponent(kw)}&size=${s.size}&page=1`);
+          const got = res.products || [];
+          if (got.length >= 4) { products = got; chosenKeyword = kw; break; }
+          if (got.length > products.length) { products = got; chosenKeyword = kw; }
+        }
+        // Update the "View all →" link to point at the keyword we
+        // actually displayed.
+        if (chosenKeyword && s.moreId) {
+          const link = document.getElementById(s.moreId);
+          if (link) link.href = `#/search?q=${encodeURIComponent(chosenKeyword)}`;
+        }
       }
-      const res = await apiGet(url);
-      const products = res.products || [];
+
       if (!products.length) {
-        showErr(s.grid, `No ${s.label} products available right now.`);
+        // All candidates empty — pull the section so the home page
+        // doesn't show a sad "No X available" notice.
+        hideSectionGracefully(s.grid);
         return;
       }
       s.grid.innerHTML = products.map(productCard).join('');
       backfillCardShipping(s.grid);
     } catch (err) {
+      // Network error or unexpected response — keep the section visible
+      // but show a short message so the user knows it's not their fault.
       showErr(s.grid, `Couldn't load ${s.label} — refresh the page.`);
     }
   }));
