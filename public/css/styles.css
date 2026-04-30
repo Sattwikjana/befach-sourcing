@@ -1,31 +1,30 @@
 /* ═══════════════════════════════════════════════════════════════
-   Befach Store — global stylesheet
-   Premium B2C: deep navy + champagne gold + warm cream.
-   Inspired by Net-A-Porter / MR PORTER / curated multi-brand boutiques.
+   GCOM Global Store — global stylesheet
+   "One World. Endless Choices."
+   Modern premium: true black + warm gold + ivory. Inspired by
+   Aesop, Apple, Tesla — geometric, confident, brand-forward.
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Brand — deep navy primary, champagne gold accent for the
-     "premium imports / fashion-forward" positioning. Supersedes the
-     old dropshipping-marketplace orange. */
-  --brand:         #0F172A;        /* near-black navy — primary surfaces, headers, buttons */
-  --brand-dark:    #060B17;        /* hover/pressed */
-  --brand-light:   #E8E5DD;        /* tinted surfaces, subtle backgrounds */
-  --accent:        #C9A961;        /* champagne gold — discount badges, accent highlights */
-  --accent-dark:   #A38644;        /* hover state for gold */
-  --accent-soft:   #F5EFE0;        /* gold-tinted surface fill */
+  /* Brand — true black (matches the GCOM wordmark) + warm gold
+     accent (matches the gold square inside the logo's "G") */
+  --brand:         #0A0A0A;        /* logo black */
+  --brand-dark:    #000000;        /* hover/pressed — pure black */
+  --brand-light:   #ECE9E2;        /* tinted ivory surfaces */
+  --accent:        #B89456;        /* warm gold — matches logo's gold accent */
+  --accent-dark:   #8A6B33;        /* hover state */
+  --accent-soft:   #F2EBDC;        /* gold-tinted surface fill */
 
   /* Text */
   --text:          #1A1A1A;        /* primary copy on light surfaces */
   --text-secondary:#3F4855;        /* sub-headings, descriptions */
-  --text-muted:    #6F7783;        /* meta info, footnotes */
-  --text-on-brand: #FAF7F2;        /* body copy on dark navy backgrounds */
+  --text-muted:    #707682;        /* meta info, footnotes */
+  --text-on-brand: #FAF8F2;        /* body copy on black backgrounds */
 
-  /* Surfaces — warm cream replaces neutral grey to read more
-     "boutique / editorial" instead of "marketplace"  */
-  --bg:            #FAF7F2;        /* page background — soft cream */
+  /* Surfaces — ivory cream, slightly warmer than navy-era theme */
+  --bg:            #FAF8F2;        /* page background — soft ivory */
   --surface:       #FFFFFF;        /* cards, panels */
-  --surface-alt:   #F4F0E8;        /* alt sections, banners */
+  --surface-alt:   #F2EEE5;        /* alt sections, banners */
   --border:        #E5DFD5;        /* warm-toned dividers */
   --border-strong: #C8C0B1;        /* hover/focus borders */
 
@@ -35,18 +34,25 @@
   --danger:        #991B1B;        /* deep crimson — only for destructive ops */
 
   /* Layout */
-  --radius:        8px;            /* slightly tighter than before — premium minimal */
-  --radius-sm:     4px;
-  --radius-lg:     14px;
-  --shadow-sm:     0 1px 2px rgba(15,23,42,0.05);
-  --shadow:        0 4px 14px rgba(15,23,42,0.07);
-  --shadow-lg:     0 12px 32px rgba(15,23,42,0.10);
+  --radius:        6px;            /* tighter — premium minimal feel */
+  --radius-sm:     3px;
+  --radius-lg:     12px;
+  --shadow-sm:     0 1px 2px rgba(0,0,0,0.05);
+  --shadow:        0 4px 14px rgba(0,0,0,0.06);
+  --shadow-lg:     0 12px 32px rgba(0,0,0,0.10);
   --container:     1600px;
   --header-h:      64px;
 
-  /* Display serif for editorial-feel headings on hero / banners.
-     Inter still drives body & UI for legibility. */
-  --font-display:  'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+  /* Type system:
+       --font-wordmark = Archivo Black, ONLY for the GCOM wordmark.
+                         Heavy geometric letterforms that match the logo.
+       --font-display  = Outfit, for hero headlines, section titles,
+                         banner h2s. Modern geometric premium sans.
+       --font-body     = Inter, for everything else (UI, body copy).
+     Cormorant Garamond was dropped — too magazine-y for the
+     tech-forward GCOM positioning. */
+  --font-wordmark: 'Archivo Black', 'Inter', -apple-system, sans-serif;
+  --font-display:  'Outfit', 'Inter', -apple-system, sans-serif;
   --font-body:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -105,22 +111,42 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   object-fit: contain;
   flex-shrink: 0;
 }
-.brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+.brand-text { display: flex; flex-direction: column; line-height: 1; gap: 4px; }
 .brand-name {
-  font-family: var(--font-display);
+  font-family: var(--font-wordmark);
   font-size: 26px;
   color: var(--brand);
-  letter-spacing: 0.5px;
-  font-weight: 600;
-  font-style: italic;
+  letter-spacing: -0.01em;
+  font-weight: 900;
+  text-transform: uppercase;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+/* Tiny gold square inside the wordmark — echoes the gold mark
+   inside the "G" of the GCOM logo. Sits between G and C. */
+.brand-name .brand-mark {
+  display: inline-block;
+  width: 4px;
+  height: 12px;
+  background: var(--accent);
+  margin: 0 1px;
+  vertical-align: middle;
+  position: absolute;
+  left: 0.55em;
+  bottom: 0.18em;
+  pointer-events: none;
 }
 .brand-tagline {
-  font-size: 10px;
-  color: var(--accent-dark);
-  font-weight: 600;
+  font-size: 9px;
+  color: var(--text-muted);
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 1.2px;
+  letter-spacing: 0.18em;
+  font-family: var(--font-body);
 }
+.brand-tagline .accent { color: var(--accent-dark); font-weight: 600; }
 
 .header-search {
   display: flex;
@@ -1786,18 +1812,21 @@ main {
   margin-bottom: 10px;
 }
 .footer-brand-name {
-  font-weight: 800;
-  font-size: 22px;
+  font-family: var(--font-wordmark);
+  font-weight: 900;
+  font-size: 26px;
   color: #fff;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
 }
 .footer-brand-tag {
-  font-size: 11px;
+  font-size: 10px;
   color: #94a3b8;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.7px;
+  letter-spacing: 0.18em;
 }
+.footer-brand-tag .accent { color: var(--accent); font-weight: 600; }
 .footer-about { font-size: 13.5px; line-height: 1.6; color: #94a3b8; }
 
 /* Befach International footer column — registered office, GSTIN, IEC, CIN */
@@ -2061,18 +2090,22 @@ body.page-home .header-nav { margin-left: auto; }
   line-height: 1.1;
 }
 .drawer-brand-name {
-  font-weight: 800;
-  font-size: 20px;
+  font-family: var(--font-wordmark);
+  font-weight: 900;
+  font-size: 22px;
   color: var(--brand);
-  letter-spacing: -0.4px;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
 }
 .drawer-brand-tag {
-  font-size: 10.5px;
+  font-size: 9px;
   color: var(--text-muted);
+  letter-spacing: 0.18em;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.7px;
+  font-weight: 500;
 }
+.drawer-brand-tag .accent { color: var(--accent-dark); font-weight: 600; }
 .drawer-close {
   background: transparent;
   border: none;
@@ -2296,8 +2329,9 @@ body.page-home .header-nav { margin-left: auto; }
   }
   /* Brand stays visible on mobile — text only, slightly smaller */
   .brand-text { display: flex; }
-  .brand-name { font-size: 18px; }
-  .brand-tagline { font-size: 9.5px; letter-spacing: 0.6px; }
+  .brand-name { font-size: 21px; }
+  .brand-name .brand-mark { width: 3px; height: 10px; }
+  .brand-tagline { font-size: 8px; letter-spacing: 0.16em; }
   .header-search {
     grid-column: 1 / -1;
     order: 3;
@@ -2508,16 +2542,16 @@ body.page-home .header-nav { margin-left: auto; }
 }
 .home-hero-title {
   font-family: var(--font-display);
-  font-size: 56px;
-  line-height: 1.05;
-  font-weight: 600;             /* serif looks heavy at 800 — pull back */
-  letter-spacing: -0.01em;
+  font-size: 54px;
+  line-height: 1.02;
+  font-weight: 700;
+  letter-spacing: -0.025em;
   margin: 0 0 18px;
-  color: var(--brand);          /* deep navy display */
+  color: var(--brand);
 }
 .home-hero-title .accent {
-  color: var(--accent-dark);    /* champagne gold for the second line */
-  font-style: italic;
+  color: var(--accent-dark);
+  font-weight: 700;
 }
 .home-hero-sub {
   font-size: 17px;
@@ -2871,17 +2905,19 @@ body.page-home .header-nav { margin-left: auto; }
 }
 .promo-big-copy h2 {
   font-family: var(--font-display);
-  font-size: 38px;
-  font-weight: 600;
+  font-size: 36px;
+  font-weight: 700;
   line-height: 1.05;
+  letter-spacing: -0.02em;
   margin: 0 0 10px;
   color: #fff;
 }
 .promo-small-copy h3 {
   font-family: var(--font-display);
   font-size: 22px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.15;
+  letter-spacing: -0.015em;
   margin: 0 0 4px;
   color: #fff;
 }
@@ -2908,12 +2944,11 @@ body.page-home .header-nav { margin-left: auto; }
 /* ── SECTION HEADERS (consistent across home) ─────────────────── */
 .section-title {
   font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   color: var(--brand);
   margin: 0;
-  letter-spacing: 0;
-  font-style: italic;
+  letter-spacing: -0.015em;
 }
 .section-link {
   font-size: 12px;
@@ -2982,8 +3017,9 @@ body.page-home .header-nav { margin-left: auto; }
 }
 .fashion-banner-copy h2 {
   font-family: var(--font-display);
-  font-size: 36px;
-  font-weight: 600;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   margin: 4px 0 6px;
   line-height: 1.05;
   color: #fff;

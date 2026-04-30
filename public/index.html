@@ -3,12 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Befach — Shop Products, Ship Worldwide</title>
-  <meta name="description" content="Befach is a global dropshipping store. Shop millions of products at the best prices, with fast worldwide shipping and secure checkout." />
-  <link rel="icon" href="/img/befach_logo.png" />
+  <title>GCOM — One World. Endless Choices.</title>
+  <meta name="description" content="GCOM curates premium products from artisans and ateliers in 200+ countries — delivered to your doorstep in India in 10–15 days." />
+  <!-- Save the GCOM logo (square crop) as /img/gcom-icon.png to replace
+       the placeholder favicon. Until then we fall back to the legacy
+       PNG so the icon doesn't 404. -->
+  <link rel="icon" href="/img/gcom-icon.png" />
+  <link rel="alternate icon" href="/img/befach_logo_256.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Archivo+Black&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/styles.css" />
   <!-- Inline style as a safety net — guaranteed to load with no race
        conditions against the external CSS. -->
@@ -49,11 +53,10 @@
         </svg>
       </button>
 
-      <a href="#/" class="brand" aria-label="Befach Home">
-        <img src="/img/befach_logo.png" alt="" class="brand-logo" />
+      <a href="#/" class="brand" aria-label="GCOM home">
         <span class="brand-text">
-          <span class="brand-name">Befach</span>
-          <span class="brand-tagline">Global Store</span>
+          <span class="brand-name">GCOM<span class="brand-mark"></span></span>
+          <span class="brand-tagline">One World. <span class="accent">Endless Choices.</span></span>
         </span>
       </a>
 
@@ -96,8 +99,8 @@
   <aside class="drawer" id="drawer" aria-label="Mobile menu">
     <div class="drawer-head">
       <div class="drawer-brand">
-        <span class="drawer-brand-name">Befach</span>
-        <span class="drawer-brand-tag">Global Store</span>
+        <span class="drawer-brand-name">GCOM</span>
+        <span class="drawer-brand-tag">One World. <span class="accent">Endless Choices.</span></span>
       </div>
       <button class="drawer-close" id="drawerClose" aria-label="Close menu">✕</button>
     </div>
@@ -135,10 +138,10 @@
     <div class="footer-top">
       <div class="footer-col footer-brand-col">
         <div class="footer-brand">
-          <span class="footer-brand-name">Befach</span>
-          <span class="footer-brand-tag">Global Store</span>
+          <span class="footer-brand-name">GCOM</span>
+          <span class="footer-brand-tag">One World. <span class="accent">Endless Choices.</span></span>
         </div>
-        <p class="footer-about">Your global sourcing and shopping partner. Millions of products. Fast worldwide delivery.</p>
+        <p class="footer-about">Premium products, hand-picked from artisans and ateliers in 200+ countries — delivered to your door in 10–15 days.</p>
       </div>
       <div class="footer-col">
         <h4>Shop</h4>
@@ -155,12 +158,12 @@
         <a href="#/legal">Legal & Compliance</a>
       </div>
       <div class="footer-col footer-company" id="footerCompany">
-        <h4>Befach International</h4>
+        <h4>Operating Entity</h4>
         <!-- Populated from COMPANY_INFO on boot — see populateFooterCompany() in app.js -->
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© <span id="footerYear"></span> Befach. All rights reserved.</span>
+      <span>© <span id="footerYear"></span> GCOM, a Befach 4X Private Limited venture. All rights reserved.</span>
       <span class="footer-pay">🔒 Secure checkout</span>
     </div>
   </footer>

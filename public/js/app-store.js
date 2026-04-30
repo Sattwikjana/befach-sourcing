@@ -363,15 +363,18 @@ async function renderCheckout() {
       amount: intent.amount,
       currency: intent.currency || 'INR',
       order_id: intent.razorpayOrderId,
-      name: 'BEFACH 4X PRIVATE LIMITED',
-      description: `${itemsPayload.length} item${itemsPayload.length === 1 ? '' : 's'} from Befach`,
+      name: 'GCOM',
+      description: `${itemsPayload.length} item${itemsPayload.length === 1 ? '' : 's'} from GCOM`,
+      // Razorpay shows this image at the top of the checkout modal.
+      // Save a 256×256 PNG of the GCOM mark at /img/gcom-icon.png to
+      // replace the legacy fallback below.
       image: `${location.origin}/img/befach_logo_256.png`,
       prefill: {
         name: fd.name,
         email: fd.email,
         contact: fd.phone,
       },
-      theme: { color: '#ea580c' },
+      theme: { color: '#0A0A0A' },
       modal: {
         ondismiss: () => {
           btn.disabled = false;
@@ -570,8 +573,8 @@ function renderLegal() {
 
     <div class="legal-page">
       <section class="legal-section">
-        <h2>About ${esc(c.legalName || 'Befach International')}</h2>
-        <p>${esc(c.legalName || 'Befach International')} operates the ${esc(c.brandName || 'Befach')} Global Store, a cross-border e-commerce platform that sources products from verified manufacturers and ships worldwide. We are an authorised CJ Dropshipping partner (User ID: <strong>${esc(c.cjUserId || '—')}</strong>).</p>
+        <h2>About ${esc(c.brandName || 'GCOM')}</h2>
+        <p><strong>${esc(c.brandName || 'GCOM')}</strong> is operated by ${esc(c.legalName || 'BEFACH 4X PRIVATE LIMITED')}, a cross-border e-commerce platform that curates premium products from artisans, ateliers, and verified manufacturers in 200+ countries and delivers them to your doorstep in India in 10–15 days. We are an authorised CJ Dropshipping partner (User ID: <strong>${esc(c.cjUserId || '—')}</strong>).</p>
       </section>
 
       <section class="legal-section">
@@ -599,7 +602,7 @@ function renderLegal() {
 
       <section class="legal-section">
         <h2>Shipping &amp; supplier policy</h2>
-        <p>Products listed on this store are sourced from CJ Dropshipping's verified supplier network. Orders placed on ${esc(c.brandName || 'Befach')} are forwarded to CJ for fulfillment via their official Store Orders API (<code>/shopping/order/createOrderV2</code>). We are responsible for customer service, payments, and warranty handling on the storefront side; CJ handles supplier coordination, packaging and international logistics.</p>
+        <p>Products listed on this store are sourced from CJ Dropshipping's verified supplier network. Orders placed on ${esc(c.brandName || 'GCOM')} are forwarded to CJ for fulfillment via their official Store Orders API (<code>/shopping/order/createOrderV2</code>). We are responsible for customer service, payments, and warranty handling on the storefront side; CJ handles supplier coordination, packaging and international logistics.</p>
       </section>
 
       <section class="legal-section">
@@ -882,7 +885,7 @@ function renderLogin() {
   app.innerHTML = `
     <div class="auth-page">
       <div class="auth-card">
-        <h1>Sign in to Befach</h1>
+        <h1>Sign in to GCOM</h1>
         <p class="muted">New here? <a href="#/register">Create an account</a></p>
         <form id="loginForm" class="auth-form">
           <label>Email
@@ -925,7 +928,7 @@ function renderRegister() {
   app.innerHTML = `
     <div class="auth-page">
       <div class="auth-card">
-        <h1>Create your Befach account</h1>
+        <h1>Create your GCOM account</h1>
         <p class="muted">Already have one? <a href="#/login">Sign in</a></p>
         <form id="registerForm" class="auth-form">
           <label>Full name

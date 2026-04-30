@@ -27,8 +27,13 @@
 //  hero byline all at once.
 // ══════════════════════════════════════════════════════════════
 const COMPANY_INFO = {
+  // Customer-facing brand. Tagline used across hero / footer / drawer.
+  brandName: 'GCOM',
+  brandTagline: 'One World. Endless Choices.',
+  // Legal entity — kept on every receipt, footer, and compliance page
+  // because that's the registered company that runs the store. Don't
+  // rebrand this without filing a new GSTIN/IEC.
   legalName: 'BEFACH 4X PRIVATE LIMITED',
-  brandName: 'Befach',
   email: 'sales@befach.com',
   phone: '+91 70570 53160',
   website: 'https://www.befach.com',
@@ -149,14 +154,17 @@ const cartCountEl = document.getElementById('cartCount');
 
 document.getElementById('footerYear').textContent = new Date().getFullYear();
 
-// Populate the footer's "Befach International" column from COMPANY_INFO
-// (single source of truth, edit at the top of app.js).
+// Populate the "Operating Entity" footer column from COMPANY_INFO.
+// GCOM is the customer brand; the legal entity (BEFACH 4X PRIVATE
+// LIMITED) shows here for compliance — GST invoices, IEC, registered
+// address all need to be visible to the buyer.
 (function populateFooterCompany() {
   const el = document.getElementById('footerCompany');
   if (!el) return;
   const c = COMPANY_INFO;
   el.innerHTML = `
-    <h4>${c.legalName}</h4>
+    <h4>Operating Entity</h4>
+    <p class="footer-line"><strong>${c.legalName}</strong></p>
     <p class="footer-line"><strong>Registered Office</strong><br/>${c.registeredAddress}</p>
     <p class="footer-line"><strong>GSTIN:</strong> ${c.gstin}</p>
     <p class="footer-line"><strong>IEC:</strong> ${c.iec}</p>
@@ -170,7 +178,7 @@ document.getElementById('footerYear').textContent = new Date().getFullYear();
 
 // ── State ──
 const state = {
-  config: { storeName: 'Befach', currency: 'INR', usdToInr: 85, shipTo: 'IN', shipFrom: 'CN' },
+  config: { storeName: 'GCOM', currency: 'INR', usdToInr: 85, shipTo: 'IN', shipFrom: 'CN' },
   categories: [],
   cart: loadCart(),
   user: null,            // populated by loadCurrentUser() on boot
