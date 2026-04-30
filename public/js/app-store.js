@@ -890,25 +890,98 @@ function updateAuthSlot() {
   const slot = document.getElementById('authSlot');
   if (state.user) {
     const first = (state.user.name || state.user.email || 'You').split(' ')[0];
+    // Pill is now a button that toggles the account dropdown — gives
+    // desktop users one-click access to My profile / My orders /
+    // Wishlist / Returns / Sign out, matching the mobile drawer.
     if (slot) slot.innerHTML = `
-      <a href="#/account" class="nav-link nav-account" data-page="account" title="Your account">
+      <button type="button" class="nav-link nav-account" id="accountTrigger" aria-haspopup="true" aria-expanded="false" title="Account menu">
         <span class="nav-avatar">${esc(first.slice(0, 1).toUpperCase())}</span>
         <span class="nav-label">Hi, ${esc(first)}</span>
-      </a>
+        <svg class="nav-account-chev" width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 7L1 3h8z"/></svg>
+      </button>
     `;
+    // Populate dropdown header + wire up toggle/sign-out
+    const greet = document.getElementById('accountDropdownGreeting');
+    const emailEl = document.getElementById('accountDropdownEmail');
+    if (greet) greet.textContent = `Hi, ${first}`;
+    if (emailEl) emailEl.textContent = state.user.email || '';
+    setupAccountDropdown();
   } else {
     if (slot) slot.innerHTML = `
       <a href="#/login" class="nav-link nav-signin" data-page="login">Sign in</a>
       <a href="#/register" class="nav-link nav-register-btn" data-page="register">Create account</a>
     `;
+    // Hide the dropdown if it was open (e.g. user signed out)
+    const dd = document.getElementById('accountDropdown');
+    if (dd) dd.hidden = true;
   }
-  // Drawer body is now JS-rendered from renderDrawer() in app.js, so
-  // we have to ask it to rebuild whenever auth state changes (login,
+  // Drawer body is JS-rendered from renderDrawer() in app.js, so we
+  // have to ask it to rebuild whenever auth state changes (login,
   // register, logout, current-user fetch). Otherwise the drawer keeps
-  // showing whatever was rendered last open — which is the bug the
-  // user reported (still seeing "Sign in" and "Create account" while
-  // signed in).
+  // showing whatever was rendered last time it was opened.
   if (typeof window.renderDrawer === 'function') window.renderDrawer();
+}
+
+// Wire up the account dropdown — toggles open on pill click,
+// closes on outside-click or Escape, and signs the user out when
+// the Sign out button is clicked. Idempotent: safe to call every
+// time updateAuthSlot rebuilds the auth pill.
+function setupAccountDropdown() {
+  const trigger = document.getElementById('accountTrigger');
+  const dd = document.getElementById('accountDropdown');
+  if (!trigger || !dd) return;
+
+  // Toggle on click
+  trigger.onclick = (e) => {
+    e.stopPropagation();
+    const open = !dd.hidden;
+    dd.hidden = open;
+    trigger.setAttribute('aria-expanded', open ? 'false' : 'true');
+    if (!open) positionAccountDropdown(trigger, dd);
+  };
+
+  // Close when user clicks anywhere else
+  if (!setupAccountDropdown._docClickAttached) {
+    document.addEventListener('click', (e) => {
+      const dd2 = document.getElementById('accountDropdown');
+      if (!dd2 || dd2.hidden) return;
+      if (e.target.closest('#accountDropdown') || e.target.closest('#accountTrigger')) return;
+      dd2.hidden = true;
+      const t = document.getElementById('accountTrigger');
+      t?.setAttribute('aria-expanded', 'false');
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const dd2 = document.getElementById('accountDropdown');
+      if (dd2) dd2.hidden = true;
+    });
+    setupAccountDropdown._docClickAttached = true;
+  }
+
+  // Close on any link click inside the dropdown (so navigating
+  // doesn't leave the menu visible on top of the new page)
+  dd.querySelectorAll('a').forEach(a => {
+    a.onclick = () => { dd.hidden = true; };
+  });
+
+  // Sign out
+  const signOut = document.getElementById('accountDropdownSignOut');
+  if (signOut) signOut.onclick = async () => {
+    try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch {}
+    state.user = null;
+    dd.hidden = true;
+    updateAuthSlot();
+    showToast('Signed out');
+    navigate('/');
+  };
+}
+
+// Position the dropdown right-aligned under the auth pill so it
+// doesn't run off the viewport on narrow desktop windows.
+function positionAccountDropdown(trigger, dd) {
+  const r = trigger.getBoundingClientRect();
+  dd.style.top = (r.bottom + 6) + 'px';
+  dd.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
 }
 
 async function authPost(path, body) {

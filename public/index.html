@@ -57,7 +57,7 @@
       </button>
 
       <a href="#/" class="brand" aria-label="GCOM — One World. Endless Choices.">
-        <img src="/img/gcom-logo.png" alt="GCOM" class="brand-logo-img" />
+        <img src="/img/gcom-logo.png?v=20260430b" alt="GCOM" class="brand-logo-img" />
         <span class="brand-tagline-side" aria-hidden="true">
           <span class="brand-tagline-black">ONE WORLD.</span>
           <span class="brand-tagline-gold">ENDLESS CHOICES.</span>
@@ -78,10 +78,16 @@
       <nav class="header-nav" aria-label="Primary">
         <a href="#/track" class="nav-link nav-track" data-page="track">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10h-8l-3-4h-7v12h18V10z"/></svg>
-          <span>Track</span>
+          <span class="nav-label">Track</span>
+        </a>
+        <a href="#/wishlist" class="nav-link nav-wishlist" data-page="wishlist">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+          <span class="nav-label">Wishlist</span>
         </a>
         <span class="nav-divider" aria-hidden="true"></span>
-        <!-- Auth slot: filled by JS — shows "Sign in / Create account" or "Hi, Name" -->
+        <!-- Auth slot: filled by JS — shows "Sign in / Create account"
+             or a "Hi, Name" account-menu button that opens a dropdown
+             with My profile / My orders / Returns / Sign out. -->
         <span id="authSlot" class="auth-slot"></span>
         <span class="nav-divider" aria-hidden="true"></span>
         <a href="#/cart" class="nav-link cart-link" data-page="cart">
@@ -95,6 +101,22 @@
           <span class="status-dot"></span>
         </div>
       </nav>
+
+      <!-- Account dropdown — appears when signed-in user clicks the
+           "Hi, Name" pill. Mirrors the drawer's account section so
+           desktop has parity with mobile. Populated/toggled by JS. -->
+      <div class="account-dropdown" id="accountDropdown" hidden>
+        <div class="account-dropdown-head">
+          <span class="account-dropdown-greeting" id="accountDropdownGreeting"></span>
+          <span class="account-dropdown-email muted small" id="accountDropdownEmail"></span>
+        </div>
+        <a href="#/account" class="account-dropdown-link">My profile</a>
+        <a href="#/orders" class="account-dropdown-link">My orders</a>
+        <a href="#/wishlist" class="account-dropdown-link">Wishlist</a>
+        <a href="#/returns" class="account-dropdown-link">Returns &amp; refunds</a>
+        <hr class="account-dropdown-divider"/>
+        <button type="button" class="account-dropdown-link account-dropdown-signout" id="accountDropdownSignOut">Sign out</button>
+      </div>
     </div>
   </header>
 
@@ -106,7 +128,7 @@
   <aside class="drawer" id="drawer" aria-label="Mobile menu">
     <div class="drawer-head">
       <a href="#/" class="drawer-brand-link" id="drawerBrandLink">
-        <img src="/img/gcom-logo.png" alt="GCOM" class="drawer-brand-img" />
+        <img src="/img/gcom-logo.png?v=20260430b" alt="GCOM" class="drawer-brand-img" />
         <span class="drawer-brand-tagline" aria-hidden="true">
           <span class="brand-tagline-black">ONE WORLD.</span>
           <span class="brand-tagline-gold">ENDLESS CHOICES.</span>

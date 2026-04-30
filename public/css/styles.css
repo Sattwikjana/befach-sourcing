@@ -241,12 +241,75 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   align-items: center;
   gap: 8px;
   background: var(--brand-light);
-  padding: 6px 14px 6px 6px !important;
+  padding: 6px 12px 6px 6px !important;
   border-radius: 999px;
   font-weight: 600;
   color: var(--brand-dark);
+  border: 0;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
 }
 .nav-account:hover { background: var(--accent); color: var(--brand-dark); }
+.nav-account-chev { opacity: 0.6; transition: transform 0.15s; }
+.nav-account[aria-expanded="true"] .nav-account-chev { transform: rotate(180deg); }
+
+/* Wishlist link in the header — heart icon with label, treated like
+   the Track link visually. Hidden on phone breakpoint where the
+   drawer covers wishlist navigation. */
+.nav-wishlist svg { color: var(--text-secondary); }
+.nav-wishlist:hover svg { color: #d6336c; }
+
+/* Account dropdown panel — appears under the "Hi, Name" pill when
+   clicked. Positioned absolute via JS (top/right). */
+.account-dropdown {
+  position: fixed;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: 240px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+.account-dropdown[hidden] { display: none; }
+.account-dropdown-head {
+  padding: 10px 16px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.account-dropdown-greeting {
+  display: block;
+  font-weight: 700;
+  color: var(--text);
+  font-size: 14px;
+}
+.account-dropdown-email {
+  display: block;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-dropdown-link {
+  display: block;
+  width: 100%;
+  padding: 9px 16px;
+  font-size: 14px;
+  color: var(--text);
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.account-dropdown-link:hover { background: var(--surface-alt); color: var(--brand); }
+.account-dropdown-divider { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+.account-dropdown-signout { color: var(--danger); font-weight: 600; }
+.account-dropdown-signout:hover { background: #fceeee; color: var(--danger); }
 .nav-avatar {
   width: 26px; height: 26px;
   border-radius: 50%;
@@ -2472,9 +2535,13 @@ body.page-home .header-nav { margin-left: auto; }
   .header-nav { gap: 4px; }
   /* Hide low-priority nav items on mobile — they live in the drawer */
   .nav-track,
+  .nav-wishlist,
   .nav-signin,
   .nav-register-btn,
   .nav-divider { display: none; }
+  /* Account dropdown should never appear on mobile — hamburger drawer
+     handles all account links */
+  .account-dropdown { display: none !important; }
   /* Cart icon and account avatar stay visible in header */
   .nav-link .nav-label { display: none; }   /* icon-only on mobile */
   .nav-link { padding: 8px 10px; }
