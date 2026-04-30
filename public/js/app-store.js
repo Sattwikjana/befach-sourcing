@@ -366,9 +366,7 @@ async function renderCheckout() {
       name: 'GCOM',
       description: `${itemsPayload.length} item${itemsPayload.length === 1 ? '' : 's'} from GCOM`,
       // Razorpay shows this image at the top of the checkout modal.
-      // Save a 256×256 PNG of the GCOM mark at /img/gcom-icon.png to
-      // replace the legacy fallback below.
-      image: `${location.origin}/img/befach_logo_256.png`,
+      image: `${location.origin}/img/gcom-logo.png`,
       prefill: {
         name: fd.name,
         email: fd.email,
