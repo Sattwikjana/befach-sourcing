@@ -101,52 +101,19 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 800;
   text-decoration: none;
-}
-.brand-logo {
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
   flex-shrink: 0;
 }
-.brand-text { display: flex; flex-direction: column; line-height: 1; gap: 4px; }
-.brand-name {
-  font-family: var(--font-wordmark);
-  font-size: 26px;
-  color: var(--brand);
-  letter-spacing: -0.01em;
-  font-weight: 900;
-  text-transform: uppercase;
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  line-height: 1;
+/* SVG logo: scales to fit the header height while keeping aspect ratio.
+   The SVG itself contains the wordmark + tagline; no separate text
+   elements needed. Replace /img/gcom-logo.svg with a PNG export from
+   the brand source for pixel-perfect rendering, no markup change. */
+.brand-logo-img {
+  height: 44px;
+  width: auto;
+  max-width: 220px;
+  display: block;
 }
-/* Tiny gold square inside the wordmark — echoes the gold mark
-   inside the "G" of the GCOM logo. Sits between G and C. */
-.brand-name .brand-mark {
-  display: inline-block;
-  width: 4px;
-  height: 12px;
-  background: var(--accent);
-  margin: 0 1px;
-  vertical-align: middle;
-  position: absolute;
-  left: 0.55em;
-  bottom: 0.18em;
-  pointer-events: none;
-}
-.brand-tagline {
-  font-size: 9px;
-  color: var(--text-muted);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-family: var(--font-body);
-}
-.brand-tagline .accent { color: var(--accent-dark); font-weight: 600; }
 
 .header-search {
   display: flex;
@@ -2327,11 +2294,8 @@ body.page-home .header-nav { margin-left: auto; }
     gap: 10px;
     padding: 10px 14px;
   }
-  /* Brand stays visible on mobile — text only, slightly smaller */
-  .brand-text { display: flex; }
-  .brand-name { font-size: 21px; }
-  .brand-name .brand-mark { width: 3px; height: 10px; }
-  .brand-tagline { font-size: 8px; letter-spacing: 0.16em; }
+  /* Brand SVG shrinks on mobile to keep the search bar room */
+  .brand-logo-img { height: 36px; max-width: 160px; }
   .header-search {
     grid-column: 1 / -1;
     order: 3;
@@ -2451,7 +2415,7 @@ body.page-home .header-nav { margin-left: auto; }
 @media (max-width: 500px) {
   main { padding: 12px; }
   .header-inner { padding: 8px 12px; gap: 8px; }
-  .brand-logo { width: 32px; height: 32px; }
+  .brand-logo-img { height: 32px; max-width: 130px; }
   .page-title { font-size: 20px; }
   .hero { padding: 32px 16px; border-radius: 12px; }
   .hero-title { font-size: 24px; }

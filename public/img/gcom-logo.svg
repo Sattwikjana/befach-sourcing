@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GCOM logo — vector approximation of the brand wordmark.
+  Uses Archivo Black (loaded by the host page via Google Fonts) for the
+  wordmark and Inter for the tagline, so type weight/colour matches the
+  rest of the site exactly. Replace this file with an exported PNG/SVG
+  from the brand source if pixel-perfection is needed.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="GCOM — One World. Endless Choices.">
+  <!-- Wordmark: GCOM in heavy geometric sans, true black -->
+  <text x="410" y="138" text-anchor="middle"
+        font-family="Archivo Black, Inter, system-ui, sans-serif"
+        font-size="160" font-weight="900"
+        letter-spacing="-3"
+        fill="#0A0A0A">GCOM</text>
+
+  <!-- Gold accent rectangle echoing the gold mark inside the logo's "G".
+       Position calibrated for Archivo Black's "G" letterform when the
+       wordmark is centered at x=410 with font-size=160. -->
+  <rect x="266" y="100" width="20" height="42" fill="#B89456"/>
+
+  <!-- Tagline split: black "ONE WORLD." + gold "ENDLESS CHOICES." -->
+  <g font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="500" letter-spacing="4">
+    <text x="270" y="195" fill="#0A0A0A">ONE WORLD.</text>
+    <text x="430" y="195" fill="#B89456">ENDLESS CHOICES.</text>
+  </g>
+</svg>

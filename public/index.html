@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GCOM — One World. Endless Choices.</title>
   <meta name="description" content="GCOM curates premium products from artisans and ateliers in 200+ countries — delivered to your doorstep in India in 10–15 days." />
-  <!-- Save the GCOM logo (square crop) as /img/gcom-icon.png to replace
-       the placeholder favicon. Until then we fall back to the legacy
-       PNG so the icon doesn't 404. -->
-  <link rel="icon" href="/img/gcom-icon.png" />
+  <!-- Vector favicon — sharper at any size than a PNG.
+       Browsers that don't support SVG favicons (very old IE) fall back
+       to the alternate PNG. -->
+  <link rel="icon" type="image/svg+xml" href="/img/gcom-icon.svg" />
   <link rel="alternate icon" href="/img/befach_logo_256.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -53,11 +53,8 @@
         </svg>
       </button>
 
-      <a href="#/" class="brand" aria-label="GCOM home">
-        <span class="brand-text">
-          <span class="brand-name">GCOM<span class="brand-mark"></span></span>
-          <span class="brand-tagline">One World. <span class="accent">Endless Choices.</span></span>
-        </span>
+      <a href="#/" class="brand" aria-label="GCOM — One World. Endless Choices.">
+        <img src="/img/gcom-logo.svg" alt="GCOM" class="brand-logo-img" />
       </a>
 
       <form class="header-search" id="headerSearchForm" role="search">
