@@ -24,13 +24,14 @@ services:
       - key: PORT
         value: 3001          # Render sets PORT itself; this is just the fallback
       - key: PROFIT_MARKUP_PERCENT
-        # Set to 65% (not 50%) on purpose. CJ's freight API systematically
-        # undercounts the shipping cost shown on their dropshipper page —
-        # by ~10–13% on the products we sampled. Setting markup to 65 over
-        # the API-derived cost yields a real ~50% increase over what CJ
-        # shows you as the all-in dropshipper total. Tune up/down here as
-        # we observe more data points across the catalog.
-        value: "65"
+        # Markup applied to (CJ_wholesale × CJ_FEE_FACTOR + shipping).
+        # Currently set to 5% — thin margin, fine for soft-launch / market
+        # testing but leaves no buffer for refunds, returns, or the ~2%
+        # Razorpay processing fee. Bump this once we have order-volume
+        # data to justify a higher number.
+        # NOTE: Render dashboard value (if set) overrides this file. Update
+        # both places when changing.
+        value: "5"
       - key: USD_TO_INR
         value: "85"
       - key: STORE_CURRENCY
