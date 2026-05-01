@@ -915,7 +915,6 @@ function productCard(p, idx) {
           decoding="async"
           onerror="this.onerror=null;this.src='/img/befach_logo.png'" />
         ${listed > 50 ? '<span class="product-card-badge">🔥 Popular</span>' : ''}
-        ${showOffer ? `<span class="product-card-discount">${discountPct}% OFF</span>` : ''}
         <button type="button"
                 class="product-card-wish ${inWishlist ? 'on' : ''}"
                 data-wish-pid="${esc(pid)}"
