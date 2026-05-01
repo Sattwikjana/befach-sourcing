@@ -1017,10 +1017,20 @@ app.get('/api/store/products/:pid', async (req, res) => {
       };
     });
 
-    // Top-level product display price — based on the first variant's wholesale,
-    // so list (which uses product.sellPrice) and detail agree.
+    // Top-level product display price — uses the MAX variant wholesale so
+    // we never display a price lower than what the customer might actually
+    // pay. Previous behaviour (variants[0] price) caused under-pricing on
+    // products where variant[0] is the cheapest size: a customer who left
+    // the default and clicked Buy Now would be charged the cheap-variant
+    // price while CJ billed us for the more-expensive variant they
+    // actually selected, eating the entire margin (and then some at 5%).
+    const variantPrices = (raw.variants || [])
+      .map(v => parseFloat(v.variantSellPrice || 0))
+      .filter(p => p > 0);
+    const topWholesaleUsd = variantPrices.length
+      ? Math.max(...variantPrices)
+      : parseFloat(raw.sellPrice || 0);
     const product = pricing.applyStorePricing(raw);
-    const topWholesaleUsd = parseFloat(raw.variants?.[0]?.variantSellPrice || raw.sellPrice || 0);
     const topDisplayUsd = computeDisplayUsd(topWholesaleUsd, shippingUsd);
 
     product.sellPrice = topDisplayUsd.toFixed(2);

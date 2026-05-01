@@ -1773,7 +1773,15 @@ async function renderProduct(pid) {
 
   // Default selected variant = first one
   const selectedVariant = variants[0] || null;
-  const selectedPriceUsd = selectedVariant ? parseFloat(selectedVariant.price || selectedVariant.variantSellPrice || priceUsd) : priceUsd;
+  // Use the product-level (MAX-variant) price for the initial display so a
+  // customer who clicks "Buy Now" without picking a variant never sees a
+  // price below what they'll actually be charged. The displayed number
+  // updates to the chosen variant's real price as soon as they pick one.
+  // priceUsd is product.sellPrice from the server, which now reflects the
+  // most expensive variant — see server/index.js computeDisplayUsd notes.
+  const selectedPriceUsd = priceUsd > 0
+    ? priceUsd
+    : (selectedVariant ? parseFloat(selectedVariant.price || selectedVariant.variantSellPrice || 0) : 0);
 
   app.innerHTML = `
     <div class="breadcrumb">
