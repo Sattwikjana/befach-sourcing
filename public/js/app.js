@@ -627,8 +627,122 @@ headerSearchForm?.addEventListener('submit', (e) => {
   e.preventDefault();
   const q = headerSearchInput.value.trim();
   if (q.length < 2) return showToast('Type at least 2 characters');
+  hideSearchSuggestions();
   navigate(`/search?q=${encodeURIComponent(q)}`);
 });
+
+// ── Search autocomplete dropdown ──
+// Shows 4-8 suggestions: recent searches when input is empty, then a mix
+// of popular server-side queries (matching prefix) and user's own
+// localStorage history once they start typing. Pure UI sugar — no AI
+// calls per keystroke. Debounced to 200ms so we don't hammer the suggest
+// endpoint while the user is mid-type.
+let _suggestEl = null;
+let _suggestTimer = null;
+let _suggestActiveIdx = -1;
+
+function ensureSuggestEl() {
+  if (_suggestEl) return _suggestEl;
+  if (!headerSearchForm) return null;
+  _suggestEl = document.createElement('div');
+  _suggestEl.className = 'search-suggest';
+  _suggestEl.setAttribute('role', 'listbox');
+  _suggestEl.hidden = true;
+  // Position relative to the search form's container
+  headerSearchForm.style.position = 'relative';
+  headerSearchForm.appendChild(_suggestEl);
+  return _suggestEl;
+}
+
+function hideSearchSuggestions() {
+  if (_suggestEl) _suggestEl.hidden = true;
+  _suggestActiveIdx = -1;
+}
+
+function renderSuggestions(items, prefix) {
+  const el = ensureSuggestEl();
+  if (!el) return;
+  if (!items.length) { el.hidden = true; return; }
+  el.innerHTML = items.map((s, i) => {
+    const isRecent = s.recent;
+    const icon = isRecent
+      ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>'
+      : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>';
+    return `<button type="button" class="search-suggest-item" role="option" data-suggest="${esc(s.text)}">${icon}<span>${esc(s.text)}</span></button>`;
+  }).join('');
+  el.hidden = false;
+  el.querySelectorAll('.search-suggest-item').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const q = btn.getAttribute('data-suggest');
+      if (headerSearchInput) headerSearchInput.value = q;
+      hideSearchSuggestions();
+      navigate(`/search?q=${encodeURIComponent(q)}`);
+    });
+  });
+}
+
+async function updateSuggestions(prefix) {
+  prefix = (prefix || '').toLowerCase().trim();
+  const recent = getRecentSearches().map(t => ({ text: t, recent: true }));
+
+  // Empty input → just show recent
+  if (!prefix) {
+    renderSuggestions(recent.slice(0, 6), '');
+    return;
+  }
+
+  // Filter recent by prefix first (instant)
+  const recentMatches = recent
+    .filter(r => r.text.toLowerCase().includes(prefix))
+    .slice(0, 4);
+
+  try {
+    const res = await fetch(`/api/store/search/suggest?q=${encodeURIComponent(prefix)}`);
+    const data = await res.json();
+    const popular = (data.suggestions || [])
+      .filter(s => !recentMatches.some(r => r.text.toLowerCase() === s.toLowerCase()))
+      .slice(0, 8 - recentMatches.length)
+      .map(t => ({ text: t, recent: false }));
+    renderSuggestions([...recentMatches, ...popular], prefix);
+  } catch {
+    renderSuggestions(recentMatches, prefix);
+  }
+}
+
+if (headerSearchInput) {
+  headerSearchInput.addEventListener('focus', () => updateSuggestions(headerSearchInput.value));
+  headerSearchInput.addEventListener('input', (e) => {
+    clearTimeout(_suggestTimer);
+    _suggestTimer = setTimeout(() => updateSuggestions(e.target.value), 200);
+  });
+  headerSearchInput.addEventListener('blur', () => {
+    // Delay so click on a suggestion fires before we hide
+    setTimeout(hideSearchSuggestions, 150);
+  });
+  headerSearchInput.addEventListener('keydown', (e) => {
+    if (!_suggestEl || _suggestEl.hidden) return;
+    const items = _suggestEl.querySelectorAll('.search-suggest-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _suggestActiveIdx = Math.min(_suggestActiveIdx + 1, items.length - 1);
+      items.forEach((b, i) => b.classList.toggle('active', i === _suggestActiveIdx));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _suggestActiveIdx = Math.max(_suggestActiveIdx - 1, 0);
+      items.forEach((b, i) => b.classList.toggle('active', i === _suggestActiveIdx));
+    } else if (e.key === 'Enter' && _suggestActiveIdx >= 0) {
+      e.preventDefault();
+      const q = items[_suggestActiveIdx].getAttribute('data-suggest');
+      if (headerSearchInput) headerSearchInput.value = q;
+      hideSearchSuggestions();
+      navigate(`/search?q=${encodeURIComponent(q)}`);
+    } else if (e.key === 'Escape') {
+      hideSearchSuggestions();
+    }
+  });
+}
 
 // ══════════════════════════════════════════════════════════════
 //  CATEGORIES (header strip + dropdown)
@@ -863,6 +977,26 @@ function setCachedDisplayUsd(pid, displayUsd) {
     for (let i = 0; i < keys.length - 500; i++) delete c[keys[i]];
   }
   _saveShipCache();
+}
+
+// ── Recent searches (localStorage) ──
+// Stored most-recent first, max 10. Surfaced in the header search bar
+// dropdown for one-click re-running of past queries.
+const RECENT_SEARCHES_KEY = 'befach_recent_searches_v1';
+function getRecentSearches() {
+  try { return JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]'); }
+  catch { return []; }
+}
+function pushRecentSearch(q) {
+  const trimmed = (q || '').trim();
+  if (!trimmed || trimmed.length < 2) return;
+  let list = getRecentSearches().filter(x => x.toLowerCase() !== trimmed.toLowerCase());
+  list.unshift(trimmed);
+  if (list.length > 10) list = list.slice(0, 10);
+  try { localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(list)); } catch {}
+}
+function clearRecentSearches() {
+  try { localStorage.removeItem(RECENT_SEARCHES_KEY); } catch {}
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1643,6 +1777,12 @@ async function renderSearch(query, page = 1, opts = {}) {
     </nav>
   ` : '';
 
+  // Read filter state from URL (?priceMin, ?priceMax, ?sort)
+  const urlParams = new URLSearchParams(location.hash.split('?')[1] || '');
+  const filterPriceMin = parseInt(urlParams.get('priceMin')) || 0;
+  const filterPriceMax = parseInt(urlParams.get('priceMax')) || 0;
+  const filterSort = urlParams.get('sort') || 'relevance';
+
   app.innerHTML = `
     <div class="breadcrumb">
       <a href="#/">Home</a> <span>›</span>
@@ -1652,26 +1792,151 @@ async function renderSearch(query, page = 1, opts = {}) {
       <div>
         <h1 class="page-title">${title}</h1>
         <div class="muted" id="searchCount">Loading...</div>
+        <div id="intentPill"></div>
+      </div>
+      <div class="search-toolbar">
+        <button class="btn btn-ghost btn-sm" id="filterToggle" aria-label="Filter results">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
+          Filter
+        </button>
+        <select class="search-sort" id="searchSort" aria-label="Sort results">
+          <option value="relevance" ${filterSort === 'relevance' ? 'selected' : ''}>Sort: Relevance</option>
+          <option value="price_asc" ${filterSort === 'price_asc' ? 'selected' : ''}>Price: Low to High</option>
+          <option value="price_desc" ${filterSort === 'price_desc' ? 'selected' : ''}>Price: High to Low</option>
+        </select>
       </div>
     </div>
     ${childChips}
-    <div class="products-grid" id="searchGrid">${productSkeleton(12)}</div>
-    <div class="pagination" id="pagination"></div>
+    <div class="search-layout">
+      <aside class="search-filters" id="searchFilters">
+        <div class="filter-group">
+          <h4 class="filter-title">Price range (₹)</h4>
+          <div class="filter-price-inputs">
+            <input type="number" id="filterPriceMin" placeholder="Min" value="${filterPriceMin || ''}" min="0" />
+            <span>—</span>
+            <input type="number" id="filterPriceMax" placeholder="Max" value="${filterPriceMax || ''}" min="0" />
+          </div>
+          <div class="filter-price-quick">
+            <button data-price-quick="0-500">Under ₹500</button>
+            <button data-price-quick="500-1000">₹500–1k</button>
+            <button data-price-quick="1000-2500">₹1k–2.5k</button>
+            <button data-price-quick="2500-5000">₹2.5k–5k</button>
+            <button data-price-quick="5000-0">₹5k+</button>
+          </div>
+          <button class="btn btn-primary btn-sm filter-apply" id="filterApply">Apply</button>
+          <button class="btn btn-ghost btn-sm filter-clear" id="filterClear">Clear filters</button>
+        </div>
+      </aside>
+      <div class="search-results">
+        <div class="products-grid" id="searchGrid">${productSkeleton(12)}</div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
   `;
 
-  try {
-    // Always show every product CJ returns (minus the admin blocklist). The
-    // server fills in real India shipping where it's been quoted, and the
-    // fallback estimate everywhere else. Backfill refines prices in the
-    // background as warming completes.
-    const qs = new URLSearchParams({ page: String(page), size: '20' });
-    if (query) qs.set('keyWord', query);
-    if (opts.categoryId) qs.set('categoryId', opts.categoryId);
-    const res = await apiGet('/api/store/products?' + qs.toString());
+  // Wire up filter sidebar
+  function applyFilter() {
+    const min = parseInt(document.getElementById('filterPriceMin').value) || 0;
+    const max = parseInt(document.getElementById('filterPriceMax').value) || 0;
+    const sort = document.getElementById('searchSort').value;
+    const params = new URLSearchParams();
+    if (opts.categoryId) {
+      // Stay on category page
+      const catName = opts.categoryName ? `?name=${encodeURIComponent(opts.categoryName)}` : '';
+      let hash = `/category/${opts.categoryId}${catName}`;
+      if (min) params.set('priceMin', min);
+      if (max) params.set('priceMax', max);
+      if (sort !== 'relevance') params.set('sort', sort);
+      const sep = hash.includes('?') ? '&' : '?';
+      hash += params.toString() ? `${sep}${params}` : '';
+      navigate(hash);
+    } else if (query) {
+      params.set('q', query);
+      if (min) params.set('priceMin', min);
+      if (max) params.set('priceMax', max);
+      if (sort !== 'relevance') params.set('sort', sort);
+      navigate(`/search?${params}`);
+    }
+  }
+  document.getElementById('filterApply').onclick = applyFilter;
+  document.getElementById('searchSort').onchange = applyFilter;
+  document.getElementById('filterClear').onclick = () => {
+    if (opts.categoryId) {
+      const catName = opts.categoryName ? `?name=${encodeURIComponent(opts.categoryName)}` : '';
+      navigate(`/category/${opts.categoryId}${catName}`);
+    } else if (query) {
+      navigate(`/search?q=${encodeURIComponent(query)}`);
+    }
+  };
+  document.querySelectorAll('[data-price-quick]').forEach(btn => {
+    btn.onclick = () => {
+      const [min, max] = btn.getAttribute('data-price-quick').split('-').map(Number);
+      document.getElementById('filterPriceMin').value = min || '';
+      document.getElementById('filterPriceMax').value = max || '';
+      applyFilter();
+    };
+  });
+  document.getElementById('filterToggle').onclick = () => {
+    document.getElementById('searchFilters').classList.toggle('open');
+  };
 
-    const products = res.products || [];
-    const total = res.total || 0;
+  try {
+    // Use the smart search endpoint when there's a free-text query (and no
+    // categoryId — for category browse the simpler /api/store/products is
+    // fine since the category itself is the filter). Smart endpoint runs
+    // the query through Gemini Flash to extract intent, then searches CJ
+    // with cleaned keywords. Falls back to plain search internally if AI
+    // is unavailable.
+    let res;
+    if (query && !opts.categoryId) {
+      const smartQs = new URLSearchParams({ q: query, page: String(page), size: '20' });
+      res = await apiGet('/api/store/search/smart?' + smartQs.toString());
+    } else {
+      const qs = new URLSearchParams({ page: String(page), size: '20' });
+      if (query) qs.set('keyWord', query);
+      if (opts.categoryId) qs.set('categoryId', opts.categoryId);
+      res = await apiGet('/api/store/products?' + qs.toString());
+    }
+
+    // Persist to recent searches whenever a free-text search runs
+    if (query) pushRecentSearch(query);
+
+    let products = res.products || [];
+
+    // Client-side price filter — applied even after server returns.
+    // The smart endpoint applies filters too but for category-browse and
+    // sort-only changes we filter here as well so the UI behaves the same.
+    if (filterPriceMin || filterPriceMax) {
+      const usdToInr = state.config.usdToInr || 85;
+      const min = filterPriceMin || 0;
+      const max = filterPriceMax || Number.MAX_SAFE_INTEGER;
+      products = products.filter(p => {
+        const inr = (parseFloat(p.price || p.sellPrice || 0) || 0) * usdToInr;
+        return inr >= min && inr <= max;
+      });
+    }
+    if (filterSort === 'price_asc') {
+      products.sort((a, b) => parseFloat(a.price || 0) - parseFloat(b.price || 0));
+    } else if (filterSort === 'price_desc') {
+      products.sort((a, b) => parseFloat(b.price || 0) - parseFloat(a.price || 0));
+    }
+
+    const total = res.total || products.length;
     const totalPages = res.totalPages || 1;
+
+    // "Showing results for: blue cooling jacket under ₹2000" pill
+    const intent = res.intent;
+    if (intent && intent.understood && intent.source !== 'fallback') {
+      const pillEl = document.getElementById('intentPill');
+      if (pillEl) {
+        pillEl.innerHTML = `
+          <span class="intent-pill" title="AI understood your search">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            Showing results for: <strong>${esc(intent.understood)}</strong>
+          </span>
+        `;
+      }
+    }
 
     document.getElementById('searchCount').textContent = `${total.toLocaleString('en-IN')} products`;
     const grid = document.getElementById('searchGrid');

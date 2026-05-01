@@ -75,6 +75,14 @@ services:
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
+      # OpenRouter — drives the AI search query parser (Gemini Flash).
+      # Without it, /api/store/search/smart silently falls back to plain
+      # CJ keyword search (so search keeps working). Hard daily spend cap
+      # below prevents runaway usage from a stuck client or scrape.
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_DAILY_CAP_USD
+        value: "1.0"
     disk:
       name: befach-data
       mountPath: /opt/render/project/src/server/data

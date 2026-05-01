@@ -22,6 +22,7 @@ const cj = require('./cjApi');
 const pricing = require('./pricingEngine');
 const orders = require('./orderManager');
 const auth = require('./auth');
+const searchAI = require('./searchAI');
 
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
@@ -395,6 +396,7 @@ app.get('/api/health', async (req, res) => {
       : (process.env.RAZORPAY_KEY_ID || '').startsWith('rzp_live_')
         ? 'live'
         : 'test',
+    ai: searchAI.getStatus(),
   });
 });
 
@@ -799,9 +801,134 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
 // running a useless name-search keyword query (which always returns 0).
 const SKU_PATTERN = /^CJ[A-Z0-9]{6,}$/i;
 
+// ══════════════════════════════════════════════════════════════════
+//  SMART SEARCH (AI-parsed query → CJ keyword search → filtered)
+// ══════════════════════════════════════════════════════════════════
+//
+// Takes a raw user query (English / Hindi / Hinglish, with typos and
+// natural language like "blue cooling jacket under 2000") and:
+//   1. Sends it to Gemini Flash via OpenRouter to extract intent
+//      (clean keywords, color, gender, price range)
+//   2. Searches CJ with the cleaned keywords
+//   3. Filters/sorts the results by extracted attributes
+//   4. Returns products + the parsed intent so the frontend can show
+//      "Showing results for: Blue cooling jackets under ₹2000"
+//
+// Falls back to plain CJ search if AI is unavailable, over budget, or
+// errors out — search always works, AI just makes it smarter.
+app.get('/api/store/search/smart', async (req, res) => {
+  try {
+    const rawQuery = (req.query.q || '').toString().trim();
+    if (!rawQuery) {
+      return res.status(400).json({ error: 'Query parameter q is required' });
+    }
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = Math.min(parseInt(req.query.size) || 20, 40);
+
+    recordRecentQuery(rawQuery);
+    const intent = await searchAI.parseQuery(rawQuery);
+    const searchKeywords = intent.keywords || rawQuery;
+
+    // Reuse the existing search infrastructure — same caching, shipping
+    // warming, pricing logic. We just pass it AI-cleaned keywords.
+    const meta = await searchProductsMerged({
+      keyWord: searchKeywords,
+      categoryId: undefined,
+      page,
+      size: pageSize,
+    });
+
+    let products = meta.products || [];
+
+    // Apply AI-extracted filters client-side (CJ doesn't support these).
+    // Price filter is applied in INR using the same conversion as display.
+    const usdToInr = parseFloat(process.env.USD_TO_INR) || 85;
+    if (intent.price_min || intent.price_max) {
+      const min = intent.price_min || 0;
+      const max = intent.price_max || Number.MAX_SAFE_INTEGER;
+      products = products.filter(p => {
+        const usd = parseFloat(p.sellPrice || p.nowPrice || 0) || 0;
+        const inr = usd * usdToInr;
+        return inr >= min && inr <= max;
+      });
+    }
+
+    // Strip CJ cost fields, apply pricing
+    const priced = products.map(p => {
+      const cleaned = pricing.applyStorePricing(p);
+      const wholesaleUsd = parseFloat(p.sellPrice || p.nowPrice || 0);
+      const hit = peekShippingCache(p.pid || p.id || p.productId || '');
+      const shippingUsd = (hit && hit.available) ? hit.usd : FALLBACK_SHIPPING_USD;
+      const displayUsd = computeDisplayUsd(wholesaleUsd, shippingUsd);
+      const offer = computeOfferPricing(p.pid || p.id || p.productId || '', displayUsd);
+      return {
+        ...cleaned,
+        sellPrice: displayUsd.toFixed(2),
+        price: displayUsd.toFixed(2),
+        mrp: offer?.mrp,
+        discountPercent: offer?.discountPercent,
+        shippingAccurate: !!(hit && hit.available),
+        shippingIncluded: true,
+      };
+    });
+
+    res.json({
+      products: priced,
+      total: priced.length,
+      totalPages: Math.max(1, Math.ceil(priced.length / pageSize)),
+      query: rawQuery,
+      intent: {
+        understood: intent.intent,                   // human-readable
+        keywords: intent.keywords,
+        category: intent.category,
+        color: intent.color,
+        gender: intent.gender,
+        price_min: intent.price_min,
+        price_max: intent.price_max,
+        source: intent.source,                       // "ai" | "cache" | "fallback"
+      },
+    });
+  } catch (err) {
+    console.error('[Smart Search]', err.message);
+    res.status(500).json({ error: 'Search failed', detail: err.message });
+  }
+});
+
+// Lightweight typeahead — for the search bar dropdown. Returns popular
+// recent search terms (in-memory, top 8). Frontend merges with its own
+// localStorage history. No AI call here — would be too expensive on every
+// keystroke.
+const _recentQueries = [];   // most-recent first
+const _recentQueriesMax = 200;
+function recordRecentQuery(q) {
+  if (!q) return;
+  const norm = q.toLowerCase().trim();
+  if (!norm || norm.length < 2) return;
+  const i = _recentQueries.findIndex(x => x.q === norm);
+  if (i >= 0) {
+    _recentQueries[i].count++;
+    _recentQueries[i].lastTs = Date.now();
+  } else {
+    _recentQueries.unshift({ q: norm, count: 1, lastTs: Date.now() });
+    if (_recentQueries.length > _recentQueriesMax) _recentQueries.pop();
+  }
+}
+
+app.get('/api/store/search/suggest', (req, res) => {
+  const prefix = (req.query.q || '').toString().toLowerCase().trim();
+  if (!prefix || prefix.length < 1) return res.json({ suggestions: [] });
+  const matches = _recentQueries
+    .filter(x => x.q.startsWith(prefix) || x.q.includes(prefix))
+    .sort((a, b) => b.count - a.count || b.lastTs - a.lastTs)
+    .slice(0, 8)
+    .map(x => x.q);
+  res.json({ suggestions: matches });
+});
+
 app.get('/api/store/products', async (req, res) => {
   try {
     const { keyWord, page, size, categoryId, strictShippable } = req.query;
+    if (keyWord) recordRecentQuery(keyWord);
     const wantStrict = strictShippable === '1' || strictShippable === 'true';
     const pageSize = Math.min(parseInt(size) || 20, 40);
     const trimmedKw = (keyWord || '').trim();
