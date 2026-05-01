@@ -975,10 +975,20 @@ app.get('/api/store/shipping-for/:pid', async (req, res) => {
       return res.json({ pid, available: false });
     }
 
+    // MAX variant wholesale — same policy as the detail endpoint so the
+    // backfilled card price never drops below what the customer would
+    // actually pay. Without this, the frontend backfill would refresh
+    // each card to variants[0]'s price (often the cheapest size) and
+    // re-introduce the under-pricing bug we already fixed elsewhere.
     let wholesaleUsd = 0;
     try {
       const raw = await getProductRaw(pid, 'medium');
-      wholesaleUsd = parseFloat(raw?.sellPrice || raw?.variants?.[0]?.variantSellPrice || 0);
+      const variantPrices = (raw?.variants || [])
+        .map(v => parseFloat(v.variantSellPrice || 0))
+        .filter(p => p > 0);
+      wholesaleUsd = variantPrices.length
+        ? Math.max(...variantPrices)
+        : parseFloat(raw?.sellPrice || 0);
     } catch {}
 
     const displayUsd = computeDisplayUsd(wholesaleUsd, usd);
