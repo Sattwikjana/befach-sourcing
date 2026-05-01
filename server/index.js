@@ -917,15 +917,12 @@ app.get('/api/store/products', async (req, res) => {
     for (const { rawProduct, pid, wholesaleUsd, hit } of pricedItems) {
       const knownGood = !!(hit && hit.available);
       const shippingUsd = knownGood ? hit.usd : FALLBACK_SHIPPING_USD;
-      // Prefer the cached MAX variant wholesale (set when we've seen the
-      // variants list) so the list price matches what the customer will
-      // see after they click into detail. Falls back to CJ's "from" price
-      // for products that haven't been warmed yet — still consistent
-      // because the detail page also gets warmed on first visit.
-      const effectiveWholesaleUsd = (hit && hit.maxWholesaleUsd > 0)
-        ? hit.maxWholesaleUsd
-        : wholesaleUsd;
-      const displayUsd = computeDisplayUsd(effectiveWholesaleUsd, shippingUsd);
+      // Use CJ's "from" wholesale (= variants[0]'s wholesale) so the list
+      // price matches what the customer will see when they land on the
+      // detail page. The detail page now also displays variants[0]'s
+      // price by default; the per-variant price refines via API call when
+      // the user picks a different size.
+      const displayUsd = computeDisplayUsd(wholesaleUsd, shippingUsd);
 
       // Strip sensitive fields (CJ cost, profit, etc.) before sending to consumer
       const cleaned = pricing.applyStorePricing(rawProduct);
@@ -989,20 +986,14 @@ app.get('/api/store/shipping-for/:pid', async (req, res) => {
       return res.json({ pid, available: false });
     }
 
-    // MAX variant wholesale — same policy as the detail endpoint so the
-    // backfilled card price never drops below what the customer would
-    // actually pay. Without this, the frontend backfill would refresh
-    // each card to variants[0]'s price (often the cheapest size) and
-    // re-introduce the under-pricing bug we already fixed elsewhere.
+    // variants[0]'s wholesale — matches what the detail page displays as
+    // the default top-level price. Customer who picks the default variant
+    // sees the same number on the card, on detail load, and at checkout.
+    // Variant clicks on detail re-fetch per-variant pricing accurately.
     let wholesaleUsd = 0;
     try {
       const raw = await getProductRaw(pid, 'medium');
-      const variantPrices = (raw?.variants || [])
-        .map(v => parseFloat(v.variantSellPrice || 0))
-        .filter(p => p > 0);
-      wholesaleUsd = variantPrices.length
-        ? Math.max(...variantPrices)
-        : parseFloat(raw?.sellPrice || 0);
+      wholesaleUsd = parseFloat(raw?.variants?.[0]?.variantSellPrice || raw?.sellPrice || 0);
     } catch {}
 
     const displayUsd = computeDisplayUsd(wholesaleUsd, usd);
@@ -1064,19 +1055,20 @@ app.get('/api/store/products/:pid', async (req, res) => {
       };
     });
 
-    // Top-level product display price — uses the MAX variant wholesale so
-    // we never display a price lower than what the customer might actually
-    // pay. Previous behaviour (variants[0] price) caused under-pricing on
-    // products where variant[0] is the cheapest size: a customer who left
-    // the default and clicked Buy Now would be charged the cheap-variant
-    // price while CJ billed us for the more-expensive variant they
-    // actually selected, eating the entire margin (and then some at 5%).
-    const variantPrices = (raw.variants || [])
-      .map(v => parseFloat(v.variantSellPrice || 0))
-      .filter(p => p > 0);
-    const topWholesaleUsd = variantPrices.length
-      ? Math.max(...variantPrices)
-      : parseFloat(raw.sellPrice || 0);
+    // PER-VARIANT PRICING POLICY
+    // ─────────────────────────────────────────────────────────────────
+    // Each variant is priced from its OWN wholesale + that variant's
+    // actual shipping. The top-level product.price reflects the FIRST
+    // variant (the one auto-selected on page load) so a customer who
+    // hits Buy Now without picking a variant pays exactly what they saw.
+    //
+    // For non-default variants the variants[] array above used variants[0]'s
+    // shipping as a placeholder. The frontend re-fetches the real
+    // per-variant shipping (and updates the displayed price) when the user
+    // clicks a different size. The cart reprice path also quotes shipping
+    // per-variant so the customer is charged accurately regardless of
+    // which variant they end up buying.
+    const topWholesaleUsd = parseFloat(raw.variants?.[0]?.variantSellPrice || raw.sellPrice || 0);
     const product = pricing.applyStorePricing(raw);
     const topDisplayUsd = computeDisplayUsd(topWholesaleUsd, shippingUsd);
 
@@ -1206,7 +1198,24 @@ async function repriceCart(items) {
     const variant = (raw.variants || []).find(v => v.vid === item.vid);
     if (!variant) { const e = new Error(`Unknown variant ${item.vid}`); e.status = 400; throw e; }
 
-    const shipping = await getProductShippingUsd(item.pid, 'high', ORDER_FRESH_MAX_MS);
+    // CRITICAL: quote shipping for THIS specific variant, not just any
+    // variant of the product. Shipping cost varies meaningfully across
+    // sizes (a 4XL jacket at ~450g costs ~10% more to ship than the
+    // ~300g M of the same product). Using the cached product-level
+    // shipping (which is for variants[0]) would underprice every heavy
+    // variant by exactly the size of our 5% margin → loss per order.
+    // Fall back to the product-level cached shipping only if the per-
+    // variant quote fails — better than blocking the order outright.
+    let shipping;
+    const variantQuote = await quoteShippingForItems(
+      [{ vid: item.vid, quantity: parseInt(item.quantity) || 1 }],
+      'high'
+    );
+    if (variantQuote && variantQuote.available) {
+      shipping = { usd: variantQuote.usd, method: variantQuote.method, available: true };
+    } else {
+      shipping = await getProductShippingUsd(item.pid, 'high', ORDER_FRESH_MAX_MS);
+    }
     if (!shipping.available) {
       const e = new Error(`"${raw.productNameEn}" is not available for shipping to India`);
       e.status = 400; e.code = 'UNSHIPPABLE'; e.pid = item.pid; throw e;
@@ -1401,10 +1410,20 @@ app.post('/api/store/orders', async (req, res) => {
       const variant = (raw.variants || []).find(v => v.vid === item.vid);
       if (!variant) return res.status(400).json({ error: `Unknown variant ${item.vid} for product ${item.pid}` });
 
-      // Order placement: insist on shipping data ≤7 days old. If the
-      // display cache is older, we re-quote so we never charge stale
-      // (potentially below-cost) prices when CJ has changed rates.
-      const shipping = await getProductShippingUsd(item.pid, 'high', ORDER_FRESH_MAX_MS);
+      // Order placement: quote shipping for THIS specific variant so the
+      // displayed price actually covers what CJ bills us. The
+      // product-level cache is for variants[0] only; using it would
+      // underprice every heavier variant by the size of our 5% margin.
+      let shipping;
+      const variantQuote = await quoteShippingForItems(
+        [{ vid: item.vid, quantity: parseInt(item.quantity) || 1 }],
+        'high'
+      );
+      if (variantQuote && variantQuote.available) {
+        shipping = { usd: variantQuote.usd, method: variantQuote.method, available: true };
+      } else {
+        shipping = await getProductShippingUsd(item.pid, 'high', ORDER_FRESH_MAX_MS);
+      }
       if (!shipping.available) {
         return res.status(400).json({
           error: `"${raw.productNameEn}" is not available for shipping to India`,

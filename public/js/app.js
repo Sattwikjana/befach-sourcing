@@ -1931,15 +1931,12 @@ async function renderProduct(pid) {
       if (labelEl) labelEl.textContent = `(${val || ''})`;
     });
 
-    // Update vid, main image, and price from the variant data already
-    // loaded with the product detail. We used to fire an extra round-trip
-    // to /api/store/shipping-for-variant here to get a per-variant
-    // shipping quote — but on cold cache that call goes to CJ's API and
-    // can take 1–3s, leaving the user staring at a "Updating price for
-    // this variant…" spinner that sometimes never resolves. Since the
-    // detail endpoint already returns each variant's display price using
-    // the MAX-variant policy, the local data is accurate enough; the
-    // server still re-prices at checkout to the actual variant cost.
+    // Update vid, main image, and show the variant's tentative price
+    // immediately (using variants[0]'s shipping). Then fire an API call
+    // to refine the price using THIS variant's actual shipping cost —
+    // critical because heavier sizes (4XL etc.) have higher shipping,
+    // and a customer who picks 4XL must see (and pay) the higher price
+    // or we lose money on every heavy-variant sale at our 5% margin.
     current.vid = variant.vid || '';
     current.variantName = variant.variantNameEn || variant.variantKey || '';
     current.priceUsd = parseFloat(variant.price || variant.variantSellPrice || 0);
@@ -1950,10 +1947,34 @@ async function renderProduct(pid) {
     const priceEl = document.getElementById('pdPrice');
     const hint = document.querySelector('.pd-price-hint');
     priceEl.textContent = fmtINR(current.priceUsd);
-    if (hint) hint.textContent = '✅ Inclusive of taxes & shipping to India';
-    document.getElementById('pdAddCart').disabled = false;
-    document.getElementById('pdBuyNow').disabled = false;
     checkVariantStock(current.vid);
+
+    // Refine price with per-variant accurate shipping. Cache hit returns
+    // in <100ms; cold-cache CJ call can take 1–3s, hence the spinner.
+    if (hint) hint.textContent = 'Updating price for this variant…';
+    try {
+      const r = await apiGet(`/api/store/shipping-for-variant/${encodeURIComponent(current.vid)}?pid=${encodeURIComponent(pid)}`);
+      if (r.available === false) {
+        priceEl.textContent = 'Not available';
+        if (hint) hint.textContent = "🚫 This variant can't be shipped to India.";
+        document.getElementById('pdAddCart').disabled = true;
+        document.getElementById('pdBuyNow').disabled = true;
+        return;
+      }
+      if (r.displayUsd) {
+        current.priceUsd = parseFloat(r.displayUsd);
+        priceEl.textContent = fmtINR(current.priceUsd);
+      }
+      document.getElementById('pdAddCart').disabled = false;
+      document.getElementById('pdBuyNow').disabled = false;
+      if (hint) hint.textContent = '✅ Inclusive of taxes & shipping to India';
+    } catch {
+      // Network/timeout — leave the tentative price in place. Server
+      // reprices accurately at checkout regardless.
+      if (hint) hint.textContent = '✅ Inclusive of taxes & shipping to India';
+      document.getElementById('pdAddCart').disabled = false;
+      document.getElementById('pdBuyNow').disabled = false;
+    }
   }
 
   // Wire up the color swatches + size buttons
