@@ -260,9 +260,19 @@ async function getProductShippingUsd(pid, priority = 'low', maxAgeMs = SHIPPING_
   }
 
   let firstVid = null;
+  let maxWholesaleUsd = 0;
   try {
     const raw = await getProductRaw(pid, priority);
     firstVid = raw?.variants?.[0]?.vid || null;
+    // Capture the MAX variant wholesale here so list pages (which only
+    // get CJ's "from" price from the search API) can show a price that
+    // covers any variant the customer might pick. Without this the list
+    // shows the cheap-variant price and a customer who clicks Buy Now
+    // on a more expensive variant gets a higher price in the cart.
+    const variantPrices = (raw?.variants || [])
+      .map(v => parseFloat(v.variantSellPrice || 0))
+      .filter(p => p > 0);
+    if (variantPrices.length) maxWholesaleUsd = Math.max(...variantPrices);
   } catch {}
 
   if (!firstVid) {
@@ -278,6 +288,7 @@ async function getProductShippingUsd(pid, priority = 'low', maxAgeMs = SHIPPING_
     usd: quote.usd,
     method: quote.method,
     available: quote.available,
+    maxWholesaleUsd,
     ts: Date.now(),
   };
   saveShippingCache();
@@ -292,6 +303,10 @@ function peekShippingCache(pid) {
     usd: hit.usd,
     method: hit.method,
     available: hit.available !== false,
+    // Optional — populated when the cache was warmed via getProductRaw
+    // (i.e. when we actually saw the variants list). Used by the list
+    // endpoint to show MAX variant price instead of CJ's "from" price.
+    maxWholesaleUsd: typeof hit.maxWholesaleUsd === 'number' ? hit.maxWholesaleUsd : 0,
   };
 }
 
@@ -888,7 +903,15 @@ app.get('/api/store/products', async (req, res) => {
     for (const { rawProduct, pid, wholesaleUsd, hit } of pricedItems) {
       const knownGood = !!(hit && hit.available);
       const shippingUsd = knownGood ? hit.usd : FALLBACK_SHIPPING_USD;
-      const displayUsd = computeDisplayUsd(wholesaleUsd, shippingUsd);
+      // Prefer the cached MAX variant wholesale (set when we've seen the
+      // variants list) so the list price matches what the customer will
+      // see after they click into detail. Falls back to CJ's "from" price
+      // for products that haven't been warmed yet — still consistent
+      // because the detail page also gets warmed on first visit.
+      const effectiveWholesaleUsd = (hit && hit.maxWholesaleUsd > 0)
+        ? hit.maxWholesaleUsd
+        : wholesaleUsd;
+      const displayUsd = computeDisplayUsd(effectiveWholesaleUsd, shippingUsd);
 
       // Strip sensitive fields (CJ cost, profit, etc.) before sending to consumer
       const cleaned = pricing.applyStorePricing(rawProduct);
