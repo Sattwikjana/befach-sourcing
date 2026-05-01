@@ -132,6 +132,32 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 .brand-tagline-black { color: var(--brand); }
 .brand-tagline-gold { color: var(--accent-dark); }
 
+/* Text-only brand mark — replaces the GCOM image logo. "BEFACH" in
+   bold orange wordmark, "GLOBAL STORE" smaller below in dark grey. */
+.brand-text { gap: 0; }
+.brand-text-wrap {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  gap: 4px;
+}
+.brand-text-main {
+  font-family: 'Outfit', 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 32px;
+  letter-spacing: 0.04em;
+  color: #FF6B00;
+  text-transform: uppercase;
+}
+.brand-text-sub {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
 .header-search {
   display: flex;
   background: #fff;
@@ -2533,6 +2559,8 @@ body.page-home .header-nav { margin-left: auto; }
   .brand-logo-img { height: 44px; max-width: 170px; }
   .brand-tagline-side { font-size: 10px; padding-left: 10px; }
   .brand { gap: 10px; }
+  .brand-text-main { font-size: 26px; }
+  .brand-text-sub  { font-size: 10px; letter-spacing: 0.28em; }
   .header-search {
     grid-column: 1 / -1;
     order: 3;
@@ -2660,6 +2688,8 @@ body.page-home .header-nav { margin-left: auto; }
      Logo alone keeps brand identity. */
   .brand-logo-img { height: 38px; max-width: 130px; }
   .brand-tagline-side { display: none; }
+  .brand-text-main { font-size: 22px; }
+  .brand-text-sub  { font-size: 9px; letter-spacing: 0.24em; }
   .page-title { font-size: 20px; }
   .hero { padding: 32px 16px; border-radius: 12px; }
   .hero-title { font-size: 24px; }

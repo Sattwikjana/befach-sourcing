@@ -1065,7 +1065,7 @@ async function renderHome() {
           <div class="home-hero-inner">
             <div class="home-hero-copy">
               <span class="home-hero-eyebrow">Curated from across the globe</span>
-              <h1 class="home-hero-title">The world's makers. <span class="accent">Your doorstep.</span></h1>
+              <h1 class="home-hero-title">Shop the world. <span class="accent">Delivered to your door.</span></h1>
               <p class="home-hero-sub">Premium products, hand-picked from artisans and ateliers in 200+ countries — delivered to India in 10–15 days.</p>
               <form class="home-hero-search" id="heroSearchForm">
                 <input type="text" id="heroSearchInput" placeholder="Search dresses, watches, lighting, fragrances..." autocomplete="off" />

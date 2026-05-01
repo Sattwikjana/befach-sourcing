@@ -20,7 +20,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260501c" />
+  <link rel="stylesheet" href="/css/styles.css?v=20260501d" />
   <!-- Inline style as a safety net — guaranteed to load with no race
        conditions against the external CSS. -->
   <style>
@@ -60,11 +60,10 @@
         </svg>
       </button>
 
-      <a href="#/" class="brand" aria-label="GCOM — One World. Endless Choices.">
-        <img src="/img/gcom-logo.png?v=20260501c" alt="GCOM" class="brand-logo-img" />
-        <span class="brand-tagline-side" aria-hidden="true">
-          <span class="brand-tagline-black">ONE WORLD.</span>
-          <span class="brand-tagline-gold">ENDLESS CHOICES.</span>
+      <a href="#/" class="brand brand-text" aria-label="Befach Global Store">
+        <span class="brand-text-wrap">
+          <span class="brand-text-main">BEFACH</span>
+          <span class="brand-text-sub">GLOBAL STORE</span>
         </span>
       </a>
 
@@ -131,11 +130,10 @@
   <div class="drawer-backdrop" id="drawerBackdrop"></div>
   <aside class="drawer" id="drawer" aria-label="Mobile menu">
     <div class="drawer-head">
-      <a href="#/" class="drawer-brand-link" id="drawerBrandLink">
-        <img src="/img/gcom-logo.png?v=20260501c" alt="GCOM" class="drawer-brand-img" />
-        <span class="drawer-brand-tagline" aria-hidden="true">
-          <span class="brand-tagline-black">ONE WORLD.</span>
-          <span class="brand-tagline-gold">ENDLESS CHOICES.</span>
+      <a href="#/" class="drawer-brand-link brand-text" id="drawerBrandLink">
+        <span class="brand-text-wrap">
+          <span class="brand-text-main">BEFACH</span>
+          <span class="brand-text-sub">GLOBAL STORE</span>
         </span>
       </a>
       <button class="drawer-close" id="drawerClose" aria-label="Close menu">
@@ -196,8 +194,8 @@
   <!-- Razorpay Checkout — loaded async so it doesn't block the page;
        only used on the checkout page when the customer hits "Pay & Place order". -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
-  <script src="/js/app.js?v=20260501c"></script>
-  <script src="/js/app-store.js?v=20260501c"></script>
+  <script src="/js/app.js?v=20260501d"></script>
+  <script src="/js/app-store.js?v=20260501d"></script>
   <!-- Surface any uncaught JS error in the page so we can debug from
        the browser without DevTools. Goes to console.error and shows
        a discreet banner if anything blows up. -->
