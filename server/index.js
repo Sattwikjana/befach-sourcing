@@ -248,9 +248,18 @@ async function quoteShippingForItems(items, priority = 'low') {
  *                               require fresher data than display does)
  * Returns { usd, method, available, cached }
  */
+// Cache version. Bump this whenever the way we compute or post-process
+// shipping changes (e.g. introducing SHIPPING_FEE_FACTOR). Entries
+// without the current version are treated as expired so we don't serve
+// stale numbers from the persistent disk volume across deploys.
+//
+//   v=1 (implicit): legacy entries with no factor applied
+//   v=2: entries that have SHIPPING_FEE_FACTOR baked into `usd`
+const SHIPPING_CACHE_VERSION = 2;
+
 async function getProductShippingUsd(pid, priority = 'low', maxAgeMs = SHIPPING_CACHE_TTL) {
   const hit = shippingCache[pid];
-  if (hit && Date.now() - hit.ts < maxAgeMs) {
+  if (hit && hit.v === SHIPPING_CACHE_VERSION && Date.now() - hit.ts < maxAgeMs) {
     return {
       usd: hit.usd,
       method: hit.method,
@@ -285,6 +294,7 @@ async function getProductShippingUsd(pid, priority = 'low', maxAgeMs = SHIPPING_
   }
 
   shippingCache[pid] = {
+    v: SHIPPING_CACHE_VERSION,
     usd: quote.usd,
     method: quote.method,
     available: quote.available,
@@ -298,7 +308,11 @@ async function getProductShippingUsd(pid, priority = 'low', maxAgeMs = SHIPPING_
 /** Cheap synchronous peek — does NOT call CJ. */
 function peekShippingCache(pid) {
   const hit = shippingCache[pid];
-  if (!hit || Date.now() - hit.ts > SHIPPING_CACHE_TTL) return null;
+  // Treat any entry without the current version as expired — same
+  // invalidation logic as getProductShippingUsd. The list endpoint
+  // would otherwise serve stale unmultiplied shipping numbers from
+  // pre-SHIPPING_FEE_FACTOR cache entries that survived deploys.
+  if (!hit || hit.v !== SHIPPING_CACHE_VERSION || Date.now() - hit.ts > SHIPPING_CACHE_TTL) return null;
   return {
     usd: hit.usd,
     method: hit.method,
