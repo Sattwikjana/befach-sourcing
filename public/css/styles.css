@@ -1452,6 +1452,37 @@ main {
   pointer-events: none;
 }
 
+/* Cards the backfill discovered cannot be shipped to India. We keep
+   them in the grid so the layout doesn't visibly shrink as the cache
+   warms — just dim them and slap a clear "Not shippable" badge over
+   the image. The detail page still returns 404 if clicked. */
+.product-card.product-card-unavailable {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+  cursor: not-allowed;
+}
+.product-card.product-card-unavailable:hover {
+  transform: none;
+  box-shadow: none;
+}
+.product-card-unavailable-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 3;
+}
+
 /* Subcategory chips on category pages — let users drill down from a broad
    parent like "Women's Clothing" into "Tops / Dresses / Accessories" etc. */
 .subcategory-strip {
