@@ -831,7 +831,11 @@ window.megaSelect = function(idx) {
 // don't keep seeing stale prices from their localStorage cache (6mo TTL).
 //   v1 → v2: 20% → 50% markup
 //   v2 → v3: 50% → 65% markup (compensates for CJ shipping API gap)
-const SHIP_LS_KEY = 'befach_ship_v3';
+// Bumped v3 → v4 to invalidate stale prices that were cached before
+// SHIPPING_FEE_FACTOR was introduced. The 6-month TTL means cached
+// prices stick around far too long when the pricing formula changes,
+// so any change to how the display price is computed should bump this.
+const SHIP_LS_KEY = 'befach_ship_v4';
 const SHIP_LS_TTL_MS = 180 * 24 * 60 * 60 * 1000;  // 6 months
 let _shipCache = null;
 function _loadShipCache() {
@@ -1927,7 +1931,15 @@ async function renderProduct(pid) {
       if (labelEl) labelEl.textContent = `(${val || ''})`;
     });
 
-    // Update vid, main image, initial price (will be refined below)
+    // Update vid, main image, and price from the variant data already
+    // loaded with the product detail. We used to fire an extra round-trip
+    // to /api/store/shipping-for-variant here to get a per-variant
+    // shipping quote — but on cold cache that call goes to CJ's API and
+    // can take 1–3s, leaving the user staring at a "Updating price for
+    // this variant…" spinner that sometimes never resolves. Since the
+    // detail endpoint already returns each variant's display price using
+    // the MAX-variant policy, the local data is accurate enough; the
+    // server still re-prices at checkout to the actual variant cost.
     current.vid = variant.vid || '';
     current.variantName = variant.variantNameEn || variant.variantKey || '';
     current.priceUsd = parseFloat(variant.price || variant.variantSellPrice || 0);
@@ -1938,29 +1950,10 @@ async function renderProduct(pid) {
     const priceEl = document.getElementById('pdPrice');
     const hint = document.querySelector('.pd-price-hint');
     priceEl.textContent = fmtINR(current.priceUsd);
+    if (hint) hint.textContent = '✅ Inclusive of taxes & shipping to India';
+    document.getElementById('pdAddCart').disabled = false;
+    document.getElementById('pdBuyNow').disabled = false;
     checkVariantStock(current.vid);
-
-    // Ask server for the per-variant real display price (weight varies by size)
-    if (hint) hint.textContent = 'Updating price for this variant…';
-    try {
-      const r = await apiGet(`/api/store/shipping-for-variant/${encodeURIComponent(current.vid)}?pid=${encodeURIComponent(pid)}`);
-      if (r.available === false) {
-        priceEl.textContent = 'Not available';
-        if (hint) hint.textContent = "🚫 This variant can't be shipped to India.";
-        document.getElementById('pdAddCart').disabled = true;
-        document.getElementById('pdBuyNow').disabled = true;
-        return;
-      }
-      if (r.displayUsd) {
-        current.priceUsd = parseFloat(r.displayUsd);
-        priceEl.textContent = fmtINR(current.priceUsd);
-      }
-      document.getElementById('pdAddCart').disabled = false;
-      document.getElementById('pdBuyNow').disabled = false;
-      if (hint) hint.textContent = '✅ Inclusive of taxes & shipping to India';
-    } catch {
-      if (hint) hint.textContent = '✅ Inclusive of taxes & shipping to India';
-    }
   }
 
   // Wire up the color swatches + size buttons
