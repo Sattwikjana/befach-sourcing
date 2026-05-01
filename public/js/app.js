@@ -1140,22 +1140,12 @@ async function backfillCardShipping(gridEl) {
         if (abort.signal.aborted || !card.isConnected) continue;
 
         if (data.available === false) {
-          // Unshippable to India — mark visually but DON'T remove the
-          // card. Removing on the fly was causing the search grid to
-          // visibly shrink as the backfill ran, especially on the cold
-          // cache that follows a deploy or shipping-cache-version bump.
-          // Mark + dim is much less jarring; the detail page still
-          // returns 404 with a clear message if the user clicks through.
-          card.classList.add('product-card-unavailable');
-          card.setAttribute('data-accurate', '1');
-          card.setAttribute('aria-label', 'Not available for shipping to India');
-          if (!card.querySelector('.product-card-unavailable-badge')) {
-            const badge = document.createElement('span');
-            badge.className = 'product-card-unavailable-badge';
-            badge.textContent = 'Not shippable to India';
-            const wrap = card.querySelector('.product-card-img-wrap');
-            if (wrap) wrap.appendChild(badge);
-          }
+          // Unshippable to India — drop the card from the grid so the
+          // user never clicks through to the "Not available in your
+          // region" page. The server's product list endpoint already
+          // skips known-unshippable items, but on a cold cache the
+          // first request lets them through; this catches them.
+          card.remove();
           continue;
         }
 
