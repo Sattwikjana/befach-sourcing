@@ -1963,9 +1963,18 @@ async function renderSearch(query, page = 1, opts = {}) {
       } else {
         baseHash = `/search?q=${encodeURIComponent(query)}`;
       }
+      // Carry the active filters into every page link so a user sorting
+      // by Price: Low→High and clicking "Next" doesn't lose the sort
+      // (or the price range, etc.). Anything other than `page` should
+      // survive pagination.
+      const filterParams = [];
+      if (filterPriceMin) filterParams.push(`priceMin=${filterPriceMin}`);
+      if (filterPriceMax) filterParams.push(`priceMax=${filterPriceMax}`);
+      if (filterSort && filterSort !== 'relevance') filterParams.push(`sort=${filterSort}`);
+      const filterSuffix = filterParams.length ? `&${filterParams.join('&')}` : '';
       const mkLink = (p) => {
         const sep = baseHash.includes('?') ? '&' : '?';
-        return `${baseHash}${sep}page=${p}`;
+        return `${baseHash}${sep}page=${p}${filterSuffix}`;
       };
       const start = Math.max(1, page - 2);
       const end = Math.min(totalPages, page + 2);
