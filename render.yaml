@@ -48,6 +48,13 @@ services:
         value: "3.49"
       - key: CJ_FEE_FACTOR
         value: "1.11"
+      # Compensates for CJ's freight API undercount. The /freightCalculate
+      # endpoint returns ~10–13% lower than what CJ actually bills when the
+      # order ships. Multiplier is applied to the API number before it
+      # feeds into the price formula. Tune as you observe real CJ
+      # invoices vs API quotes.
+      - key: SHIPPING_FEE_FACTOR
+        value: "1.13"
       # 1 = manual click-through pay, 2 = auto-deduct from CJ wallet,
       # 3 = create only. We ship orders straight from the prefunded CJ
       # wallet — keep $200+ in there at all times via cjdropshipping.com

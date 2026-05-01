@@ -217,10 +217,16 @@ async function quoteShippingForItems(items, priority = 'low') {
       products: items.map(i => ({ vid: i.vid, quantity: parseInt(i.quantity) || 1 })),
     }, { priority });
     const methods = Array.isArray(data.data) ? data.data : [];
+    // CJ's freight API systematically undercounts the actual shipping
+    // we're billed by ~10–13% across the products we sampled. Compensate
+    // with a multiplier so the cost we plug into pricing matches what we
+    // actually pay. Default 1.13 ⇒ +13% on top of the API number.
+    const shipFactor = parseFloat(process.env.SHIPPING_FEE_FACTOR) || 1.13;
     for (const wanted of SHIPPING_METHODS_PRIORITY) {
       const m = methods.find(x => x.logisticName === wanted);
       if (m && m.logisticPrice != null) {
-        return { usd: parseFloat(m.logisticPrice), method: m.logisticName, available: true };
+        const adjustedUsd = parseFloat(m.logisticPrice) * shipFactor;
+        return { usd: adjustedUsd, method: m.logisticName, available: true };
       }
     }
     // CJ responded but none of our priority methods is available — treat
@@ -305,13 +311,22 @@ async function quoteCartShippingUsd(items) {
  * Core pricing formula — the single source of truth for what a customer
  * sees.
  *
- *   true_cost = (CJ_api_wholesale × CJ_FEE_FACTOR) + CJ_shipping
+ *   true_cost = (CJ_api_wholesale × CJ_FEE_FACTOR) + adjusted_shipping
  *   display   = true_cost × (1 + markup%)
  *
- * The CJ_FEE_FACTOR accounts for the ~11% service/processing fee CJ
- * adds on top of the raw API wholesale when you actually pay at order
- * time. Without it the markup would be applied to a lower base than
- * what CJ actually charges, eroding the real margin.
+ * Two real-world correction factors are applied to API numbers BEFORE
+ * markup so the displayed price matches what CJ actually bills us:
+ *
+ *   CJ_FEE_FACTOR (default 1.11)
+ *     CJ adds an ~11% service/processing fee on top of the raw API
+ *     wholesale at order time. Without this, markup applies to a lower
+ *     base than reality and our margin silently shrinks.
+ *
+ *   SHIPPING_FEE_FACTOR (default 1.13, applied inside quoteShippingForItems)
+ *     CJ's /freightCalculate API undercounts real shipping by ~10–13%.
+ *     The shippingUsd argument here has already been corrected. With
+ *     PROFIT_MARKUP_PERCENT=5, an unadjusted shipping number would
+ *     leave us selling at a loss.
  */
 function computeDisplayUsd(wholesaleUsd, shippingUsd) {
   const feeFactor = parseFloat(process.env.CJ_FEE_FACTOR) || 1.0;
@@ -340,6 +355,8 @@ app.get('/api/health', async (req, res) => {
     cj: cjOk ? 'connected' : 'disconnected',
     cjError,
     markup: pricing.getMarkupPercent() + '%',
+    cjFeeFactor: parseFloat(process.env.CJ_FEE_FACTOR) || 1.0,
+    shippingFeeFactor: parseFloat(process.env.SHIPPING_FEE_FACTOR) || 1.13,
     shipFrom: DEFAULT_SHIP_FROM,
     shipTo: DEFAULT_SHIP_TO,
     // Surface payment configuration so we can diagnose "online payment not
