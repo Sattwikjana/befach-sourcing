@@ -553,17 +553,29 @@ main {
   border-bottom: 2px solid var(--brand);
   margin-bottom: 8px;
   text-decoration: none;
+  transition: color 0.15s, border-color 0.15s;
 }
-.flyout-group-head:hover { color: var(--brand); }
+.flyout-group-head:hover {
+  color: #FF6B00;                     /* brand orange — matches BEFACH wordmark */
+  border-bottom-color: #FF6B00;
+}
 .flyout-group-items { display: flex; flex-direction: column; gap: 2px; }
 .flyout-group-items a {
   font-size: 13px;
   color: var(--text-secondary);
-  padding: 2px 0;
+  padding: 5px 8px;                   /* extra padding so the hover bg has room */
+  margin: 0 -8px;                     /* negate the padding so layout is unchanged */
   line-height: 1.4;
   text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s, color 0.12s, padding-left 0.12s;
 }
-.flyout-group-items a:hover { color: var(--brand); }
+.flyout-group-items a:hover {
+  background: var(--accent-soft);     /* warm gold-tinted surface */
+  color: #FF6B00;                     /* brand orange */
+  font-weight: 600;
+  padding-left: 12px;                 /* tiny shift right hints "this is selected" */
+}
 .flyout-more { color: var(--text-muted) !important; font-size: 12px !important; font-style: italic; }
 .flyout-empty {
   grid-column: 1 / -1;
@@ -3136,14 +3148,25 @@ body.page-home .header-nav { margin-left: auto; }
   padding-bottom: 4px;
   border-bottom: 1px solid var(--border);
 }
-.cat-strip-flyout-group-head:hover { color: var(--brand); }
+.cat-strip-flyout-group-head:hover {
+  color: #FF6B00;
+  border-bottom-color: #FF6B00;
+}
 .cat-strip-flyout-group-items { display: flex; flex-direction: column; gap: 3px; }
 .cat-strip-flyout-group-items a {
   color: var(--text-secondary);
-  padding: 1px 0;
+  padding: 4px 8px;
+  margin: 0 -8px;
   font-size: 12.5px;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s, color 0.12s, padding-left 0.12s;
 }
-.cat-strip-flyout-group-items a:hover { color: var(--brand); }
+.cat-strip-flyout-group-items a:hover {
+  background: var(--accent-soft);
+  color: #FF6B00;
+  font-weight: 600;
+  padding-left: 12px;
+}
 .cat-strip-flyout-empty {
   text-align: center;
   padding: 20px 12px;
