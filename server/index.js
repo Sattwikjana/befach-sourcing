@@ -692,12 +692,19 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
   //     a single token, no need for deeper fetch).
   const isWideSearch = size > 12;
   const legacyPagesToFetch = isMultiWord && isWideSearch ? 2 : 1;
+  // CJ-side page math. Previously this used (page + i) which overlapped
+  // across user pages — user page 1 fetched CJ legacy pages 1+2, user
+  // page 2 fetched CJ legacy pages 2+3, so CJ page 2 showed up on both.
+  // Now each user page consumes its own slice of CJ pages with no
+  // overlap: user page N → CJ legacy pages
+  // (N-1)*legacyPagesToFetch + 1 ... (N-1)*legacyPagesToFetch + legacyPagesToFetch.
+  const cjLegacyStart = (page - 1) * legacyPagesToFetch + 1;
   const legacyCalls = [];
   for (let i = 0; i < legacyPagesToFetch; i++) {
     legacyCalls.push(cj.getProductList({
       productNameEn: keyWord,
       categoryId,
-      page: page + i,
+      page: cjLegacyStart + i,
       pageSize: 20,
     }));
   }
