@@ -1114,9 +1114,12 @@ function productCard(p, idx) {
       <div class="product-card-body">
         <div class="product-card-title">${esc(name)}</div>
         <div class="product-card-prices">
-          <span class="product-price-now" data-card-price>${fmtINR(displayUsd)}</span>
-          ${showOffer ? `<span class="product-price-mrp" data-card-mrp>${fmtINR(mrpUsd)}</span>` : ''}
-          ${showOffer ? `<span class="product-price-save">${discountPct}% off</span>` : ''}
+          ${accurate
+            ? `<span class="product-price-now" data-card-price>${fmtINR(displayUsd)}</span>`
+            : `<span class="product-price-calc" data-card-price aria-label="Calculating final price">Calculating…</span>`
+          }
+          ${accurate && showOffer ? `<span class="product-price-mrp" data-card-mrp>${fmtINR(mrpUsd)}</span>` : `<span class="product-price-mrp" data-card-mrp hidden></span>`}
+          ${accurate && showOffer ? `<span class="product-price-save" data-card-save>${discountPct}% off</span>` : `<span class="product-price-save" data-card-save hidden></span>`}
         </div>
         <div class="product-card-ship">Shipping included</div>
       </div>
@@ -1203,13 +1206,34 @@ async function backfillCardShipping(gridEl) {
         if (data.displayUsd) {
           // Persist for instant load on next visit
           setCachedDisplayUsd(pid, data.displayUsd);
+          // Swap the calculating placeholder for the real price.
+          // Replace classes too so styling switches from
+          // .product-price-calc (greyed/pulsing) to .product-price-now.
           const priceEl = card.querySelector('[data-card-price]');
-          if (priceEl) priceEl.textContent = fmtINR(data.displayUsd);
-          // MRP scales with the refined price — server returns the new
-          // strike-through value so the discount % stays consistent
-          // after backfill.
+          if (priceEl) {
+            priceEl.textContent = fmtINR(data.displayUsd);
+            priceEl.classList.remove('product-price-calc');
+            priceEl.classList.add('product-price-now');
+            priceEl.removeAttribute('aria-label');
+          }
+          // Reveal the strike-through MRP + "X% off" badge once we know
+          // the real price (they were rendered hidden in the calculating
+          // state because we couldn't compute the discount yet).
+          const mrpUsd = parseFloat(card.getAttribute('data-mrp')) || 0;
+          const discountPct = parseInt(card.getAttribute('data-discount'), 10) || 0;
+          const showOffer = (data.mrp || mrpUsd) > parseFloat(data.displayUsd) && discountPct > 0;
           const mrpEl = card.querySelector('[data-card-mrp]');
-          if (mrpEl && data.mrp) mrpEl.textContent = fmtINR(data.mrp);
+          const saveEl = card.querySelector('[data-card-save]');
+          if (showOffer) {
+            if (mrpEl) {
+              mrpEl.textContent = fmtINR(data.mrp || mrpUsd);
+              mrpEl.removeAttribute('hidden');
+            }
+            if (saveEl) {
+              saveEl.textContent = `${discountPct}% off`;
+              saveEl.removeAttribute('hidden');
+            }
+          }
         }
         card.setAttribute('data-accurate', '1');
       } catch (e) {
