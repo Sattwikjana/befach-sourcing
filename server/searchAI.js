@@ -140,6 +140,13 @@ Rules:
   * "smart watch"          → keywords="smart watch",  broader_keywords="watch"
   * "iphone 15 case"       → keywords="iphone 15 case", broader_keywords="iphone case"
   * "office bag for women" → keywords="women office bag", broader_keywords="women bag"
+- GENDER-MISMATCHED queries (item type doesn't typically apply to the
+  stated gender) — translate to the closest equivalent for that gender,
+  do NOT keep the original term:
+  * "men dresses"          → keywords="men kurta", broader_keywords="men clothing", gender="men"
+  * "men gowns"            → keywords="men shirt", broader_keywords="men clothing", gender="men"
+  * "women suits"          → keywords="women blazer", broader_keywords="women formal", gender="women"
+  ALWAYS set gender when the user specifies it — it is used for filtering.
 - If the query is highly specific (a product SKU, a brand name), keywords and broader_keywords can be the same.
 - If query is gibberish or empty, return keywords as-is, broader_keywords as-is, other fields null.`;
 

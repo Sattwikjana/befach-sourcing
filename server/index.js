@@ -881,13 +881,44 @@ app.get('/api/store/search/smart', async (req, res) => {
     // because we can only count overlaps within the page we fetched, but
     // good enough for the pagination UI ("Showing 1500 products" feels
     // right even if the true total is 1480).
-    const mergedTotal = Math.max(
+    const rawMerged = Math.max(
       products.length,
       (narrowMeta.total || 0) + (usingBroader ? (broaderMeta.total || 0) : 0)
     );
+    // Track unfiltered count so we can scale the total by the filter
+    // pass-rate after gender/price filters run below — otherwise the
+    // pagination UI shows 5000 products but the user sees 50 because
+    // the rest got filtered.
+    const beforeFilters = products.length;
 
     // Apply AI-extracted filters client-side (CJ doesn't support these).
-    // Price filter is applied in INR using the same conversion as display.
+
+    // ── Gender filter ──
+    // CJ's keyword search ignores prefix words like "men" — searching
+    // "men dress" returns mostly women's dresses because the title
+    // matcher is loose. We post-filter using the OPPOSITE gender's
+    // marker words against productNameEn + categoryName. Word-boundary
+    // regex so "winter" doesn't trip "win", "lady" trips "lady" not
+    // "ladybird" (intentional — that's still a lady-styled product).
+    const GENDER_EXCLUDES = {
+      men:    ['women', 'woman', 'ladies', 'lady', 'female', 'girl', 'girls'],
+      women:  ['men', 'mens', 'gentleman', 'male', 'boy', 'boys'],
+      kids:   [],     // products labelled "men" or "women" usually fit kids too
+      unisex: [],     // anything goes
+    };
+    if (intent.gender && GENDER_EXCLUDES[intent.gender]?.length) {
+      const excludes = GENDER_EXCLUDES[intent.gender];
+      const excludeRegex = new RegExp(`\\b(${excludes.join('|')})\\b`, 'i');
+      const before = products.length;
+      products = products.filter(p => {
+        const name = (p.productNameEn || p.nameEn || p.productName || '').toLowerCase();
+        const cat  = (p.categoryName  || p.threeCategoryName || '').toLowerCase();
+        return !excludeRegex.test(name) && !excludeRegex.test(cat);
+      });
+      console.log(`[smart-search] gender=${intent.gender}: ${before} → ${products.length} after filter`);
+    }
+
+    // Price filter — applied in INR using the same conversion as display.
     const usdToInr = parseFloat(process.env.USD_TO_INR) || 85;
     if (intent.price_min || intent.price_max) {
       const min = intent.price_min || 0;
@@ -918,10 +949,16 @@ app.get('/api/store/search/smart', async (req, res) => {
       };
     });
 
+    // Scale the merged total by the filter pass-rate we observed on
+    // this page. If 50% of fetched items got filtered out by gender or
+    // price, the true total is roughly half of CJ's reported total.
+    const filterRatio = beforeFilters > 0 ? products.length / beforeFilters : 1;
+    const adjustedTotal = Math.round(rawMerged * filterRatio);
+
     res.json({
       products: priced,
-      total: mergedTotal,
-      totalPages: Math.max(1, Math.ceil(mergedTotal / pageSize)),
+      total: adjustedTotal,
+      totalPages: Math.max(1, Math.ceil(adjustedTotal / pageSize)),
       query: rawQuery,
       intent: {
         understood: intent.intent,                   // human-readable
