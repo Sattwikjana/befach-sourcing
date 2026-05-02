@@ -108,7 +108,7 @@ function renderDrawer() {
     ` : ''}
 
     <div class="drawer-section">
-      <a href="#/" class="drawer-link">Home</a>
+      <a href="/" class="drawer-link">Home</a>
       <button type="button" class="drawer-link drawer-toggle" id="drawerCatToggle">
         <span>Shop by category</span>
         <span class="drawer-chev">›</span>
@@ -116,31 +116,31 @@ function renderDrawer() {
       <div class="drawer-cats" id="drawerCats" hidden>
         <span class="drawer-cats-loading muted">Loading…</span>
       </div>
-      <a href="#/cart" class="drawer-link">Cart</a>
-      <a href="#/wishlist" class="drawer-link">Wishlist</a>
-      <a href="#/track" class="drawer-link">Track order</a>
+      <a href="/cart" class="drawer-link">Cart</a>
+      <a href="/wishlist" class="drawer-link">Wishlist</a>
+      <a href="/track" class="drawer-link">Track order</a>
     </div>
 
     ${u ? `
       <div class="drawer-section">
         <div class="drawer-section-label">My account</div>
-        <a href="#/account" class="drawer-link">My profile</a>
-        <a href="#/orders" class="drawer-link">My orders</a>
-        <a href="#/returns" class="drawer-link">Returns &amp; refunds</a>
+        <a href="/account" class="drawer-link">My profile</a>
+        <a href="/orders" class="drawer-link">My orders</a>
+        <a href="/returns" class="drawer-link">Returns &amp; refunds</a>
         <button type="button" class="drawer-link drawer-link-signout" id="drawerSignOut">Sign out</button>
       </div>
     ` : `
       <div class="drawer-section">
         <div class="drawer-section-label">Account</div>
-        <a href="#/login" class="drawer-link">Sign in</a>
-        <a href="#/register" class="drawer-link drawer-link-cta">Create account</a>
+        <a href="/login" class="drawer-link">Sign in</a>
+        <a href="/register" class="drawer-link drawer-link-cta">Create account</a>
       </div>
     `}
 
     <div class="drawer-section">
       <div class="drawer-section-label">Support</div>
-      <a href="#/faq" class="drawer-link">Help &amp; FAQ</a>
-      <a href="#/legal" class="drawer-link">Legal &amp; compliance</a>
+      <a href="/faq" class="drawer-link">Help &amp; FAQ</a>
+      <a href="/legal" class="drawer-link">Legal &amp; compliance</a>
     </div>
   `;
 
@@ -256,7 +256,7 @@ document.getElementById('footerYear').textContent = new Date().getFullYear();
       <a href="mailto:${c.email}">${c.email}</a><br/>
       <a href="tel:${c.phone.replace(/\s+/g,'')}">${c.phone}</a>
     </p>
-    <p class="footer-line"><a href="#/legal">Legal &amp; Compliance →</a></p>
+    <p class="footer-line"><a href="/legal">Legal &amp; Compliance →</a></p>
   `;
 })();
 
@@ -554,13 +554,34 @@ async function checkHealth() {
 // ══════════════════════════════════════════════════════════════
 //  ROUTER
 // ══════════════════════════════════════════════════════════════
+// Read the current route from the History API (pathname + querystring).
+// We migrated off hash-based routing — location.hash is no longer the
+// source of truth. The inline script in index.html silently redirects
+// any incoming /#/foo URLs to /foo via replaceState before this runs.
 function getRoute() {
-  const hash = location.hash || '#/';
-  const [path, queryStr] = hash.slice(1).split('?');
-  const params = new URLSearchParams(queryStr || '');
+  const path = location.pathname || '/';
+  const params = new URLSearchParams(location.search);
   return { path, params };
 }
-window.navigate = function(hash) { location.hash = hash; };
+
+// Programmatic navigation. Accepts a clean path like "/cart" or
+// "/search?q=foo" — never a "#/cart". Pushes a new history entry and
+// triggers the route handler manually since pushState doesn't fire a
+// popstate event.
+window.navigate = function(href) {
+  if (!href) return;
+  // Tolerate callers that still pass "#/foo" or "/#/foo" (defensive)
+  if (href.indexOf('#/') === 0) href = href.slice(1);
+  else if (href.indexOf('/#/') === 0) href = href.slice(2);
+  if (href === location.pathname + location.search) {
+    // Same URL — just re-run the route handler (e.g. user clicked
+    // the same nav link to refresh the page)
+    handleRoute();
+    return;
+  }
+  history.pushState(null, '', href);
+  handleRoute();
+};
 
 function handleRoute() {
   const { path, params } = getRoute();
@@ -569,7 +590,7 @@ function handleRoute() {
   if (typeof cancelBackfill === 'function') cancelBackfill();
 
   document.querySelectorAll('.nav-link').forEach(el => {
-    el.classList.toggle('active', el.getAttribute('href') === '#' + path);
+    el.classList.toggle('active', el.getAttribute('href') === path);
   });
 
   // Tag the body with the current page slug so CSS can target page-specific
@@ -619,8 +640,36 @@ function handleRoute() {
   return renderHome();
 }
 
-window.addEventListener('hashchange', handleRoute);
+// popstate fires on back/forward buttons (and on hash changes for the
+// inline migration shim — though once the URL is clean it won't fire
+// on regular link clicks since we intercept those). load fires once on
+// initial page render.
+window.addEventListener('popstate', handleRoute);
 window.addEventListener('load', handleRoute);
+
+// ── Global click interceptor for internal links ──
+// Catches any <a href="/foo"> click and routes it client-side via
+// pushState instead of letting the browser do a full page reload.
+// External links, mailto:, tel:, anchors (#foo), modifier-key clicks
+// (cmd+click for new tab), and target=_blank links all pass through
+// untouched so default browser behaviour is preserved.
+document.addEventListener('click', function(e) {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.defaultPrevented) return;
+  const a = e.target.closest && e.target.closest('a');
+  if (!a) return;
+  if (a.getAttribute('target') === '_blank') return;
+  const href = a.getAttribute('href');
+  if (!href) return;
+  // Skip external schemes and pure-anchor links
+  if (
+    href.startsWith('http://') || href.startsWith('https://') ||
+    href.startsWith('mailto:') || href.startsWith('tel:') ||
+    href.startsWith('#')
+  ) return;
+  // Internal SPA route — handle via pushState
+  e.preventDefault();
+  navigate(href);
+});
 
 // Header search submit
 headerSearchForm?.addEventListener('submit', (e) => {
@@ -807,11 +856,11 @@ function catIcon(name) {
 // glasses" or "Woman Prescription Glasses" match almost nothing as a
 // keyword, but their categoryId returns the actual catalog).
 function categoryHref(item) {
-  if (!item) return '#/';
+  if (!item) return '/';
   const name = (item.categoryName || item.categorySecondName || item.categoryFirstName || '').trim();
   const id = item.categoryId || item.categorySecondId || item.categoryFirstId || '';
-  if (id) return `#/category/${encodeURIComponent(id)}?name=${encodeURIComponent(name)}`;
-  return `#/search?q=${encodeURIComponent(name)}`;
+  if (id) return `/category/${encodeURIComponent(id)}?name=${encodeURIComponent(name)}`;
+  return `/search?q=${encodeURIComponent(name)}`;
 }
 
 async function loadCategories() {
@@ -874,11 +923,13 @@ function renderMegaCategories() {
   leftEl.innerHTML = cats.map((cat, idx) => {
     const name = cat.categoryFirstName || '';
     const href = categoryHref(cat);
+    // categoryHref now returns clean paths (e.g. /category/123?name=Foo)
+    // so we use navigate() directly instead of writing to location.hash.
     return `
       <button type="button"
               class="mega-cat-item ${idx === 0 ? 'active' : ''}"
               data-idx="${idx}"
-              onclick="location.hash='${href.slice(1)}'"
+              onclick="navigate('${href.replace(/'/g, "\\'")}')"
               onmouseenter="megaSelect(${idx})">
         <span class="mega-cat-icon">${catIcon(name)}</span>
         <span class="mega-cat-name">${esc(name)}</span>
@@ -1036,7 +1087,7 @@ function productCard(p, idx) {
 
   return `
     <a class="product-card fade-in"
-       href="#/product/${encodeURIComponent(pid)}"
+       href="/product/${encodeURIComponent(pid)}"
        data-pid="${esc(pid)}"
        data-accurate="${accurate ? '1' : '0'}"
        data-mrp="${mrpUsd}"
@@ -1246,7 +1297,7 @@ async function renderHome() {
 
         <!-- PROMO BANNERS -->
         <section class="promo-blocks">
-          <a href="#/search?q=women dress" class="promo-big">
+          <a href="/search?q=women dress" class="promo-big">
             <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
             <div class="promo-big-copy">
               <span class="promo-eyebrow">SUMMER COLLECTION</span>
@@ -1256,7 +1307,7 @@ async function renderHome() {
             </div>
           </a>
           <div class="promo-stack">
-            <a href="#/search?q=smart watch" class="promo-small promo-tech">
+            <a href="/search?q=smart watch" class="promo-small promo-tech">
               <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png')"></div>
               <div class="promo-small-copy">
                 <span class="promo-eyebrow">TECH DEALS</span>
@@ -1265,7 +1316,7 @@ async function renderHome() {
                 <span class="promo-cta">Shop →</span>
               </div>
             </a>
-            <a href="#/search?q=men shirt" class="promo-small promo-men">
+            <a href="/search?q=men shirt" class="promo-small promo-men">
               <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
               <div class="promo-small-copy">
                 <span class="promo-eyebrow">MEN'S FASHION</span>
@@ -1281,7 +1332,7 @@ async function renderHome() {
         <section class="section">
           <div class="section-head">
             <h2 class="section-title">Featured Products</h2>
-            <a href="#/search?q=trending" class="section-link" id="featuredMore">View all →</a>
+            <a href="/search?q=trending" class="section-link" id="featuredMore">View all →</a>
           </div>
           <div class="products-grid" id="featuredGrid">${productSkeleton(10)}</div>
         </section>
@@ -1294,7 +1345,7 @@ async function renderHome() {
               <span class="fashion-eyebrow">MEN'S COLLECTION</span>
               <h2>Men's Fashion</h2>
               <p>Premium styles, sourced globally</p>
-              <a class="fashion-cta" href="#/search?q=men shirt">Shop Now →</a>
+              <a class="fashion-cta" href="/search?q=men shirt">Shop Now →</a>
             </div>
           </div>
           <div class="products-grid fashion-grid" id="menGrid">${productSkeleton(8)}</div>
@@ -1304,7 +1355,7 @@ async function renderHome() {
         <section class="section">
           <div class="section-head">
             <h2 class="section-title">🔥 Trending Tech &amp; Gadgets</h2>
-            <a href="#/search?q=earbuds" class="section-link" id="trendingMore">View all →</a>
+            <a href="/search?q=earbuds" class="section-link" id="trendingMore">View all →</a>
           </div>
           <div class="products-grid" id="trendingGrid">${productSkeleton(10)}</div>
         </section>
@@ -1317,7 +1368,7 @@ async function renderHome() {
               <span class="fashion-eyebrow">WOMEN'S COLLECTION</span>
               <h2>Women's Fashion</h2>
               <p>Hand-picked from worldwide suppliers</p>
-              <a class="fashion-cta" href="#/search?q=women dress">Shop Now →</a>
+              <a class="fashion-cta" href="/search?q=women dress">Shop Now →</a>
             </div>
           </div>
           <div class="products-grid fashion-grid" id="womenGrid">${productSkeleton(8)}</div>
@@ -1327,7 +1378,7 @@ async function renderHome() {
         <section class="section">
           <div class="section-head">
             <h2 class="section-title">⚡ Smart Gadgets</h2>
-            <a href="#/search?q=smart" class="section-link" id="smartMore">View all →</a>
+            <a href="/search?q=smart" class="section-link" id="smartMore">View all →</a>
           </div>
           <div class="products-grid" id="smartGrid">${productSkeleton(10)}</div>
         </section>
@@ -1336,7 +1387,7 @@ async function renderHome() {
         <section class="section">
           <div class="section-head">
             <h2 class="section-title">🏠 Home &amp; Lifestyle</h2>
-            <a href="#/search?q=led light" class="section-link" id="homeLifestyleMore">View all →</a>
+            <a href="/search?q=led light" class="section-link" id="homeLifestyleMore">View all →</a>
           </div>
           <div class="products-grid" id="homeLifestyleGrid">${productSkeleton(10)}</div>
         </section>
@@ -1690,7 +1741,7 @@ async function loadHomeProducts() {
 // ══════════════════════════════════════════════════════════════
 async function renderAllCategories() {
   app.innerHTML = `
-    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">All Categories</span></div>
+    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">All Categories</span></div>
     <h1 class="page-title">All Categories</h1>
     <div id="allCatsGrid" class="categories-grid-full">
       ${Array(16).fill('<div class="category-card skeleton" style="height:120px"></div>').join('')}
@@ -1778,14 +1829,14 @@ async function renderSearch(query, page = 1, opts = {}) {
   ` : '';
 
   // Read filter state from URL (?priceMin, ?priceMax, ?sort)
-  const urlParams = new URLSearchParams(location.hash.split('?')[1] || '');
+  const urlParams = new URLSearchParams(location.search);
   const filterPriceMin = parseInt(urlParams.get('priceMin')) || 0;
   const filterPriceMax = parseInt(urlParams.get('priceMax')) || 0;
   const filterSort = urlParams.get('sort') || 'relevance';
 
   app.innerHTML = `
     <div class="breadcrumb">
-      <a href="#/">Home</a> <span>›</span>
+      <a href="/">Home</a> <span>›</span>
       <span class="current">${title}</span>
     </div>
     <div class="search-header">
@@ -1945,7 +1996,7 @@ async function renderSearch(query, page = 1, opts = {}) {
         <div class="empty-icon">🔍</div>
         <h3>No products found</h3>
         <p class="muted">Try a different keyword or browse all categories.</p>
-        <a class="btn btn-primary" href="#/category">Browse categories</a>
+        <a class="btn btn-primary" href="/category">Browse categories</a>
       </div>`;
       return;
     }
@@ -1979,11 +2030,13 @@ async function renderSearch(query, page = 1, opts = {}) {
       const start = Math.max(1, page - 2);
       const end = Math.min(totalPages, page + 2);
       let html = '';
-      html += `<a class="page-btn ${page <= 1 ? 'disabled' : ''}" href="#${mkLink(Math.max(1, page - 1))}">‹ Prev</a>`;
+      // mkLink returns clean paths (e.g. "/search?q=foo&page=2"); no
+      // leading "#" needed since we're on History API routing now.
+      html += `<a class="page-btn ${page <= 1 ? 'disabled' : ''}" href="${mkLink(Math.max(1, page - 1))}">‹ Prev</a>`;
       for (let i = start; i <= end; i++) {
-        html += `<a class="page-btn ${i === page ? 'active' : ''}" href="#${mkLink(i)}">${i}</a>`;
+        html += `<a class="page-btn ${i === page ? 'active' : ''}" href="${mkLink(i)}">${i}</a>`;
       }
-      html += `<a class="page-btn ${page >= totalPages ? 'disabled' : ''}" href="#${mkLink(Math.min(totalPages, page + 1))}">Next ›</a>`;
+      html += `<a class="page-btn ${page >= totalPages ? 'disabled' : ''}" href="${mkLink(Math.min(totalPages, page + 1))}">Next ›</a>`;
       pag.innerHTML = html;
     }
   } catch (err) {
@@ -2017,7 +2070,7 @@ async function renderProduct(pid) {
         <p class="muted">${isUnshippable
           ? "Sorry, we can't ship this product to India right now. Please check out other items."
           : esc(err.message)}</p>
-        <a class="btn btn-primary" href="#/">← Back to store</a>
+        <a class="btn btn-primary" href="/">← Back to store</a>
       </div>`;
     return;
   }
@@ -2062,8 +2115,8 @@ async function renderProduct(pid) {
 
   app.innerHTML = `
     <div class="breadcrumb">
-      <a href="#/">Home</a> <span>›</span>
-      ${category ? `<a href="#/search?q=${encodeURIComponent(category.split('/')[0].trim())}">${esc(category.split('/')[0].trim())}</a><span>›</span>` : ''}
+      <a href="/">Home</a> <span>›</span>
+      ${category ? `<a href="/search?q=${encodeURIComponent(category.split('/')[0].trim())}">${esc(category.split('/')[0].trim())}</a><span>›</span>` : ''}
       <span class="current">${esc(name.slice(0, 60))}${name.length > 60 ? '…' : ''}</span>
     </div>
 

@@ -13,18 +13,18 @@ function renderCart() {
 
   if (!items.length) {
     app.innerHTML = `
-      <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Cart</span></div>
+      <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">Cart</span></div>
       <div class="empty-state">
         <div class="empty-icon">🛒</div>
         <h3>Your cart is empty</h3>
         <p class="muted">Add some products to get started.</p>
-        <a class="btn btn-primary" href="#/">Shop now</a>
+        <a class="btn btn-primary" href="/">Shop now</a>
       </div>`;
     return;
   }
 
   app.innerHTML = `
-    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Cart</span></div>
+    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">Cart</span></div>
     <h1 class="page-title">Your Cart</h1>
     <div class="cart-layout">
       <div class="cart-items" id="cartItems"></div>
@@ -51,11 +51,11 @@ function renderCartItems() {
   if (!container) return;
   container.innerHTML = state.cart.map((item, idx) => `
     <div class="cart-item fade-in" data-idx="${idx}">
-      <a href="#/product/${encodeURIComponent(item.pid)}" class="cart-item-img-wrap">
+      <a href="/product/${encodeURIComponent(item.pid)}" class="cart-item-img-wrap">
         <img src="${imgProxy(item.image)}" alt="${esc(item.productName)}" onerror="this.src='/img/befach_logo.png'"/>
       </a>
       <div class="cart-item-info">
-        <a class="cart-item-title" href="#/product/${encodeURIComponent(item.pid)}">${esc(item.productName)}</a>
+        <a class="cart-item-title" href="/product/${encodeURIComponent(item.pid)}">${esc(item.productName)}</a>
         ${item.variantName ? `<div class="cart-item-variant">${esc(item.variantName)}</div>` : ''}
         <div class="cart-item-price">${fmtINR(item.priceUsd)}</div>
       </div>
@@ -84,7 +84,7 @@ function renderCartSummary() {
     <div class="summary-row summary-total"><span>Total</span><strong>${fmtINR(sub)}</strong></div>
 
     <button class="btn btn-primary btn-lg btn-full" onclick="navigate('/checkout')">Proceed to Checkout →</button>
-    <a class="btn btn-ghost btn-full" href="#/">Continue shopping</a>
+    <a class="btn btn-ghost btn-full" href="/">Continue shopping</a>
     <button class="btn-link" onclick="if(confirm('Empty cart?')){clearCart();renderCart();}">Clear cart</button>
   `;
 }
@@ -155,8 +155,8 @@ async function renderCheckout() {
 
   app.innerHTML = `
     <div class="breadcrumb">
-      <a href="#/">Home</a> <span>›</span>
-      <a href="#/cart">Cart</a> <span>›</span>
+      <a href="/">Home</a> <span>›</span>
+      <a href="/cart">Cart</a> <span>›</span>
       <span class="current">Checkout</span>
     </div>
     <h1 class="page-title">Checkout</h1>
@@ -447,7 +447,7 @@ async function renderOrderDetail(orderId) {
     if (!o) throw new Error('Order not found');
 
     app.innerHTML = `
-      <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Order ${esc(o.id)}</span></div>
+      <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">Order ${esc(o.id)}</span></div>
 
       <div class="order-success-banner">
         <div class="order-success-icon">✅</div>
@@ -523,14 +523,14 @@ async function renderOrderDetail(orderId) {
           <div class="card">
             <h3>Need help?</h3>
             <a class="btn btn-ghost btn-full" href="mailto:support@befach.com">✉️ Email support</a>
-            <a class="btn btn-ghost btn-full" href="#/track">🔎 Track another order</a>
-            <a class="btn btn-primary btn-full" href="#/">Continue shopping</a>
+            <a class="btn btn-ghost btn-full" href="/track">🔎 Track another order</a>
+            <a class="btn btn-primary btn-full" href="/">Continue shopping</a>
           </div>
         </aside>
       </div>
     `;
   } catch (err) {
-    app.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Order not found</h3><p class="muted">${esc(err.message)}</p><a class="btn btn-primary" href="#/">Home</a></div>`;
+    app.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Order not found</h3><p class="muted">${esc(err.message)}</p><a class="btn btn-primary" href="/">Home</a></div>`;
   }
 }
 
@@ -539,7 +539,7 @@ async function renderOrderDetail(orderId) {
 // ══════════════════════════════════════════════════════════════
 function renderTrack() {
   app.innerHTML = `
-    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Track order</span></div>
+    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">Track order</span></div>
     <div class="track-box">
       <h1>Track your order</h1>
       <p class="muted">Enter the order ID you received after checkout (e.g. BF-ABC123-XYZ9).</p>
@@ -566,7 +566,7 @@ function renderTrack() {
 function renderLegal() {
   const c = window.COMPANY_INFO || {};
   app.innerHTML = `
-    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Legal &amp; Compliance</span></div>
+    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">Legal &amp; Compliance</span></div>
     <h1 class="page-title">Legal &amp; Compliance</h1>
 
     <div class="legal-page">
@@ -605,7 +605,7 @@ function renderLegal() {
 
       <section class="legal-section">
         <h2>Returns &amp; refunds</h2>
-        <p>For shipping times, return windows and refund process, please see our <a href="#/faq">Shipping &amp; FAQ</a>.</p>
+        <p>For shipping times, return windows and refund process, please see our <a href="/faq">Shipping &amp; FAQ</a>.</p>
       </section>
 
       <p class="legal-footer-note muted">Last updated: ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
@@ -618,7 +618,7 @@ function renderLegal() {
 // ══════════════════════════════════════════════════════════════
 function renderFaq() {
   app.innerHTML = `
-    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Shipping & FAQ</span></div>
+    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">Shipping & FAQ</span></div>
     <h1 class="page-title">Shipping, Returns & FAQ</h1>
     <div class="faq">
       <details open>
@@ -631,7 +631,7 @@ function renderFaq() {
       </details>
       <details>
         <summary>How do I track my order?</summary>
-        <p>Go to <a href="#/track">Track order</a> and enter the order ID you received after checkout. Tracking updates appear automatically once your package ships.</p>
+        <p>Go to <a href="/track">Track order</a> and enter the order ID you received after checkout. Tracking updates appear automatically once your package ships.</p>
       </details>
       <details>
         <summary>What is your return policy?</summary>
@@ -682,7 +682,7 @@ async function renderAdmin() {
   if (!getAdminPw()) return renderAdminLogin();
 
   app.innerHTML = `
-    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">Admin</span></div>
+    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">Admin</span></div>
     <div class="admin-header">
       <h1>Admin Dashboard</h1>
       <button class="btn btn-ghost" onclick="adminLogout()">Sign out</button>
@@ -738,7 +738,7 @@ async function renderAdmin() {
               <td><span class="status-chip status-${esc((o.status || '').toLowerCase())}">${esc(o.status)}</span></td>
               <td>${fmtINR(o.productTotal)}</td>
               <td><strong>${fmtINR(o.profit)}</strong></td>
-              <td><a class="btn-sm btn-ghost" href="#/order/${encodeURIComponent(o.id)}">View</a></td>
+              <td><a class="btn-sm btn-ghost" href="/order/${encodeURIComponent(o.id)}">View</a></td>
             </tr>
           `).join('')}
         </tbody>
@@ -908,8 +908,8 @@ function updateAuthSlot() {
     setupAccountDropdown();
   } else {
     if (slot) slot.innerHTML = `
-      <a href="#/login" class="nav-link nav-signin" data-page="login">Sign in</a>
-      <a href="#/register" class="nav-link nav-register-btn" data-page="register">Create account</a>
+      <a href="/login" class="nav-link nav-signin" data-page="login">Sign in</a>
+      <a href="/register" class="nav-link nav-register-btn" data-page="register">Create account</a>
     `;
     // Hide the dropdown if it was open (e.g. user signed out)
     const dd = document.getElementById('accountDropdown');
@@ -1014,7 +1014,7 @@ function renderLogin() {
     <div class="auth-page">
       <div class="auth-card">
         <h1>Sign in to GCOM</h1>
-        <p class="muted">New here? <a href="#/register">Create an account</a></p>
+        <p class="muted">New here? <a href="/register">Create an account</a></p>
         <form id="loginForm" class="auth-form">
           <label>Email
             <input type="email" name="email" required autocomplete="email" autofocus />
@@ -1026,7 +1026,7 @@ function renderLogin() {
           <div class="auth-error" id="loginError"></div>
         </form>
         <p class="muted small" style="text-align:center">
-          Or <a href="#/checkout">continue as guest</a> to checkout without an account
+          Or <a href="/checkout">continue as guest</a> to checkout without an account
         </p>
       </div>
     </div>
@@ -1060,7 +1060,7 @@ function renderRegister() {
     <div class="auth-page">
       <div class="auth-card">
         <h1>Create your GCOM account</h1>
-        <p class="muted">Already have one? <a href="#/login">Sign in</a></p>
+        <p class="muted">Already have one? <a href="/login">Sign in</a></p>
         <form id="registerForm" class="auth-form">
           <label>Full name
             <input type="text" name="name" required autocomplete="name" autofocus />
@@ -1110,7 +1110,7 @@ async function renderAccount() {
   if (!state.user) return navigate('/login');
 
   app.innerHTML = `
-    <div class="breadcrumb"><a href="#/">Home</a> <span>›</span> <span class="current">My Account</span></div>
+    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">My Account</span></div>
     <div class="account-layout">
       <aside class="account-side">
         <div class="account-avatar">${esc((state.user.name || 'U').slice(0, 1).toUpperCase())}</div>
@@ -1168,7 +1168,7 @@ async function renderAccount() {
     const list = data.orders || [];
     const el = document.getElementById('myOrders');
     if (!list.length) {
-      el.innerHTML = `<p class="muted">You haven't placed any orders yet. <a href="#/">Start shopping</a></p>`;
+      el.innerHTML = `<p class="muted">You haven't placed any orders yet. <a href="/">Start shopping</a></p>`;
     } else {
       el.innerHTML = `
         <table class="admin-table">
@@ -1181,7 +1181,7 @@ async function renderAccount() {
                 <td>${o.items.length} item${o.items.length === 1 ? '' : 's'}</td>
                 <td><strong>${fmtINR(o.grandTotal)}</strong></td>
                 <td><span class="status-chip status-${esc((o.status || '').toLowerCase())}">${esc(o.status)}</span></td>
-                <td><a class="btn-sm btn-ghost" href="#/order/${encodeURIComponent(o.id)}">View</a></td>
+                <td><a class="btn-sm btn-ghost" href="/order/${encodeURIComponent(o.id)}">View</a></td>
               </tr>
             `).join('')}
           </tbody>
@@ -1205,8 +1205,8 @@ async function renderOrders() {
   if (!state.user) return navigate('/login');
   app.innerHTML = `
     <div class="breadcrumb">
-      <a href="#/">Home</a> <span>›</span>
-      <a href="#/account">My account</a> <span>›</span>
+      <a href="/">Home</a> <span>›</span>
+      <a href="/account">My account</a> <span>›</span>
       <span class="current">My orders</span>
     </div>
     <h1 class="page-title">My orders</h1>
@@ -1219,7 +1219,7 @@ async function renderOrders() {
     const list = data.orders || [];
     const el = document.getElementById('myOrdersList');
     if (!list.length) {
-      el.innerHTML = `<p class="muted">No orders yet. <a href="#/">Start browsing</a></p>`;
+      el.innerHTML = `<p class="muted">No orders yet. <a href="/">Start browsing</a></p>`;
       return;
     }
     el.innerHTML = `
@@ -1233,7 +1233,7 @@ async function renderOrders() {
               <td>${o.items.length} item${o.items.length === 1 ? '' : 's'}</td>
               <td><strong>${fmtINR(o.grandTotal)}</strong></td>
               <td><span class="status-chip status-${esc((o.status || '').toLowerCase())}">${esc(o.status)}</span></td>
-              <td><a class="btn-sm btn-ghost" href="#/order/${encodeURIComponent(o.id)}">View</a></td>
+              <td><a class="btn-sm btn-ghost" href="/order/${encodeURIComponent(o.id)}">View</a></td>
             </tr>
           `).join('')}
         </tbody>
@@ -1253,7 +1253,7 @@ async function renderWishlist() {
   const pids = Array.isArray(state.wishlist) ? state.wishlist : [];
   app.innerHTML = `
     <div class="breadcrumb">
-      <a href="#/">Home</a> <span>›</span>
+      <a href="/">Home</a> <span>›</span>
       <span class="current">Wishlist</span>
     </div>
     <h1 class="page-title">Wishlist</h1>
@@ -1266,7 +1266,7 @@ async function renderWishlist() {
         <div class="empty-icon">♡</div>
         <h3>Your wishlist is empty</h3>
         <p class="muted">Tap the heart on any product to save it here.</p>
-        <a class="btn btn-primary" href="#/">Browse products</a>
+        <a class="btn btn-primary" href="/">Browse products</a>
       </div>
     `}
   `;
@@ -1299,8 +1299,8 @@ function renderReturns() {
   const supportEmail = c.email || 'sales@befach.com';
   app.innerHTML = `
     <div class="breadcrumb">
-      <a href="#/">Home</a> <span>›</span>
-      <a href="#/account">My account</a> <span>›</span>
+      <a href="/">Home</a> <span>›</span>
+      <a href="/account">My account</a> <span>›</span>
       <span class="current">Returns &amp; refunds</span>
     </div>
     <h1 class="page-title">Returns &amp; refunds</h1>
@@ -1330,7 +1330,7 @@ function renderReturns() {
     </section>
     <section class="card" style="margin-top:16px">
       <h2>Need help right now?</h2>
-      <p>Email <a href="mailto:${esc(supportEmail)}">${esc(supportEmail)}</a> or <a href="#/faq">read the FAQ</a>.</p>
+      <p>Email <a href="mailto:${esc(supportEmail)}">${esc(supportEmail)}</a> or <a href="/faq">read the FAQ</a>.</p>
     </section>
   `;
   document.getElementById('returnForm').onsubmit = (e) => {

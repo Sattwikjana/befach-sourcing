@@ -20,7 +20,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260501j" />
+  <link rel="stylesheet" href="/css/styles.css?v=20260502a" />
   <!-- Inline style as a safety net — guaranteed to load with no race
        conditions against the external CSS. -->
   <style>
@@ -28,19 +28,26 @@
     html[data-page="home"] .header-search { display: none !important; }
   </style>
   <script>
-    // Set the page slug on <html> BEFORE first paint so CSS rules like
-    // html[data-page="home"] .header-search { display: none } fire
-    // immediately — no flash of the wrong layout. CSS alone hides the
-    // search bar on home and shows it on every other page.
+    // 1) MIGRATE OLD HASH URLs — anyone hitting /#/cart from a stale
+    //    bookmark or shared link is silently redirected to /cart so
+    //    nothing breaks during the cutover from hash routing.
+    //    replaceState (not pushState) so the back button doesn't go
+    //    back to the hash version.
+    if (location.hash && location.hash.indexOf('#/') === 0) {
+      var clean = location.hash.slice(1);   // "/cart?foo=bar"
+      history.replaceState(null, '', clean);
+    }
+    // 2) Set the page slug on <html> BEFORE first paint so CSS rules
+    //    like html[data-page="home"] .header-search { display: none }
+    //    fire immediately — no flash of the wrong layout. CSS alone
+    //    hides the search bar on home and shows it on every other page.
     (function () {
-      var hash = location.hash || '#/';
-      var path = hash.slice(1).split('?')[0];
+      var path = location.pathname || '/';
       var slug = (path === '/' || path === '') ? 'home' : (path.split('/')[1] || 'home');
       document.documentElement.dataset.page = slug;
     })();
-    window.addEventListener('hashchange', function () {
-      var hash = location.hash || '#/';
-      var path = hash.slice(1).split('?')[0];
+    window.addEventListener('popstate', function () {
+      var path = location.pathname || '/';
       var slug = (path === '/' || path === '') ? 'home' : (path.split('/')[1] || 'home');
       document.documentElement.dataset.page = slug;
     });
@@ -60,7 +67,7 @@
         </svg>
       </button>
 
-      <a href="#/" class="brand brand-text" aria-label="Befach Global Store">
+      <a href="/" class="brand brand-text" aria-label="Befach Global Store">
         <span class="brand-text-wrap">
           <span class="brand-text-main">BEFACH</span>
           <span class="brand-text-sub">GLOBAL STORE</span>
@@ -79,11 +86,11 @@
       </form>
 
       <nav class="header-nav" aria-label="Primary">
-        <a href="#/track" class="nav-link nav-track" data-page="track">
+        <a href="/track" class="nav-link nav-track" data-page="track">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10h-8l-3-4h-7v12h18V10z"/></svg>
           <span class="nav-label">Track</span>
         </a>
-        <a href="#/wishlist" class="nav-link nav-wishlist" data-page="wishlist">
+        <a href="/wishlist" class="nav-link nav-wishlist" data-page="wishlist">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
           <span class="nav-label">Wishlist</span>
         </a>
@@ -93,7 +100,7 @@
              with My profile / My orders / Returns / Sign out. -->
         <span id="authSlot" class="auth-slot"></span>
         <span class="nav-divider" aria-hidden="true"></span>
-        <a href="#/cart" class="nav-link cart-link" data-page="cart">
+        <a href="/cart" class="nav-link cart-link" data-page="cart">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39A2 2 0 009.66 16H19a2 2 0 002-1.61L23 6H6"/></svg>
           <span class="nav-label">Cart</span>
           <span class="cart-badge" id="cartCount">0</span>
@@ -113,10 +120,10 @@
           <span class="account-dropdown-greeting" id="accountDropdownGreeting"></span>
           <span class="account-dropdown-email muted small" id="accountDropdownEmail"></span>
         </div>
-        <a href="#/account" class="account-dropdown-link">My profile</a>
-        <a href="#/orders" class="account-dropdown-link">My orders</a>
-        <a href="#/wishlist" class="account-dropdown-link">Wishlist</a>
-        <a href="#/returns" class="account-dropdown-link">Returns &amp; refunds</a>
+        <a href="/account" class="account-dropdown-link">My profile</a>
+        <a href="/orders" class="account-dropdown-link">My orders</a>
+        <a href="/wishlist" class="account-dropdown-link">Wishlist</a>
+        <a href="/returns" class="account-dropdown-link">Returns &amp; refunds</a>
         <hr class="account-dropdown-divider"/>
         <button type="button" class="account-dropdown-link account-dropdown-signout" id="accountDropdownSignOut">Sign out</button>
       </div>
@@ -130,7 +137,7 @@
   <div class="drawer-backdrop" id="drawerBackdrop"></div>
   <aside class="drawer" id="drawer" aria-label="Mobile menu">
     <div class="drawer-head">
-      <a href="#/" class="drawer-brand-link brand-text" id="drawerBrandLink">
+      <a href="/" class="drawer-brand-link brand-text" id="drawerBrandLink">
         <span class="brand-text-wrap">
           <span class="brand-text-main">BEFACH</span>
           <span class="brand-text-sub">GLOBAL STORE</span>
@@ -162,17 +169,17 @@
       </div>
       <div class="footer-col">
         <h4>Shop</h4>
-        <a href="#/">Home</a>
-        <a href="#/category">All Categories</a>
-        <a href="#/search?q=trending">Trending</a>
-        <a href="#/cart">Cart</a>
+        <a href="/">Home</a>
+        <a href="/category">All Categories</a>
+        <a href="/search?q=trending">Trending</a>
+        <a href="/cart">Cart</a>
       </div>
       <div class="footer-col">
         <h4>Help</h4>
-        <a href="#/track">Track Order</a>
-        <a href="#/faq">Shipping & Returns</a>
-        <a href="#/faq">FAQ</a>
-        <a href="#/legal">Legal & Compliance</a>
+        <a href="/track">Track Order</a>
+        <a href="/faq">Shipping & Returns</a>
+        <a href="/faq">FAQ</a>
+        <a href="/legal">Legal & Compliance</a>
       </div>
       <div class="footer-col footer-company" id="footerCompany">
         <h4>Operating Entity</h4>
@@ -194,8 +201,8 @@
   <!-- Razorpay Checkout — loaded async so it doesn't block the page;
        only used on the checkout page when the customer hits "Pay & Place order". -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
-  <script src="/js/app.js?v=20260501j"></script>
-  <script src="/js/app-store.js?v=20260501j"></script>
+  <script src="/js/app.js?v=20260502a"></script>
+  <script src="/js/app-store.js?v=20260502a"></script>
   <!-- Surface any uncaught JS error in the page so we can debug from
        the browser without DevTools. Goes to console.error and shows
        a discreet banner if anything blows up. -->
