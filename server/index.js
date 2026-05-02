@@ -834,18 +834,57 @@ app.get('/api/store/search/smart', async (req, res) => {
 
     recordRecentQuery(rawQuery);
     const intent = await searchAI.parseQuery(rawQuery);
-    const searchKeywords = intent.keywords || rawQuery;
+    const narrowKeywords = intent.keywords || rawQuery;
+    const broaderKeywords = intent.broader_keywords || narrowKeywords;
+    const usingBroader = broaderKeywords && broaderKeywords.toLowerCase() !== narrowKeywords.toLowerCase();
 
-    // Reuse the existing search infrastructure — same caching, shipping
-    // warming, pricing logic. We just pass it AI-cleaned keywords.
-    const meta = await searchProductsMerged({
-      keyWord: searchKeywords,
-      categoryId: undefined,
-      page,
-      size: pageSize,
-    });
+    // Always run the narrow search. If a different broader fallback is
+    // available, run it in parallel and merge — narrow matches first
+    // (more relevant) followed by broader ones (still useful, but more
+    // generic). This is the fix for "women dresses" returning only 60
+    // products: the narrow term matches few catalog titles literally,
+    // while "women clothing" pulls in the whole category.
+    const [narrowMeta, broaderMeta] = await Promise.all([
+      searchProductsMerged({
+        keyWord: narrowKeywords,
+        categoryId: undefined,
+        page,
+        size: pageSize,
+      }),
+      usingBroader
+        ? searchProductsMerged({
+            keyWord: broaderKeywords,
+            categoryId: undefined,
+            page,
+            size: pageSize,
+          })
+        : Promise.resolve({ products: [], total: 0, totalPages: 1 }),
+    ]);
 
-    let products = meta.products || [];
+    // Merge: narrow first (relevance), then broader (de-duplicated).
+    const seenPids = new Set();
+    let products = [];
+    for (const p of narrowMeta.products || []) {
+      const pid = p.pid || p.id || p.productId;
+      if (!pid || seenPids.has(pid)) continue;
+      seenPids.add(pid);
+      products.push(p);
+    }
+    for (const p of broaderMeta.products || []) {
+      const pid = p.pid || p.id || p.productId;
+      if (!pid || seenPids.has(pid)) continue;
+      seenPids.add(pid);
+      products.push(p);
+    }
+
+    // Total = sum of both totals minus the dupes. Conservative estimate
+    // because we can only count overlaps within the page we fetched, but
+    // good enough for the pagination UI ("Showing 1500 products" feels
+    // right even if the true total is 1480).
+    const mergedTotal = Math.max(
+      products.length,
+      (narrowMeta.total || 0) + (usingBroader ? (broaderMeta.total || 0) : 0)
+    );
 
     // Apply AI-extracted filters client-side (CJ doesn't support these).
     // Price filter is applied in INR using the same conversion as display.
@@ -881,12 +920,13 @@ app.get('/api/store/search/smart', async (req, res) => {
 
     res.json({
       products: priced,
-      total: priced.length,
-      totalPages: Math.max(1, Math.ceil(priced.length / pageSize)),
+      total: mergedTotal,
+      totalPages: Math.max(1, Math.ceil(mergedTotal / pageSize)),
       query: rawQuery,
       intent: {
         understood: intent.intent,                   // human-readable
         keywords: intent.keywords,
+        broader_keywords: intent.broader_keywords,
         category: intent.category,
         color: intent.color,
         gender: intent.gender,

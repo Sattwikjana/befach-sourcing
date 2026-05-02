@@ -108,22 +108,40 @@ const SYSTEM_PROMPT = `You parse user search queries for an Indian e-commerce st
 
 Input may be English, Hindi, or Hinglish, with typos and natural language.
 
+THINK like a shopper. Many queries describe a CATEGORY the customer wants
+to browse, not a specific product name. "women dresses" means the user
+wants to browse women's clothing — not just products with the literal
+word "dress". Catalog product names rarely include the word "dress" even
+for items that ARE dresses (they say "Casual Maxi", "Floral Frock",
+"Summer Outfit"). To return useful results, you must also propose a
+BROADER fallback term that covers the customer's real intent.
+
 Return JSON ONLY (no prose), this exact shape:
 {
-  "keywords": "english search words to send to product API (translate Hindi → English, fix typos, keep concise)",
+  "keywords": "narrow search words for product API (1-4 english words, most likely to match exact product names)",
+  "broader_keywords": "broader fallback term for the same intent (1-3 english words, the category-style word a shopper would browse). Same as keywords if the query is already specific.",
   "category": "clothing|electronics|home|jewelry|beauty|accessories|toys|sports|other|null",
   "color": "english color name or null",
   "gender": "men|women|kids|unisex|null",
   "price_min": number_in_INR_or_null,
   "price_max": number_in_INR_or_null,
-  "intent": "1-line English summary to show user e.g. 'Blue cooling jackets under ₹2000'"
+  "intent": "1-line English summary to show user e.g. 'Women's dresses' or 'Blue jackets under ₹2000'"
 }
 
 Rules:
-- "keywords" must be 1-4 English words, the cleanest version of what to search.
-- Strip price/color/gender from "keywords" — those go in their own fields.
-- "frock" → "dress", "chappal" → "sandals", common India-specific synonyms.
-- If query is gibberish or empty, return keywords as-is, all other fields null.`;
+- Translate Hindi/Hinglish to English. Fix typos.
+- Strip price/color/gender from "keywords"/"broader_keywords" — those go in their own fields.
+- "frock" → "dress", "chappal" → "sandals" — common India-specific synonyms.
+- BROADER vs NARROW examples:
+  * "women dresses"        → keywords="women dress",  broader_keywords="women clothing"
+  * "men shoes"            → keywords="men shoes",    broader_keywords="men footwear"
+  * "kids toys"            → keywords="kids toy",     broader_keywords="kids"
+  * "blue cooling jacket"  → keywords="cooling jacket", broader_keywords="jacket"
+  * "smart watch"          → keywords="smart watch",  broader_keywords="watch"
+  * "iphone 15 case"       → keywords="iphone 15 case", broader_keywords="iphone case"
+  * "office bag for women" → keywords="women office bag", broader_keywords="women bag"
+- If the query is highly specific (a product SKU, a brand name), keywords and broader_keywords can be the same.
+- If query is gibberish or empty, return keywords as-is, broader_keywords as-is, other fields null.`;
 
 /**
  * Parse a user query. Returns:
@@ -204,6 +222,11 @@ function normalise(parsed, originalQuery) {
   const keywords = typeof parsed.keywords === 'string' && parsed.keywords.trim()
     ? parsed.keywords.trim()
     : originalQuery;
+  // Broader fallback. Default to keywords if AI didn't supply one — same
+  // shape as keywords so downstream code never has to special-case it.
+  const broader = typeof parsed.broader_keywords === 'string' && parsed.broader_keywords.trim()
+    ? parsed.broader_keywords.trim()
+    : keywords;
   const intent = typeof parsed.intent === 'string' ? parsed.intent.trim() : '';
   const category = typeof parsed.category === 'string' && parsed.category !== 'null'
     ? parsed.category.toLowerCase()
@@ -216,7 +239,7 @@ function normalise(parsed, originalQuery) {
     : null;
   const price_min = isFiniteNumber(parsed.price_min) ? parsed.price_min : null;
   const price_max = isFiniteNumber(parsed.price_max) ? parsed.price_max : null;
-  return { keywords, category, color, gender, price_min, price_max, intent };
+  return { keywords, broader_keywords: broader, category, color, gender, price_min, price_max, intent };
 }
 
 function isFiniteNumber(n) {
@@ -231,6 +254,7 @@ function isFiniteNumber(n) {
 function fallback(query, reason) {
   return {
     keywords: query,
+    broader_keywords: query,
     category: null,
     color: null,
     gender: null,
