@@ -1037,17 +1037,29 @@ app.get('/api/store/products', async (req, res) => {
     // CJ search and lets users find anything they paste from the
     // CJ seller dashboard.
     if (!meta && trimmedKw && SKU_PATTERN.test(trimmedKw)) {
-      try {
-        const data = await cj.getProductBySku(trimmedKw);
-        const product = data?.data;
-        if (product && (product.pid || product.id || product.productId)) {
-          meta = { products: [product], total: 1, totalPages: 1 };
-          cacheSet(rawKey, meta);
+      // Try as-is, then with trailing variant letters stripped. CJ's
+      // /product/query keys on the parent SKU (e.g. "CJYD286686310"),
+      // but the variant SKU shown on the product page is the parent
+      // plus a 1–3 letter color/size code ("CJYD286686310JQ"). Users
+      // copy the variant form, so we fall back to the parent on miss.
+      const stripped = trimmedKw.replace(/[A-Z]{1,3}$/i, '');
+      const candidates = stripped !== trimmedKw && SKU_PATTERN.test(stripped)
+        ? [trimmedKw, stripped]
+        : [trimmedKw];
+      for (const sku of candidates) {
+        try {
+          const data = await cj.getProductBySku(sku);
+          const product = data?.data;
+          if (product && (product.pid || product.id || product.productId)) {
+            meta = { products: [product], total: 1, totalPages: 1 };
+            cacheSet(rawKey, meta);
+            break;
+          }
+        } catch (e) {
+          console.warn(`[products] SKU lookup "${sku}" failed:`, e.message);
+          // Fall through to normal keyword path so a non-SKU string that
+          // happens to match the regex still gets searched normally.
         }
-      } catch (e) {
-        console.warn(`[products] SKU lookup "${trimmedKw}" failed:`, e.message);
-        // Fall through to normal keyword path so a non-SKU string that
-        // happens to match the regex still gets searched normally.
       }
     }
 
