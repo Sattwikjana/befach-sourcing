@@ -808,6 +808,129 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
 // running a useless name-search keyword query (which always returns 0).
 const SKU_PATTERN = /^CJ[A-Z0-9]{6,}$/i;
 
+// CJ product URLs end in "-p-<numeric pid>.html". Extract the PID so a
+// pasted URL resolves directly via /product/query?pid=… — far more
+// reliable than guessing parent SKUs from the variant SKU shown on the
+// page (CJ's variant suffix length isn't consistent: sometimes 2
+// letters, sometimes "<digit><digit><letter><letter>", etc.)
+const CJ_URL_PID_RE = /cjdropshipping\.com\/product\/[^\s]*?-p-(\d+)\.html/i;
+
+// ── My Products (curated CJ "My Products" list) ─────────────────────
+// Surfaces the products the seller has explicitly added to their CJ
+// account. Pinned to the top of category pages whose tree contains
+// each product's leaf — so the seller's curated picks are always
+// reachable from the existing nav, even when CJ's keyword index
+// doesn't surface them in that category's normal listing.
+async function fetchAllMyProducts() {
+  const all = [];
+  let pageNum = 1;
+  const pageSize = 50;
+  // Hard cap at 20 pages (1000 products) — sanity guard, not a real limit.
+  while (pageNum <= 20) {
+    const r = await cj.getMyProducts({ page: pageNum, pageSize });
+    const rows = r?.data?.content || [];
+    if (!rows.length) break;
+    all.push(...rows);
+    const total = r?.data?.totalRecords ?? 0;
+    if (all.length >= total) break;
+    pageNum++;
+  }
+  // Normalize to catalog product shape so buildPriced / pricing /
+  // productCard all work without special-casing My Products fields.
+  return all.map(p => ({
+    pid: p.productId,
+    productId: p.productId,
+    productSku: p.sku,
+    productNameEn: p.nameEn,
+    productImage: p.bigImage,
+    sellPrice: p.sellPrice,
+    productWeight: p.weight,
+  }));
+}
+
+async function getCachedMyProducts() {
+  const KEY = 'my-products';
+  const cached = cacheGet(KEY, 30 * 60 * 1000);
+  if (cached) return cached;
+  const products = await fetchAllMyProducts();
+  cacheSet(KEY, products);
+  return products;
+}
+
+// pid → leaf categoryId for each My Product. The list endpoint doesn't
+// include category info, so we fetch detail per product (rate-limited
+// by cjGet's queue) and cache the mapping for an hour.
+async function getMyProductCategoryMap() {
+  const KEY = 'my-product-category-map';
+  const cached = cacheGet(KEY, 60 * 60 * 1000);
+  if (cached) return cached;
+  const products = await getCachedMyProducts();
+  const map = {};
+  for (const p of products) {
+    try {
+      const r = await cj.getProductDetail(p.pid);
+      map[p.pid] = r?.data?.categoryId || null;
+    } catch (e) {
+      console.warn(`[my-products] category lookup failed for ${p.pid}:`, e.message);
+      map[p.pid] = null;
+    }
+  }
+  cacheSet(KEY, map);
+  return map;
+}
+
+// All leaf categoryIds that sit under (or equal) the given rootId,
+// walked from the cached top-level category tree. CJ catalog uses
+// 3-level UUID-keyed categories: top → second → leaf. A product's
+// detail returns its leaf categoryId, so to surface "this is in
+// Bags & Shoes" we need the set of leaves underneath the top-level.
+function descendantLeafIds(rootId) {
+  if (!rootId) return new Set();
+  const tree = cacheGet('categories', Infinity) || [];
+  const out = new Set();
+  for (const top of tree) {
+    if (top.categoryFirstId === rootId) {
+      for (const sec of (top.categoryFirstList || [])) {
+        for (const t of (sec.categorySecondList || [])) out.add(t.categoryId);
+      }
+      return out;
+    }
+    for (const sec of (top.categoryFirstList || [])) {
+      if (sec.categorySecondId === rootId) {
+        for (const t of (sec.categorySecondList || [])) out.add(t.categoryId);
+        return out;
+      }
+      for (const t of (sec.categorySecondList || [])) {
+        if (t.categoryId === rootId) { out.add(t.categoryId); return out; }
+      }
+    }
+  }
+  return out;
+}
+
+// Find My Products whose leaf category sits under the requested
+// category. Used to pin curated picks to the top of category pages —
+// otherwise they're invisible whenever CJ's keyword index doesn't
+// surface them at the top of that category.
+async function pinnedMyProductsForCategory(categoryId) {
+  if (!categoryId) return [];
+  try {
+    const [products, catMap] = await Promise.all([
+      getCachedMyProducts(),
+      getMyProductCategoryMap(),
+    ]);
+    const leafIds = descendantLeafIds(categoryId);
+    if (!leafIds.size) return [];
+    return products.filter(p => {
+      const leaf = catMap[p.pid];
+      return leaf && leafIds.has(leaf);
+    });
+  } catch (e) {
+    console.warn('[my-products] pinning failed:', e.message);
+    return [];
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════
 //  SMART SEARCH (AI-parsed query → CJ keyword search → filtered)
 // ══════════════════════════════════════════════════════════════════
@@ -1029,6 +1152,23 @@ app.get('/api/store/products', async (req, res) => {
     // perceived the site as slow.)
     let meta = cacheGet(rawKey, 30 * 60 * 1000);
 
+    // CJ URL paste — extract PID from ".../product/<slug>-p-<pid>.html"
+    // and resolve directly. URLs are how users reliably link to a
+    // specific CJ product (SKU formats vary; PIDs are stable).
+    const urlMatch = trimmedKw && trimmedKw.match(CJ_URL_PID_RE);
+    if (!meta && urlMatch) {
+      try {
+        const r = await cj.getProductDetail(urlMatch[1]);
+        const product = r?.data;
+        if (product && (product.pid || product.id || product.productId)) {
+          meta = { products: [product], total: 1, totalPages: 1 };
+          cacheSet(rawKey, meta);
+        }
+      } catch (e) {
+        console.warn(`[products] URL→PID lookup "${urlMatch[1]}" failed:`, e.message);
+      }
+    }
+
     // SKU short-circuit: if the keyword looks like a CJ SKU
     // ("CJYD186929102BY", "CJYD2338013", etc.), the keyword path
     // would always return 0 — CJ's keyWord search doesn't index
@@ -1098,6 +1238,25 @@ app.get('/api/store/products', async (req, res) => {
             if (meta2.products.length > 0) meta = meta2;
           } catch (e) {
             console.warn(`[products] keyword fallback failed:`, e.message);
+          }
+        }
+      }
+
+      // Pin matching curated My Products to the top of category page 1.
+      // CJ's keyword/category index sometimes buries or omits seller-
+      // curated items; this guarantees they show up when a customer
+      // browses the category they actually belong to. Page 1 only — we
+      // don't want them re-appearing on every paginated page.
+      if (categoryId && (parseInt(page) || 1) === 1) {
+        const pinned = await pinnedMyProductsForCategory(categoryId);
+        if (pinned.length) {
+          const existingPids = new Set(
+            (meta.products || []).map(p => p.pid || p.id || p.productId)
+          );
+          const toPrepend = pinned.filter(p => !existingPids.has(p.pid));
+          if (toPrepend.length) {
+            meta.products = [...toPrepend, ...meta.products];
+            meta.total = (meta.total || 0) + toPrepend.length;
           }
         }
       }
@@ -2095,6 +2254,17 @@ async function prewarm() {
     await cj.getCategories().then(d => cacheSet('categories', d.data || []));
     console.log('[prewarm] categories ✓');
   } catch (e) { console.warn('[prewarm] categories failed:', e.message); }
+
+  // Background-warm the My Products → leaf category map. ~280ms per
+  // product (cjGet rate-limit), so ~3s for a 10-item list. Fire-and-
+  // forget so startup isn't blocked; the cache lasts an hour and the
+  // pin logic is a no-op when the map isn't ready yet.
+  (async () => {
+    try {
+      const map = await getMyProductCategoryMap();
+      console.log(`[prewarm] my-products map (${Object.keys(map).length}) ✓`);
+    } catch (e) { console.warn('[prewarm] my-products failed:', e.message); }
+  })();
 
   // Warm the actual keywords the home page will fetch today, so the
   // first user visit hits cache instead of paying the per-endpoint
