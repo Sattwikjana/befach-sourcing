@@ -1036,16 +1036,23 @@ app.get('/api/store/products', async (req, res) => {
     // and return that single product. Saves a useless multi-page
     // CJ search and lets users find anything they paste from the
     // CJ seller dashboard.
-    if (!meta && trimmedKw && SKU_PATTERN.test(trimmedKw)) {
+    // Extract the leading "CJ"-prefixed token from the paste, dropping
+    // any descriptor CJ appends in its UI ("-Green English", " (50ml)",
+    // " Blue / XL", etc.). Without this, "CJWJWJYZ00729-Green English"
+    // fails SKU_PATTERN entirely and falls through to keyword search,
+    // which returns 0 because CJ's keyWord doesn't index SKUs.
+    const skuLike = (trimmedKw.match(/^CJ[A-Z0-9]+/i) || [])[0] || '';
+
+    if (!meta && skuLike && SKU_PATTERN.test(skuLike)) {
       // Try as-is, then with trailing variant letters stripped. CJ's
       // /product/query keys on the parent SKU (e.g. "CJYD286686310"),
       // but the variant SKU shown on the product page is the parent
       // plus a 1–3 letter color/size code ("CJYD286686310JQ"). Users
       // copy the variant form, so we fall back to the parent on miss.
-      const stripped = trimmedKw.replace(/[A-Z]{1,3}$/i, '');
-      const candidates = stripped !== trimmedKw && SKU_PATTERN.test(stripped)
-        ? [trimmedKw, stripped]
-        : [trimmedKw];
+      const stripped = skuLike.replace(/[A-Z]{1,3}$/i, '');
+      const candidates = stripped !== skuLike && SKU_PATTERN.test(stripped)
+        ? [skuLike, stripped]
+        : [skuLike];
       for (const sku of candidates) {
         try {
           const data = await cj.getProductBySku(sku);
