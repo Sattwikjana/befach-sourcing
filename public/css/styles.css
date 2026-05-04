@@ -105,13 +105,14 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   text-decoration: none;
   flex-shrink: 0;
 }
-/* Logo image — wordmark only now (tagline rendered as separate
-   text alongside, see .brand-tagline-side). 52px tall gives a
-   confident header presence without dominating. */
+/* Logo image — Global Shopper wordmark. Bumped to 80px tall for
+   stronger brand presence; the previous 52px was reading as too
+   small at typical desktop viewport sizes. Tablet/mobile values
+   scale down proportionally in the media queries below. */
 .brand-logo-img {
-  height: 52px;
+  height: 80px;
   width: auto;
-  max-width: 200px;
+  max-width: 300px;
   display: block;
 }
 /* Tagline rendered as text next to the logo, two lines stacked.
@@ -2720,7 +2721,7 @@ body.page-home .header-nav { margin-left: auto; }
     padding: 10px 14px;
   }
   /* Brand on tablet — keep logo + side tagline */
-  .brand-logo-img { height: 44px; max-width: 170px; }
+  .brand-logo-img { height: 64px; max-width: 240px; }
   .brand-tagline-side { font-size: 10px; padding-left: 10px; }
   .brand { gap: 10px; }
   .brand-text-main { font-size: 26px; }
@@ -2850,7 +2851,7 @@ body.page-home .header-nav { margin-left: auto; }
   .header-inner { padding: 8px 12px; gap: 8px; }
   /* Phone: hide the side tagline to give the search bar room.
      Logo alone keeps brand identity. */
-  .brand-logo-img { height: 38px; max-width: 130px; }
+  .brand-logo-img { height: 52px; max-width: 180px; }
   .brand-tagline-side { display: none; }
   .brand-text-main { font-size: 22px; }
   .brand-text-sub  { font-size: 9px; letter-spacing: 0.24em; }
