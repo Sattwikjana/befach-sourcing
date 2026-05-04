@@ -2694,6 +2694,84 @@ body.page-home .header-nav { margin-left: auto; }
 .mobile-cta-btn:disabled { background: #e3d0c0; }
 
 /* ═══════════════════════════════════════════════════════════════
+   Persistent mobile bottom nav — phones/tablets ≤860px wide
+   ═══════════════════════════════════════════════════════════════ */
+.mobile-bottom-nav { display: none; }
+
+@media (max-width: 860px) {
+  .mobile-bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-top: 1px solid var(--border);
+    padding: 6px 0;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+    z-index: 49;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
+  }
+  .mbn-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 4px;
+    text-decoration: none;
+    color: #6b7280;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    position: relative;
+    min-height: 52px;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mbn-item svg { stroke: currentColor; }
+  /* Active page — highlight the matching nav item using body.page-X class */
+  body.page-home    .mbn-item[data-page="home"],
+  body.page-category .mbn-item[data-page="category"],
+  body.page-wishlist .mbn-item[data-page="wishlist"],
+  body.page-cart    .mbn-item[data-page="cart"],
+  body.page-account .mbn-item[data-page="account"] {
+    color: var(--brand);
+  }
+  .mbn-item:active { color: var(--brand); }
+  /* Cart count badge — hidden when 0 (data-empty="true") */
+  .mbn-badge {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    margin-left: 4px;
+    background: var(--accent, #B89456);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 9px;
+    min-width: 16px;
+    text-align: center;
+    line-height: 1.4;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .mbn-badge[data-empty="true"] { display: none; }
+
+  /* Reserve room at the bottom of every page so content doesn't hide
+     behind the fixed nav. 60px = nav height + padding + safe-area. */
+  main { padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
+
+  /* On product/cart pages the .mobile-cta-bar handles primary action
+     and replaces the bottom nav for those flows. The CTA bar already
+     has its own safe-area padding; just hide the bottom nav. */
+  body.page-product .mobile-bottom-nav,
+  body.page-cart    .mobile-bottom-nav,
+  body.page-checkout .mobile-bottom-nav { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
    Responsive breakpoints
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 1100px) {

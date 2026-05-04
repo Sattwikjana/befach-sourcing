@@ -423,6 +423,13 @@ window.syncCartFromServer = syncCartFromServer;
 function updateCartBadge() {
   const n = state.cart.reduce((s, i) => s + (i.quantity || 0), 0);
   if (cartCountEl) cartCountEl.textContent = n;
+  // Mobile bottom-nav cart badge — hide entirely when 0 so empty
+  // carts don't show a "0" pill.
+  const mbn = document.getElementById('mbnCartBadge');
+  if (mbn) {
+    mbn.textContent = n > 99 ? '99+' : String(n);
+    mbn.setAttribute('data-empty', n > 0 ? 'false' : 'true');
+  }
 }
 function addToCart(item) {
   // item: { pid, vid, quantity, productName, variantName, image, priceUsd }
