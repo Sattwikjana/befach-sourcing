@@ -99,7 +99,7 @@ const CACHE = new Map(); // insertion order = LRU order
 // shape or sort order. Old cached entries with a different version
 // won't be read, so users see the new behavior immediately on deploy
 // without waiting for the 30-min TTL to expire.
-const PRODUCTS_CACHE_VERSION = 'v5';
+const PRODUCTS_CACHE_VERSION = 'v6';
 const productsRawKey = (params) => `productsRaw:${PRODUCTS_CACHE_VERSION}:${JSON.stringify(params)}`;
 
 function cacheGet(key, ttlMs) {
@@ -671,10 +671,51 @@ function parseListV2(data, pageSize) {
 //
 // For pure category browse (no keyWord) we just use listV2 — categoryId
 // filtering on the legacy endpoint is unreliable.
+// Re-rank a list of CJ products by a "trending + low cost" score so
+// page 1 of every category surfaces bestsellers instead of CJ's mostly-
+// arbitrary default order. listedNum is CJ's truest popularity signal:
+// more sellers = stronger sell-through (sellers self-select for what
+// works). 70% weight on popularity, 30% on cheapness — verified against
+// Women's Clothing (cocktail dress with 352 listings was buried mid-
+// page) and Pet Supplies (Halloween dog costume with 174 listings was
+// off page 1) in CJ's default order.
+function rankByTrending(products) {
+  if (!products || products.length < 2) return products;
+
+  const parsePrice = (raw) => {
+    // sellPrice can be "5.50" or a range "1.09 -- 6.80" — take lower bound.
+    const m = String(raw || '0').match(/(\d+(?:\.\d+)?)/);
+    return m ? parseFloat(m[1]) : 0;
+  };
+
+  const stats = products.map(p => ({
+    listed: parseInt(p.listedNum || p.listedShopNum || 0, 10) || 0,
+    price:  parsePrice(p.sellPrice ?? p.nowPrice),
+  }));
+  const maxListed = Math.max(...stats.map(s => s.listed), 1);
+  const valid = stats.map(s => s.price).filter(x => x > 0);
+  const minPrice = valid.length ? Math.min(...valid) : 0;
+  const maxPrice = valid.length ? Math.max(...valid) : 1;
+  const priceRange = (maxPrice - minPrice) || 1;
+
+  return products
+    .map((p, i) => {
+      const popScore = stats[i].listed / maxListed;
+      const priceScore = stats[i].price > 0
+        ? 1 - (stats[i].price - minPrice) / priceRange
+        : 0;
+      return { p, score: popScore * 0.7 + priceScore * 0.3 };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map(x => x.p);
+}
+
 async function searchProductsMerged({ keyWord, categoryId, page, size }) {
   if (!keyWord) {
     const data = await cj.searchProducts({ keyWord, categoryId, page, size });
-    return parseListV2(data, size);
+    const result = parseListV2(data, size);
+    result.products = rankByTrending(result.products);
+    return result;
   }
 
   const tokens = String(keyWord).toLowerCase().split(/\s+/).filter(Boolean);
@@ -770,12 +811,16 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
 
   // Sort: strict name matches first regardless of source ranking. For
   // "smart glasses" this puts real smart-glasses items above pet glasses
-  // that survive only via the fallback union.
+  // that survive only via the fallback union. Within each tier, re-rank
+  // by trending+cheapness so popular bestsellers float above obscure
+  // matches.
   if (isMultiWord) {
     const strictMatches = [];
     const otherMatches = [];
     for (const p of merged) (matchesAll(p) ? strictMatches : otherMatches).push(p);
-    merged = [...strictMatches, ...otherMatches];
+    merged = [...rankByTrending(strictMatches), ...rankByTrending(otherMatches)];
+  } else {
+    merged = rankByTrending(merged);
   }
 
   // Total estimate. When we used the fallback path, the filtered counts
