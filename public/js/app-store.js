@@ -709,6 +709,22 @@ async function renderAdmin() {
       </div>
       <div id="adminUsers">Loading…</div>
     </section>
+
+    <section class="card" style="margin-top:18px">
+      <div class="card-head-row">
+        <h2>Featured products <span class="muted small" id="adminFeaturedCount"></span></h2>
+      </div>
+      <p class="muted small" style="margin:0 0 8px 0">
+        Pasted CJ URLs or SKUs are added to your CJ "My Products" list and pinned to the top of their category pages.
+        One per line. URLs and SKUs can be mixed.
+      </p>
+      <textarea id="adminFeaturedInput" rows="4" placeholder="https://cjdropshipping.com/product/...-p-2604240113311612300.html&#10;CJYD2435107&#10;CJYD286686310JQ" style="width:100%;font-family:monospace;font-size:13px;padding:8px;border-radius:6px;border:1px solid #ddd"></textarea>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <button id="adminFeaturedAddBtn" class="btn btn-primary" type="button">Add to Featured</button>
+        <span id="adminFeaturedStatus" class="muted small"></span>
+      </div>
+      <div id="adminFeatured" style="margin-top:14px">Loading…</div>
+    </section>
   `;
 
   try {
@@ -822,6 +838,57 @@ async function renderAdmin() {
     ` : '<p class="muted">No customers have signed up yet.</p>';
   } catch (err) {
     document.getElementById('adminUsers').innerHTML = `<p class="muted">Failed to load: ${esc(err.message)}</p>`;
+  }
+
+  // Featured Products card — list current + bulk-add textarea
+  await loadAdminFeatured();
+  document.getElementById('adminFeaturedAddBtn')?.addEventListener('click', async () => {
+    const ta = document.getElementById('adminFeaturedInput');
+    const statusEl = document.getElementById('adminFeaturedStatus');
+    const text = (ta?.value || '').trim();
+    if (!text) { statusEl.textContent = 'Paste at least one URL or SKU first.'; return; }
+    statusEl.textContent = 'Adding…';
+    try {
+      const r = await adminPost('/api/admin/my-products/bulk-add', { text });
+      const { summary } = r;
+      statusEl.textContent = `Added ${summary.added}, already in list ${summary.already}, skipped ${summary.skipped}, errors ${summary.errors}.`;
+      if (summary.added || summary.already) ta.value = '';
+      // Refresh the displayed list
+      setTimeout(loadAdminFeatured, 4000); // CJ propagation lag
+    } catch (e) {
+      statusEl.textContent = `Failed: ${e.message}`;
+    }
+  });
+}
+
+async function loadAdminFeatured() {
+  const grid = document.getElementById('adminFeatured');
+  if (!grid) return;
+  try {
+    const data = await adminFetch('/api/admin/my-products');
+    const products = data.products || [];
+    document.getElementById('adminFeaturedCount').textContent = `(${products.length})`;
+    if (!products.length) {
+      grid.innerHTML = '<p class="muted">Nothing in Featured yet — paste a URL or SKU above.</p>';
+      return;
+    }
+    grid.innerHTML = `
+      <table class="admin-table">
+        <thead><tr><th>Image</th><th>Name</th><th>SKU</th><th>PID</th></tr></thead>
+        <tbody>
+          ${products.map(p => `
+            <tr>
+              <td><img src="${esc(p.productImage || '')}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:4px"></td>
+              <td>${esc((p.productNameEn || '').slice(0, 80))}</td>
+              <td><code>${esc(p.productSku || '')}</code></td>
+              <td><code class="muted small">${esc(p.pid || '')}</code></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (err) {
+    grid.innerHTML = `<p class="muted">Failed to load: ${esc(err.message)}</p>`;
   }
 }
 

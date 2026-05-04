@@ -2117,6 +2117,102 @@ app.post('/api/admin/products/:pid/recheck-shipping', adminAuth, async (req, res
   }
 });
 
+// ── Featured / "My Products" management ─────────────────────────────
+// List the seller's curated CJ My Products. Drives the admin "Featured"
+// card so the operator can see what's currently pinned.
+app.get('/api/admin/my-products', adminAuth, async (req, res) => {
+  try {
+    const products = await getCachedMyProducts();
+    res.json({ products, count: products.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Bulk-add to CJ My Products from a free-form blob — URLs, SKUs (with
+// or without variant suffix), one per line. Mixed input fine. After
+// adding, invalidates the My Products cache, the per-product category
+// map, and every cached /api/store/products response so the new
+// pinning surfaces immediately rather than waiting for TTLs.
+app.post('/api/admin/my-products/bulk-add', adminAuth, async (req, res) => {
+  const text = (req.body?.text || '').toString();
+  const lines = text.split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+  if (!lines.length) return res.status(400).json({ error: 'no input' });
+
+  const results = [];
+  for (const line of lines) {
+    let pid = null;
+    let source = null;
+
+    const urlMatch = line.match(CJ_URL_PID_RE);
+    if (urlMatch) {
+      pid = urlMatch[1];
+      source = 'url';
+    } else {
+      // Treat as a CJ SKU paste — strip any descriptor, then try
+      // as-is and with trailing variant letters stripped (matches the
+      // search-by-SKU short-circuit behavior).
+      const skuLike = (line.match(/^CJ[A-Z0-9]+/i) || [])[0] || '';
+      if (skuLike && SKU_PATTERN.test(skuLike)) {
+        const stripped = skuLike.replace(/[A-Z]{1,3}$/i, '');
+        const candidates = stripped !== skuLike && SKU_PATTERN.test(stripped)
+          ? [skuLike, stripped]
+          : [skuLike];
+        for (const sku of candidates) {
+          try {
+            const r = await cj.getProductBySku(sku);
+            const p = r?.data;
+            const found = p && (p.pid || p.id || p.productId);
+            if (found) { pid = found; source = 'sku'; break; }
+          } catch (_) { /* try next */ }
+        }
+      }
+    }
+
+    if (!pid) {
+      results.push({ input: line, status: 'skipped', reason: 'no PID/SKU resolved' });
+      continue;
+    }
+
+    try {
+      const r = await cj.addToMyProducts(pid);
+      if (r?.code === 200) {
+        results.push({ input: line, pid, source, status: 'added' });
+      } else if (r?.code === 100002) {
+        // CJ's "already in My Products" — count as success, the user
+        // wants the product pinned regardless of who added it when.
+        results.push({ input: line, pid, source, status: 'already' });
+      } else {
+        results.push({ input: line, pid, source, status: 'cj-error', message: r?.message || `code ${r?.code}` });
+      }
+    } catch (e) {
+      results.push({ input: line, pid, source, status: 'error', message: e.message });
+    }
+  }
+
+  // Invalidate every cache that could hold a stale My Products view.
+  CACHE.delete('my-products');
+  CACHE.delete('my-product-category-map');
+  for (const k of Array.from(CACHE.keys())) {
+    if (k.startsWith('productsRaw:')) CACHE.delete(k);
+  }
+
+  // Re-warm the category map in the background so the very next
+  // category-page request hits a hot cache instead of blocking on
+  // ~3s of detail lookups.
+  (async () => {
+    try { await getMyProductCategoryMap(); } catch (e) { console.warn('[my-products] re-warm failed:', e.message); }
+  })();
+
+  const summary = {
+    added:   results.filter(r => r.status === 'added').length,
+    already: results.filter(r => r.status === 'already').length,
+    skipped: results.filter(r => r.status === 'skipped').length,
+    errors:  results.filter(r => r.status === 'cj-error' || r.status === 'error').length,
+  };
+  res.json({ results, summary });
+});
+
 app.get('/api/admin/balance', adminAuth, async (req, res) => {
   try {
     const data = await cj.getBalance();
