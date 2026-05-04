@@ -1963,11 +1963,15 @@ async function renderSearch(query, page = 1, opts = {}) {
     // with cleaned keywords. Falls back to plain search internally if AI
     // is unavailable.
     let res;
+    // size=40 is CJ's per-page max — bumped from 20 so category browse
+    // and search results show twice as many products per page. Pairs
+    // with the deep-walk prewarm so even page 5 loads instantly from
+    // cache. Customer can paginate further; deep pages hit CJ live.
     if (query && !opts.categoryId) {
-      const smartQs = new URLSearchParams({ q: query, page: String(page), size: '20' });
+      const smartQs = new URLSearchParams({ q: query, page: String(page), size: '40' });
       res = await apiGet('/api/store/search/smart?' + smartQs.toString());
     } else {
-      const qs = new URLSearchParams({ page: String(page), size: '20' });
+      const qs = new URLSearchParams({ page: String(page), size: '40' });
       if (query) qs.set('keyWord', query);
       if (opts.categoryId) qs.set('categoryId', opts.categoryId);
       res = await apiGet('/api/store/products?' + qs.toString());
