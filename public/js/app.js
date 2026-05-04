@@ -346,7 +346,15 @@ async function apiPost(path, body, extraHeaders = {}) {
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || data.detail || `API ${res.status}`);
+  if (!res.ok) {
+    // Attach status + parsed body so callers can branch on err.code
+    // (e.g. PRICE_CHANGED) and display the new prices the server sent.
+    const err = new Error(data.error || data.detail || `API ${res.status}`);
+    err.status = res.status;
+    err.code = data.code;
+    err.data = data;
+    throw err;
+  }
   return data;
 }
 

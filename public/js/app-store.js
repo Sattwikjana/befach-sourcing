@@ -346,13 +346,46 @@ async function renderCheckout() {
     };
     const consigneeID = (fd.consigneeID || '').trim().toUpperCase();
 
+    // Expected total paise — matches the server's USD→INR conversion so
+    // a small ±2% drift (FX rounding, per-variant shipping refresh) is
+    // tolerated, but real price changes (admin override, CJ wholesale
+    // movement) trip a 409 PRICE_CHANGED on the server. Without this,
+    // the customer would only learn about a price change inside the
+    // Razorpay modal — too late and confusing.
+    const usdToInr = state.config.usdToInr || 85;
+    const expectedTotalPaise = Math.round(cartSubtotalUsd() * usdToInr * 100);
+
     let intent;
     try {
-      intent = await apiPost('/api/store/payment/create-order', { items: itemsPayload });
+      intent = await apiPost('/api/store/payment/create-order', {
+        items: itemsPayload,
+        expectedTotalPaise,
+      });
     } catch (err) {
-      showToast('Could not start payment: ' + err.message, 4500);
       btn.disabled = false;
       btn.textContent = 'Pay & Place order';
+
+      if (err.code === 'PRICE_CHANGED' && Array.isArray(err.data?.priced)) {
+        // Update the cart with the new server-side prices so the
+        // customer sees the real total before they retry.
+        const priceByVid = {};
+        for (const p of err.data.priced) priceByVid[p.vid] = p.displayPrice;
+        for (const item of state.cart) {
+          if (priceByVid[item.vid]) item.priceUsd = String(priceByVid[item.vid]);
+        }
+        try { localStorage.setItem(CART_KEY, JSON.stringify(state.cart)); } catch {}
+
+        const oldInr = (expectedTotalPaise / 100).toFixed(0);
+        const newInr = (err.data.actualTotalPaise / 100).toFixed(0);
+        showToast(`Prices updated since you opened your cart — old ₹${oldInr}, new ₹${newInr}. Review and tap Pay again.`, 7000);
+        // Re-render the checkout summary so the new total shows.
+        const sumTotal = document.getElementById('sumTotal');
+        if (sumTotal) sumTotal.textContent = fmtINR(cartSubtotalUsd());
+        updateCartBadge();
+        return;
+      }
+
+      showToast('Could not start payment: ' + err.message, 4500);
       return;
     }
 

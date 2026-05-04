@@ -1616,8 +1616,14 @@ app.post('/api/store/shipping-estimate', async (req, res) => {
  * Re-price a cart server-side (we never trust the client total).
  * Returns { totalPaise, totalUsd, items: [{...item, displayPrice}] } or
  * throws on validation errors so the caller can short-circuit.
+ *
+ * If `opts.expectedTotalPaise` is supplied and the server-computed
+ * total drifts more than 2% from it, throws a PRICE_CHANGED error so
+ * the customer can be shown the new price BEFORE Razorpay opens —
+ * stops the "cart said ₹100, charged ₹150" surprise when admin updates
+ * prices or CJ wholesale moves mid-cart.
  */
-async function repriceCart(items) {
+async function repriceCart(items, opts = {}) {
   if (!Array.isArray(items) || items.length === 0) {
     const e = new Error('items required'); e.status = 400; throw e;
   }
@@ -1681,6 +1687,39 @@ async function repriceCart(items) {
   const usdToInr = parseFloat(process.env.USD_TO_INR) || 85;
   const totalInr = totalUsd * usdToInr;
   const totalPaise = Math.round(totalInr * 100);
+
+  // Price-drift gate: if the customer told us what they expected to
+  // pay (cart total at the time they pressed Checkout), refuse to
+  // proceed when the server's freshly-computed total differs by more
+  // than 2%. The 2% slack absorbs FX rounding and the per-variant
+  // shipping refresh; anything bigger is a real price change (admin
+  // updated, CJ wholesale moved, override added) that the customer
+  // deserves to see before paying.
+  if (opts.expectedTotalPaise !== undefined && opts.expectedTotalPaise !== null) {
+    const expected = parseInt(opts.expectedTotalPaise, 10);
+    if (Number.isFinite(expected) && expected > 0) {
+      const drift = Math.abs(totalPaise - expected) / expected;
+      if (drift > 0.02) {
+        const e = new Error('Prices have changed since you opened your cart');
+        e.status = 409;
+        e.code = 'PRICE_CHANGED';
+        e.expectedTotalPaise = expected;
+        e.actualTotalPaise = totalPaise;
+        // Strip cost-revealing fields before throwing — the consumer
+        // path may surface this object.
+        e.priced = priced.map(p => ({
+          pid: p.pid,
+          vid: p.vid,
+          quantity: p.quantity,
+          productName: p.productName,
+          variantName: p.variantName,
+          displayPrice: p.displayPrice,
+        }));
+        throw e;
+      }
+    }
+  }
+
   return { totalPaise, totalUsd, totalInr, priced };
 }
 
@@ -1694,8 +1733,8 @@ app.post('/api/store/payment/create-order', async (req, res) => {
     return res.status(503).json({ error: 'Online payment is not configured' });
   }
   try {
-    const { items } = req.body || {};
-    const { totalPaise, totalInr, priced } = await repriceCart(items);
+    const { items, expectedTotalPaise } = req.body || {};
+    const { totalPaise, totalInr, priced } = await repriceCart(items, { expectedTotalPaise });
     if (totalPaise < 100) {
       return res.status(400).json({ error: 'Minimum order amount is ₹1' });
     }
@@ -1718,6 +1757,22 @@ app.post('/api/store/payment/create-order', async (req, res) => {
       itemsCount: priced.length,
     });
   } catch (err) {
+    // PRICE_CHANGED: surface the new total + per-line prices so the
+    // frontend can update the cart and the customer can review before
+    // re-pressing Pay. Status 409 (Conflict) so apiPost surfaces it
+    // distinctly from server errors.
+    if (err.code === 'PRICE_CHANGED') {
+      console.warn('[Razorpay create-order] price drift', {
+        expected: err.expectedTotalPaise, actual: err.actualTotalPaise,
+      });
+      return res.status(409).json({
+        error: err.message,
+        code: 'PRICE_CHANGED',
+        expectedTotalPaise: err.expectedTotalPaise,
+        actualTotalPaise: err.actualTotalPaise,
+        priced: err.priced,
+      });
+    }
     console.error('[Razorpay create-order]', err.message, err.code || '');
     res.status(err.status || 500).json({
       error: err.message || 'Failed to create payment',
