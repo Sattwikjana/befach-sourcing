@@ -2347,79 +2347,12 @@ async function prewarmKeyword(keyword, size = 10, page = 1) {
   }
 }
 
-// Walk every top-level CJ category for `pages` pages, caching each
-// (categoryId, page, size=40) as if a user had requested it. The
-// /api/store/products handler reads directly from this cache on hit,
-// so prewalking turns category browse + deep pagination into instant
-// reads. ~280ms per CJ call; 14 cats × 5 pages = ~20s.
-async function walkTopCategories(pagesPerCat) {
-  const tree = cacheGet('categories', Infinity) || [];
-  let warmed = 0;
-  for (const top of tree) {
-    const id = top.categoryFirstId;
-    if (!id) continue;
-    for (let page = 1; page <= pagesPerCat; page++) {
-      const rawKey = productsRawKey({
-        keyWord: '', page: String(page), size: '40', categoryId: id,
-      });
-      if (cacheGet(rawKey, 30 * 60 * 1000)) continue;
-      try {
-        const meta = await searchProductsMerged({ categoryId: id, page, size: 40 });
-        cacheSet(rawKey, meta);
-        warmed += meta.products?.length || 0;
-        if (!meta.products?.length) break; // empty page → stop walking deeper
-      } catch (e) { break; }
-    }
-  }
-  return warmed;
-}
-
-// Walk every second-level CJ category, page 1 only. Adds ~80 cache
-// entries (one per sub-category) and ~3,000 products of variety, so
-// users browsing into a sub-category land on warm cache instead of
-// paying the per-page CJ latency.
-async function walkSecondLevelCategories() {
-  const tree = cacheGet('categories', Infinity) || [];
-  let warmed = 0;
-  for (const top of tree) {
-    for (const sec of (top.categoryFirstList || [])) {
-      const id = sec.categorySecondId;
-      if (!id) continue;
-      const rawKey = productsRawKey({
-        keyWord: '', page: '1', size: '40', categoryId: id,
-      });
-      if (cacheGet(rawKey, 30 * 60 * 1000)) continue;
-      try {
-        const meta = await searchProductsMerged({ categoryId: id, page: 1, size: 40 });
-        cacheSet(rawKey, meta);
-        warmed += meta.products?.length || 0;
-      } catch (e) { /* keep going on individual failures */ }
-    }
-  }
-  return warmed;
-}
-
 async function prewarm() {
   console.log('[prewarm] warming caches...');
   try {
     await cj.getCategories().then(d => cacheSet('categories', d.data || []));
     console.log('[prewarm] categories ✓');
   } catch (e) { console.warn('[prewarm] categories failed:', e.message); }
-
-  // Deep walk — runs in the background after the synchronous prewarm
-  // finishes so dyno startup isn't blocked on it. After ~60s the cache
-  // holds ~5–6k products across every category and 4 deep pages of
-  // each top-level. Customers paginating deep into a category hit
-  // warm cache instead of spinning. CJ rate-limits hard, so this is
-  // serialised via cjGet's queue — total walltime roughly 60s.
-  (async () => {
-    try {
-      const top = await walkTopCategories(5);
-      console.log(`[prewarm] top-level x5 pages (${top} products) ✓`);
-      const sec = await walkSecondLevelCategories();
-      console.log(`[prewarm] second-level x1 page (${sec} products) ✓`);
-    } catch (e) { console.warn('[prewarm] deep walk failed:', e.message); }
-  })();
 
   // Background-warm the My Products → leaf category map. ~280ms per
   // product (cjGet rate-limit), so ~3s for a 10-item list. Fire-and-
