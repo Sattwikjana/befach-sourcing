@@ -117,18 +117,19 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 }
 /* Tagline rendered as text next to the logo, two lines stacked.
    "ONE WORLD." in black, "ENDLESS CHOICES." in champagne gold —
-   matches the typography inside the logo file itself. */
+   matches the typography inside the logo file itself. Sized to
+   read confidently next to the 80px header logo. */
 .brand-tagline-side {
   display: flex;
   flex-direction: column;
-  line-height: 1.15;
-  font-size: 11px;
-  letter-spacing: 0.18em;
+  line-height: 1.2;
+  font-size: 15px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   font-weight: 700;
   white-space: nowrap;
   border-left: 1px solid var(--border);
-  padding-left: 14px;
+  padding-left: 18px;
 }
 .brand-tagline-black { color: var(--brand); }
 .brand-tagline-gold { color: var(--accent-dark); }
@@ -2722,7 +2723,7 @@ body.page-home .header-nav { margin-left: auto; }
   }
   /* Brand on tablet — keep logo + side tagline */
   .brand-logo-img { height: 64px; max-width: 240px; }
-  .brand-tagline-side { font-size: 10px; padding-left: 10px; }
+  .brand-tagline-side { font-size: 12px; padding-left: 12px; }
   .brand { gap: 10px; }
   .brand-text-main { font-size: 26px; }
   .brand-text-sub  { font-size: 10px; letter-spacing: 0.28em; }

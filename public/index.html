@@ -19,7 +19,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260504b" />
+  <link rel="stylesheet" href="/css/styles.css?v=20260504c" />
   <!-- Inline style as a safety net — guaranteed to load with no race
        conditions against the external CSS. -->
   <style>
@@ -66,8 +66,12 @@
         </svg>
       </button>
 
-      <a href="/" class="brand" aria-label="Global Shopper">
+      <a href="/" class="brand" aria-label="Global Shopper — One World. Endless Choices.">
         <img src="/img/globalshopper.png" alt="Global Shopper" class="brand-logo-img" />
+        <span class="brand-tagline-side">
+          <span class="brand-tagline-black">One World.</span>
+          <span class="brand-tagline-gold">Endless Choices.</span>
+        </span>
       </a>
 
       <form class="header-search" id="headerSearchForm" role="search">
@@ -135,6 +139,10 @@
     <div class="drawer-head">
       <a href="/" class="drawer-brand-link" id="drawerBrandLink">
         <img src="/img/globalshopper.png" alt="Global Shopper" class="brand-logo-img" />
+        <span class="brand-tagline-side">
+          <span class="brand-tagline-black">One World.</span>
+          <span class="brand-tagline-gold">Endless Choices.</span>
+        </span>
       </a>
       <button class="drawer-close" id="drawerClose" aria-label="Close menu">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
