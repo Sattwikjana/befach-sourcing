@@ -1,5 +1,5 @@
 /**
- * Befach Store — Backend v8.0
+ * Global Shopper — Backend v8.0
  * Consumer e-commerce store powered by CJDropshipping API.
  *
  *   /api/store/*   → public consumer endpoints (retail price, profit stripped)
@@ -517,7 +517,7 @@ app.get('/api/auth/orders', (req, res) => {
 // Public storefront config — currency, FX rate, brand name, ship-to default.
 app.get('/api/store/config', (req, res) => {
   res.json({
-    storeName: process.env.STORE_NAME || 'Befach',
+    storeName: process.env.STORE_NAME || 'Global Shopper',
     currency: process.env.STORE_CURRENCY || 'INR',
     usdToInr: parseFloat(process.env.USD_TO_INR) || 85,
     shipTo: DEFAULT_SHIP_TO,
@@ -2571,7 +2571,7 @@ async function warmExtendedCatalog(maxPages = 4) {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Befach Store v8.0  (CJDropshipping powered)         ║');
+  console.log('║  Global Shopper v8.0  (CJDropshipping powered)       ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);

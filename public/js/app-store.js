@@ -1,5 +1,5 @@
 /**
- * Befach Store — Cart, Checkout, Order, Track, Admin, FAQ pages.
+ * Global Shopper — Cart, Checkout, Order, Track, Admin, FAQ pages.
  * Loaded after app.js; shares its globals (esc, fmtINR, apiGet, apiPost, state, cart helpers, etc.).
  */
 
@@ -52,7 +52,7 @@ function renderCartItems() {
   container.innerHTML = state.cart.map((item, idx) => `
     <div class="cart-item fade-in" data-idx="${idx}">
       <a href="/product/${encodeURIComponent(item.pid)}" class="cart-item-img-wrap">
-        <img src="${imgProxy(item.image)}" alt="${esc(item.productName)}" onerror="this.src='/img/befach_logo.png'"/>
+        <img src="${imgProxy(item.image)}" alt="${esc(item.productName)}" onerror="this.src='/img/globalshopper.png'"/>
       </a>
       <div class="cart-item-info">
         <a class="cart-item-title" href="/product/${encodeURIComponent(item.pid)}">${esc(item.productName)}</a>
@@ -246,7 +246,7 @@ async function renderCheckout() {
   // Render order summary items
   document.getElementById('checkoutItems').innerHTML = state.cart.map(item => `
     <div class="checkout-item">
-      <img src="${imgProxy(item.image)}" alt="" onerror="this.src='/img/befach_logo.png'"/>
+      <img src="${imgProxy(item.image)}" alt="" onerror="this.src='/img/globalshopper.png'"/>
       <div class="checkout-item-info">
         <div class="checkout-item-title">${esc(item.productName.slice(0, 50))}${item.productName.length > 50 ? '…' : ''}</div>
         <div class="checkout-item-qty">Qty ${item.quantity}${item.variantName ? ' · ' + esc(item.variantName) : ''}</div>
@@ -396,10 +396,10 @@ async function renderCheckout() {
       amount: intent.amount,
       currency: intent.currency || 'INR',
       order_id: intent.razorpayOrderId,
-      name: 'GCOM',
-      description: `${itemsPayload.length} item${itemsPayload.length === 1 ? '' : 's'} from GCOM`,
+      name: 'Global Shopper',
+      description: `${itemsPayload.length} item${itemsPayload.length === 1 ? '' : 's'} from Global Shopper`,
       // Razorpay shows this image at the top of the checkout modal.
-      image: `${location.origin}/img/gcom-logo.png`,
+      image: `${location.origin}/img/globalshopper.png`,
       prefill: {
         name: fd.name,
         email: fd.email,
@@ -604,8 +604,8 @@ function renderLegal() {
 
     <div class="legal-page">
       <section class="legal-section">
-        <h2>About ${esc(c.brandName || 'GCOM')}</h2>
-        <p><strong>${esc(c.brandName || 'GCOM')}</strong> is operated by ${esc(c.legalName || 'BEFACH 4X PRIVATE LIMITED')}, a cross-border e-commerce platform that curates premium products from artisans, ateliers, and verified manufacturers in 200+ countries and delivers them to your doorstep in India in 10–15 days. We are an authorised CJ Dropshipping partner (User ID: <strong>${esc(c.cjUserId || '—')}</strong>).</p>
+        <h2>About ${esc(c.brandName || 'Global Shopper')}</h2>
+        <p><strong>${esc(c.brandName || 'Global Shopper')}</strong> is operated by ${esc(c.legalName || 'BEFACH 4X PRIVATE LIMITED')}, a cross-border e-commerce platform that curates premium products from artisans, ateliers, and verified manufacturers in 200+ countries and delivers them to your doorstep in India in 10–15 days. We are an authorised CJ Dropshipping partner (User ID: <strong>${esc(c.cjUserId || '—')}</strong>).</p>
       </section>
 
       <section class="legal-section">
@@ -633,7 +633,7 @@ function renderLegal() {
 
       <section class="legal-section">
         <h2>Shipping &amp; supplier policy</h2>
-        <p>Products listed on this store are sourced from CJ Dropshipping's verified supplier network. Orders placed on ${esc(c.brandName || 'GCOM')} are forwarded to CJ for fulfillment via their official Store Orders API (<code>/shopping/order/createOrderV2</code>). We are responsible for customer service, payments, and warranty handling on the storefront side; CJ handles supplier coordination, packaging and international logistics.</p>
+        <p>Products listed on this store are sourced from CJ Dropshipping's verified supplier network. Orders placed on ${esc(c.brandName || 'Global Shopper')} are forwarded to CJ for fulfillment via their official Store Orders API (<code>/shopping/order/createOrderV2</code>). We are responsible for customer service, payments, and warranty handling on the storefront side; CJ handles supplier coordination, packaging and international logistics.</p>
       </section>
 
       <section class="legal-section">
@@ -1113,7 +1113,7 @@ function renderLogin() {
   app.innerHTML = `
     <div class="auth-page">
       <div class="auth-card">
-        <h1>Sign in to GCOM</h1>
+        <h1>Sign in to Global Shopper</h1>
         <p class="muted">New here? <a href="/register">Create an account</a></p>
         <form id="loginForm" class="auth-form">
           <label>Email
@@ -1159,7 +1159,7 @@ function renderRegister() {
   app.innerHTML = `
     <div class="auth-page">
       <div class="auth-card">
-        <h1>Create your GCOM account</h1>
+        <h1>Create your Global Shopper account</h1>
         <p class="muted">Already have one? <a href="/login">Sign in</a></p>
         <form id="registerForm" class="auth-form">
           <label>Full name

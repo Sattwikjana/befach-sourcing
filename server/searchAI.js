@@ -176,8 +176,8 @@ async function parseQuery(rawQuery) {
       headers: {
         'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://global.befach.com',
-        'X-Title': 'Befach Global Store',
+        'HTTP-Referer': 'https://globalshopper.in',
+        'X-Title': 'Global Shopper',
       },
       body: JSON.stringify({
         model: MODEL,

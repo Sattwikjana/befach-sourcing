@@ -1,7 +1,7 @@
 {
-  "name": "befach-sourcing-backend",
+  "name": "globalshopper-backend",
   "version": "6.0.0",
-  "description": "Befach Sourcing Platform — CJDropshipping API Integration",
+  "description": "Global Shopper — CJDropshipping-powered storefront",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

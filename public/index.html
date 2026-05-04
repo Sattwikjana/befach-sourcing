@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GCOM — One World. Endless Choices.</title>
-  <meta name="description" content="GCOM curates premium products from artisans and ateliers in 200+ countries — delivered to your doorstep in India in 10–15 days." />
+  <title>Global Shopper — One World. Endless Choices.</title>
+  <meta name="description" content="Global Shopper curates premium products from artisans and ateliers in 200+ countries — delivered to your doorstep in India in 10–15 days." />
   <!-- Vector favicon — sharper at any size than a PNG.
        Browsers that don't support SVG favicons (very old IE) fall back
        to the alternate PNG. -->
-  <link rel="icon" type="image/svg+xml" href="/img/gcom-icon.svg" />
-  <link rel="alternate icon" href="/img/befach_logo_256.png" />
+  <link rel="icon" type="image/png" href="/img/globalshopper.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- Preconnect to CJ's image CDN so the TLS handshake completes before
@@ -20,7 +19,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260502b" />
+  <link rel="stylesheet" href="/css/styles.css?v=20260504a" />
   <!-- Inline style as a safety net — guaranteed to load with no race
        conditions against the external CSS. -->
   <style>
@@ -67,11 +66,8 @@
         </svg>
       </button>
 
-      <a href="/" class="brand brand-text" aria-label="Befach Global Store">
-        <span class="brand-text-wrap">
-          <span class="brand-text-main">BEFACH</span>
-          <span class="brand-text-sub">GLOBAL STORE</span>
-        </span>
+      <a href="/" class="brand" aria-label="Global Shopper">
+        <img src="/img/globalshopper.png" alt="Global Shopper" class="brand-logo-img" />
       </a>
 
       <form class="header-search" id="headerSearchForm" role="search">
@@ -137,11 +133,8 @@
   <div class="drawer-backdrop" id="drawerBackdrop"></div>
   <aside class="drawer" id="drawer" aria-label="Mobile menu">
     <div class="drawer-head">
-      <a href="/" class="drawer-brand-link brand-text" id="drawerBrandLink">
-        <span class="brand-text-wrap">
-          <span class="brand-text-main">BEFACH</span>
-          <span class="brand-text-sub">GLOBAL STORE</span>
-        </span>
+      <a href="/" class="drawer-brand-link" id="drawerBrandLink">
+        <img src="/img/globalshopper.png" alt="Global Shopper" class="brand-logo-img" />
       </a>
       <button class="drawer-close" id="drawerClose" aria-label="Close menu">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -162,7 +155,7 @@
     <div class="footer-top">
       <div class="footer-col footer-brand-col">
         <div class="footer-brand">
-          <span class="footer-brand-name">GCOM</span>
+          <span class="footer-brand-name">Global Shopper</span>
           <span class="footer-brand-tag">One World. <span class="accent">Endless Choices.</span></span>
         </div>
         <p class="footer-about">Premium products, hand-picked from artisans and ateliers in 200+ countries — delivered to your door in 10–15 days.</p>
@@ -187,7 +180,7 @@
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© <span id="footerYear"></span> GCOM, a Befach 4X Private Limited venture. All rights reserved.</span>
+      <span>© <span id="footerYear"></span> Global Shopper, a Befach 4X Private Limited venture. All rights reserved.</span>
       <span class="footer-pay">🔒 Secure checkout</span>
     </div>
   </footer>
@@ -208,10 +201,10 @@
        a discreet banner if anything blows up. -->
   <script>
     window.addEventListener('error', function(e) {
-      console.error('[GCOM JS error]', e.error || e.message, 'at', e.filename + ':' + e.lineno);
+      console.error('[Global Shopper JS error]', e.error || e.message, 'at', e.filename + ':' + e.lineno);
     });
     window.addEventListener('unhandledrejection', function(e) {
-      console.error('[GCOM promise reject]', e.reason);
+      console.error('[Global Shopper promise reject]', e.reason);
     });
   </script>
 </body>

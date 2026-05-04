@@ -37,7 +37,7 @@ services:
       - key: STORE_CURRENCY
         value: INR
       - key: STORE_NAME
-        value: Befach
+        value: Global Shopper
       - key: DEFAULT_SHIP_FROM
         value: CN
       - key: DEFAULT_SHIP_TO

@@ -1,5 +1,5 @@
 /**
- * Befach Store — Frontend v8.0
+ * Global Shopper — Frontend v8.0
  * Hash-routed SPA over the /api/store/* consumer endpoints.
  *
  * Pages:
@@ -28,7 +28,7 @@
 // ══════════════════════════════════════════════════════════════
 const COMPANY_INFO = {
   // Customer-facing brand. Tagline used across hero / footer / drawer.
-  brandName: 'GCOM',
+  brandName: 'Global Shopper',
   brandTagline: 'One World. Endless Choices.',
   // Legal entity — kept on every receipt, footer, and compliance page
   // because that's the registered company that runs the store. Don't
@@ -36,7 +36,7 @@ const COMPANY_INFO = {
   legalName: 'BEFACH 4X PRIVATE LIMITED',
   email: 'sales@befach.com',
   phone: '+91 70570 53160',
-  website: 'https://www.befach.com',
+  website: 'https://globalshopper.in',
   founded: '2018',
   registeredAddress: '3rd floor, Luxor Park, Banjara Hills Road No. 3, opp. LV Prasad Bus Stand, BNR Colony, Venkat Nagar, Banjara Hills, Hyderabad, Telangana 500034, India',
   gstin: '36AAHCB9338E1ZK',
@@ -239,7 +239,7 @@ const cartCountEl = document.getElementById('cartCount');
 document.getElementById('footerYear').textContent = new Date().getFullYear();
 
 // Populate the "Operating Entity" footer column from COMPANY_INFO.
-// GCOM is the customer brand; the legal entity (BEFACH 4X PRIVATE
+// Global Shopper is the customer brand; the legal entity (BEFACH 4X PRIVATE
 // LIMITED) shows here for compliance — GST invoices, IEC, registered
 // address all need to be visible to the buyer.
 (function populateFooterCompany() {
@@ -262,7 +262,7 @@ document.getElementById('footerYear').textContent = new Date().getFullYear();
 
 // ── State ──
 const state = {
-  config: { storeName: 'GCOM', currency: 'INR', usdToInr: 85, shipTo: 'IN', shipFrom: 'CN' },
+  config: { storeName: 'Global Shopper', currency: 'INR', usdToInr: 85, shipTo: 'IN', shipFrom: 'CN' },
   categories: [],
   cart: loadCart(),
   user: null,            // populated by loadCurrentUser() on boot
@@ -313,11 +313,11 @@ function fmtINRDecimal(usdAmount) {
 // direct URLs — one fewer backend round-trip per card image. Fall back
 // to the proxy only for domains that need it (Alibaba/Aliexpress).
 function imgProxy(url) {
-  if (!url) return '/img/befach_logo.png';
+  if (!url) return '/img/globalshopper.png';
   if (url.startsWith('/')) return url;
   if (/cjdropshipping\.(com|net)/i.test(url)) return url;  // direct
   try { return '/api/img?url=' + encodeURIComponent(url); }
-  catch { return '/img/befach_logo.png'; }
+  catch { return '/img/globalshopper.png'; }
 }
 
 // ── Fetch helpers ──
@@ -1106,7 +1106,7 @@ function productCard(p, idx) {
           loading="${aboveFold ? 'eager' : 'lazy'}"
           fetchpriority="${aboveFold ? 'high' : 'low'}"
           decoding="async"
-          onerror="this.onerror=null;this.src='/img/befach_logo.png'" />
+          onerror="this.onerror=null;this.src='/img/globalshopper.png'" />
         ${listed > 50 ? '<span class="product-card-badge">🔥 Popular</span>' : ''}
         <button type="button"
                 class="product-card-wish ${inWishlist ? 'on' : ''}"
@@ -2135,7 +2135,7 @@ async function renderProduct(pid) {
     images = [p.productImage];
   }
   if (!images.length && bigImg) images = [bigImg];
-  if (!images.length) images = ['/img/befach_logo.png'];
+  if (!images.length) images = ['/img/globalshopper.png'];
 
   // Default selected variant = first one
   const selectedVariant = variants[0] || null;
@@ -2163,7 +2163,7 @@ async function renderProduct(pid) {
           <img class="pd-main-img" id="pdMainImg" src="${imgProxy(images[0])}" alt="${esc(name)}"
                width="600" height="600"
                fetchpriority="high" decoding="async"
-               onerror="this.onerror=null;this.src='/img/befach_logo.png'" />
+               onerror="this.onerror=null;this.src='/img/globalshopper.png'" />
         </div>
         <div class="pd-thumbs">
           ${images.slice(0, 8).map((src, i) => `
