@@ -464,7 +464,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: cjOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '8.6',
+    version: '8.7',
     cj: cjOk ? 'connected' : 'disconnected',
     cjError,
     markup: pricing.getMarkupPercent() + '%',
@@ -968,9 +968,10 @@ function mergeProductLists(...lists) {
   return products;
 }
 
-const CATEGORY_LIVE_MERGE_TIMEOUT_MS = parseInt(process.env.CATEGORY_LIVE_MERGE_TIMEOUT_MS || '1500', 10);
-const SEARCH_LIVE_MERGE_TIMEOUT_MS = parseInt(process.env.SEARCH_LIVE_MERGE_TIMEOUT_MS || '1800', 10);
-const LIVE_ONLY_SEARCH_TIMEOUT_MS = parseInt(process.env.LIVE_ONLY_SEARCH_TIMEOUT_MS || '8000', 10);
+const CATEGORY_LIVE_MERGE_TIMEOUT_MS = parseInt(process.env.CATEGORY_LIVE_MERGE_TIMEOUT_MS || '700', 10);
+const SEARCH_LIVE_MERGE_TIMEOUT_MS = parseInt(process.env.SEARCH_LIVE_MERGE_TIMEOUT_MS || '1200', 10);
+const LIVE_ONLY_SEARCH_TIMEOUT_MS = parseInt(process.env.LIVE_ONLY_SEARCH_TIMEOUT_MS || '6000', 10);
+const MY_PRODUCTS_PIN_WAIT_MS = parseInt(process.env.MY_PRODUCTS_PIN_WAIT_MS || '700', 10);
 
 function cacheLiveProducts(liveMeta, categoryId) {
   if (!liveMeta?.products?.length) return;
@@ -1104,10 +1105,10 @@ const CJ_URL_PID_RE = /cjdropshipping\.com\/product\/[^\s]*?-p-(\d+)\.html/i;
 async function fetchAllMyProducts() {
   const all = [];
   let pageNum = 1;
-  const pageSize = 50;
+  const pageSize = 100;
   // Hard cap at 20 pages (1000 products) — sanity guard, not a real limit.
   while (pageNum <= 20) {
-    const r = await cj.getMyProducts({ page: pageNum, pageSize });
+    const r = await cj.getMyProducts({ page: pageNum, pageSize }, { priority: 'high' });
     const rows = r?.data?.content || [];
     if (!rows.length) break;
     all.push(...rows);
@@ -1188,27 +1189,91 @@ function descendantLeafIds(rootId) {
   return out;
 }
 
-// Find My Products whose leaf category sits under the requested
-// category. Used to pin curated picks to the top of category pages —
-// otherwise they're invisible whenever CJ's keyword index doesn't
-// surface them at the top of that category.
-async function pinnedMyProductsForCategory(categoryId) {
-  if (!categoryId) return [];
-  try {
-    // Keep customer category pages fast. Building this map can require one
-    // CJ detail call per seller-curated product after every deploy, so only
-    // use it when it is already warm in memory. The SQLite catalog remains
-    // the primary source for browse pages.
-    const products = cacheGet('my-products', 30 * 60 * 1000);
-    const catMap = cacheGet('my-product-category-map', 60 * 60 * 1000);
-    if (!products || !catMap) return [];
+function productSearchText(product) {
+  return [
+    product.productNameEn,
+    product.productName,
+    product.nameEn,
+    product.name,
+    product.productSku,
+    product.sku,
+    product.categoryName,
+  ].filter(Boolean).join(' ').toLowerCase();
+}
 
+function keywordTokens(value) {
+  return String(value || '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .filter(t => t.length >= 3)
+    .slice(0, 8);
+}
+
+function matchesAnyTerm(product, terms) {
+  const text = productSearchText(product);
+  return terms.some(term => {
+    const tokens = keywordTokens(term);
+    if (!tokens.length) return false;
+    return tokens.some(token => text.includes(token));
+  });
+}
+
+function pinnedMyProductsByCategoryName(products, categoryName) {
+  const terms = categoryCatalogFallbackTerms(categoryName);
+  const expanded = [...terms];
+  const n = String(categoryName || '').toLowerCase();
+  if (/women|woman|girl/.test(n)) expanded.push('dress', 'dresses', 'skirt', 'top', 'blouse', 'clothing', 'apparel');
+  if (/\bmen|man|boy/.test(n)) expanded.push('shirt', 'shirts', 'hoodie', 'jacket', 'pants', 'clothing', 'apparel');
+  if (/bag|shoe/.test(n)) expanded.push('bag', 'bags', 'backpack', 'handbag', 'shoe', 'shoes', 'sneaker', 'sandal');
+  if (/school/.test(n)) expanded.push('school', 'backpack', 'bag');
+  if (/electronic|tech|phone|computer/.test(n)) expanded.push('gadget', 'phone', 'charger', 'earbud', 'speaker', 'camera', 'keyboard');
+  return products.filter(product => matchesAnyTerm(product, expanded));
+}
+
+async function getMyProductsForPinning() {
+  const cached = cacheGet('my-products', 30 * 60 * 1000);
+  if (cached) return cached;
+  const refresh = getCachedMyProducts().catch(err => {
+    console.warn('[my-products] quick cache refresh failed:', err.message);
+    return null;
+  });
+  return Promise.race([
+    refresh,
+    new Promise(resolve => setTimeout(() => resolve(null), MY_PRODUCTS_PIN_WAIT_MS)),
+  ]);
+}
+
+// Pin seller-curated CJ My Products to the first page without putting the
+// customer behind a cold /product/query category-map crawl. Exact category
+// matching wins when the map is already warm; otherwise we use product-name
+// matching so newly added CJ My Products still appear quickly after deploy.
+async function pinnedMyProductsForResults({ categoryId, keyWord, page, limit = 8 }) {
+  if ((parseInt(page, 10) || 1) !== 1) return [];
+  try {
+    const products = await getMyProductsForPinning();
+    if (!products?.length) return [];
+
+    if (keyWord) {
+      const terms = keywordTokens(keyWord);
+      return products
+        .filter(product => matchesAnyTerm(product, terms))
+        .slice(0, limit);
+    }
+
+    if (!categoryId) return products.slice(0, limit);
+
+    const catMap = cacheGet('my-product-category-map', 60 * 60 * 1000);
     const leafIds = descendantLeafIds(categoryId);
-    if (!leafIds.size) return [];
-    return products.filter(p => {
-      const leaf = catMap[p.pid];
-      return leaf && leafIds.has(leaf);
-    });
+    if (catMap && leafIds.size) {
+      const exact = products.filter(p => {
+        const leaf = catMap[p.pid];
+        return leaf && leafIds.has(leaf);
+      });
+      if (exact.length) return exact.slice(0, limit);
+    }
+
+    const categoryName = categoryNameForId(categoryId);
+    return pinnedMyProductsByCategoryName(products, categoryName).slice(0, limit);
   } catch (e) {
     console.warn('[my-products] pinning failed:', e.message);
     return [];
@@ -1531,26 +1596,28 @@ app.get('/api/store/products', async (req, res) => {
         }
       }
 
-      // Pin matching curated My Products to the top of category page 1.
-      // CJ's keyword/category index sometimes buries or omits seller-
-      // curated items; this guarantees they show up when a customer
-      // browses the category they actually belong to. Page 1 only — we
-      // don't want them re-appearing on every paginated page.
-      if (categoryId && (parseInt(page) || 1) === 1) {
-        const pinned = await pinnedMyProductsForCategory(categoryId);
-        if (pinned.length) {
-          const existingPids = new Set(
-            (meta.products || []).map(p => p.pid || p.id || p.productId)
-          );
-          const toPrepend = pinned.filter(p => !existingPids.has(p.pid));
-          if (toPrepend.length) {
-            meta.products = [...toPrepend, ...meta.products];
-            meta.total = (meta.total || 0) + toPrepend.length;
-          }
-        }
-      }
-
       if ((meta.products || []).length) cacheSet(rawKey, meta);
+    }
+
+    // Pin matching CJ My Products after cache lookup as well, otherwise a
+    // cached SQLite response can hide freshly added seller-curated items.
+    if ((parseInt(page, 10) || 1) === 1) {
+      const pinned = await pinnedMyProductsForResults({
+        categoryId,
+        keyWord: trimmedKw,
+        page,
+        limit: 10,
+      });
+      if (pinned.length) {
+        const merged = mergeProductLists(pinned, meta.products);
+        meta = {
+          ...meta,
+          products: merged.slice(0, Math.max(pageSize, pinned.length)),
+          total: Math.max(meta.total || 0, merged.length),
+          totalPages: meta.totalPages || 1,
+          source: `${meta.source || 'cj'}+my-products`,
+        };
+      }
     }
 
     // For each product, decide whether to show it:
@@ -2942,7 +3009,7 @@ function scheduleCatalogSync() {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Global Shopper v8.6  (CJDropshipping powered)       ║');
+  console.log('║  Global Shopper v8.7  (CJDropshipping powered)       ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);

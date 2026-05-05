@@ -299,10 +299,10 @@ async function addToMyProducts(productId) {
 }
 
 /** Get my imported products */
-async function getMyProducts({ page = 1, pageSize = 20, keyword }) {
+async function getMyProducts({ page = 1, pageSize = 20, keyword }, opts = {}) {
   const params = { pageNum: page, pageSize };
   if (keyword) params.keyword = keyword;
-  return cjGet('/product/myProduct/query', params);
+  return cjGet('/product/myProduct/query', params, opts);
 }
 
 /** Get product reviews */
