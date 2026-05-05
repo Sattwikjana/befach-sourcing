@@ -1393,8 +1393,8 @@ async function renderHome() {
         <!-- TRENDING TECH & GADGETS -->
         <section class="section">
           <div class="section-head">
-            <h2 class="section-title">🔥 Trending Tech &amp; Gadgets</h2>
-            <a href="/search?q=earbuds" class="section-link" id="trendingMore">View all →</a>
+            <h2 class="section-title">📱 Consumer Electronics</h2>
+            <a href="/search?q=headphones" class="section-link" id="trendingMore">View all →</a>
           </div>
           <div class="products-grid" id="trendingGrid">${productSkeleton(10)}</div>
         </section>
@@ -1425,8 +1425,8 @@ async function renderHome() {
         <!-- HOME & LIFESTYLE -->
         <section class="section">
           <div class="section-head">
-            <h2 class="section-title">🏠 Home &amp; Lifestyle</h2>
-            <a href="/search?q=led light" class="section-link" id="homeLifestyleMore">View all →</a>
+            <h2 class="section-title">🛠️ Home Improvement</h2>
+            <a href="/search?q=power tool" class="section-link" id="homeLifestyleMore">View all →</a>
           </div>
           <div class="products-grid" id="homeLifestyleGrid">${productSkeleton(10)}</div>
         </section>
@@ -1658,10 +1658,9 @@ async function loadHomeProducts() {
     'editor pick', 'limited edition', 'top rated', 'new arrival',
   ];
   const trendingPool = [
-    'earbuds', 'wireless headphones', 'smart watch', 'bluetooth speaker',
-    'power bank', 'phone holder', 'gaming mouse', 'mini projector',
-    'action camera', 'mechanical keyboard', 'smart glasses', 'drone',
-    'vr headset', 'air purifier',
+    'headphones', 'tv', 'monitor', 'tablet', 'camera',
+    'soundbar', 'home theater', 'projector', 'laptop stand',
+    'webcam', 'usb hub', 'docking station', 'wireless charger', 'streaming stick',
   ];
   const smartPool = [
     'smart bulb', 'smart plug', 'smart light', 'smart band',
@@ -1669,9 +1668,9 @@ async function loadHomeProducts() {
     'smart fan', 'smart lock', 'smart key finder', 'smart speaker',
   ];
   const homePool = [
-    'led light', 'kitchen tools', 'wall art', 'desk lamp', 'storage organizer',
-    'cushion cover', 'blanket', 'bathroom mat', 'plant pot', 'humidifier',
-    'aroma diffuser', 'room decor', 'coffee mug', 'cookware',
+    'power tool', 'drill', 'tool kit', 'tape measure', 'screwdriver set',
+    'hardware', 'door lock', 'led work light', 'cordless drill',
+    'utility knife', 'wrench set', 'storage rack', 'cable organizer', 'led strip',
   ];
 
   // Make sure we have the CJ category tree before fetching fashion rows.
@@ -1711,10 +1710,10 @@ async function loadHomeProducts() {
   const sections = [
     { grid: grids.featured,      kind: 'kw',  keywords: candidates(featuredPool), size: 10, moreId: 'featuredMore',      label: 'featured products' },
     { grid: grids.men,           kind: 'cat', cat: menChild   || menCat,          size: 8,  moreId: null,                label: "men's fashion" },
-    { grid: grids.trending,      kind: 'kw',  keywords: candidates(trendingPool), size: 10, moreId: 'trendingMore',      label: 'tech & gadgets' },
+    { grid: grids.trending,      kind: 'kw',  keywords: candidates(trendingPool), size: 10, moreId: 'trendingMore',      label: 'consumer electronics' },
     { grid: grids.women,         kind: 'cat', cat: womenChild || womenCat,        size: 8,  moreId: null,                label: "women's fashion" },
     { grid: grids.smart,         kind: 'kw',  keywords: candidates(smartPool),    size: 10, moreId: 'smartMore',         label: 'smart gadgets' },
-    { grid: grids.homeLifestyle, kind: 'kw',  keywords: candidates(homePool),     size: 10, moreId: 'homeLifestyleMore', label: 'home & lifestyle' },
+    { grid: grids.homeLifestyle, kind: 'kw',  keywords: candidates(homePool),     size: 10, moreId: 'homeLifestyleMore', label: 'home improvement' },
   ];
 
   // Point keyword-based section "View all →" links at the keyword we
@@ -1755,7 +1754,7 @@ async function loadHomeProducts() {
         // actually displayed.
         if (chosenKeyword && s.moreId) {
           const link = document.getElementById(s.moreId);
-          if (link) link.href = `#/search?q=${encodeURIComponent(chosenKeyword)}`;
+          if (link) link.href = `/search?q=${encodeURIComponent(chosenKeyword)}`;
         }
       }
 
