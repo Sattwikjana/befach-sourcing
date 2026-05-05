@@ -1702,8 +1702,17 @@ async function loadHomeProducts() {
   // Pick a child of the top-level women/men category so each daily load
   // surfaces a different slice (Dresses one day, Tops the next, etc.)
   // rather than always landing on whatever CJ orders first.
+  //
+  // Skip narrow accessory subcategories (Hats, Belts, Ties, Socks,
+  // Underwear...) — landing on "Hats & Caps" filled the Men's Fashion
+  // row with only baseball caps and beanies, which doesn't read as
+  // "men's clothing" at a glance. Stays inside actual garment subs.
+  const ACCESSORY_RE = /(hat|cap|beanie|belt|tie|scarf|glove|sock|stocking|underwear|sleepwear|nightwear|swimwear|swimsuit|lingerie|jewel|watch|bag|wallet|sunglass|eyewear|accessor)/i;
   const childPick = (cat) => {
-    const subs = cat?.categoryFirstList || [];
+    const subs = (cat?.categoryFirstList || []).filter(s => {
+      const name = s.categorySecondName || '';
+      return !ACCESSORY_RE.test(name);
+    });
     return subs.length ? subs[dayOfYear % subs.length] : null;
   };
   const womenChild = childPick(womenCat);
