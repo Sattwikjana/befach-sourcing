@@ -1336,7 +1336,7 @@ async function renderHome() {
 
         <!-- PROMO BANNERS -->
         <section class="promo-blocks">
-          <a href="/search?q=women dress" class="promo-big">
+          <a href="/search?q=women dress" class="promo-big" id="promoWomenCta">
             <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
             <div class="promo-big-copy">
               <span class="promo-eyebrow">SUMMER COLLECTION</span>
@@ -1355,7 +1355,7 @@ async function renderHome() {
                 <span class="promo-cta">Shop →</span>
               </div>
             </a>
-            <a href="/search?q=men shirt" class="promo-small promo-men">
+            <a href="/search?q=men shirt" class="promo-small promo-men" id="promoMenCta">
               <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
               <div class="promo-small-copy">
                 <span class="promo-eyebrow">MEN'S FASHION</span>
@@ -1384,7 +1384,7 @@ async function renderHome() {
               <span class="fashion-eyebrow">MEN'S COLLECTION</span>
               <h2>Men's Fashion</h2>
               <p>Premium styles, sourced globally</p>
-              <a class="fashion-cta" href="/search?q=men shirt">Shop Now →</a>
+              <a class="fashion-cta" id="menShopCta" href="/search?q=men shirt">Shop Now →</a>
             </div>
           </div>
           <div class="products-grid fashion-grid" id="menGrid">${productSkeleton(8)}</div>
@@ -1407,7 +1407,7 @@ async function renderHome() {
               <span class="fashion-eyebrow">WOMEN'S COLLECTION</span>
               <h2>Women's Fashion</h2>
               <p>Hand-picked from worldwide suppliers</p>
-              <a class="fashion-cta" href="/search?q=women dress">Shop Now →</a>
+              <a class="fashion-cta" id="womenShopCta" href="/search?q=women dress">Shop Now →</a>
             </div>
           </div>
           <div class="products-grid fashion-grid" id="womenGrid">${productSkeleton(8)}</div>
@@ -1685,6 +1685,19 @@ async function loadHomeProducts() {
   // Clothing", so the men's row got dressed and bridal gowns instead of shirts.
   const womenCat = findCat(/^women.?s\s+clothing/i) || findCat(/^women/i);
   const menCat   = findCat(/^men.?s\s+clothing/i)   || findCat(/^men\b/i);
+
+  // Point the fashion banner "Shop Now" CTAs and the top promo banners at
+  // the actual Men's / Women's Clothing category page instead of a narrow
+  // keyword search like "men shirt" — the user expects the full category.
+  const setHref = (id, cat) => {
+    if (!cat) return;
+    const el = document.getElementById(id);
+    if (el) el.href = categoryHref(cat);
+  };
+  setHref('menShopCta',    menCat);
+  setHref('womenShopCta',  womenCat);
+  setHref('promoMenCta',   menCat);
+  setHref('promoWomenCta', womenCat);
 
   // Pick a child of the top-level women/men category so each daily load
   // surfaces a different slice (Dresses one day, Tops the next, etc.)
