@@ -105,20 +105,19 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   text-decoration: none;
   flex-shrink: 0;
 }
-/* Logo image — Global Shopper wordmark. Bumped to 80px tall for
-   stronger brand presence; the previous 52px was reading as too
-   small at typical desktop viewport sizes. Tablet/mobile values
-   scale down proportionally in the media queries below. */
+/* Logo image — Global Shopper wordmark, cropped to the visible mark
+   so no surrounding artwork bleeds into the header. Tablet/mobile
+   values scale down proportionally in the media queries below. */
 .brand-logo-img {
-  height: 80px;
-  width: auto;
-  max-width: 300px;
+  width: 112px;
+  height: 64px;
+  max-width: none;
   display: block;
+  object-fit: cover;
+  object-position: top center;
 }
 /* Tagline rendered as text next to the logo, two lines stacked.
-   "ONE WORLD." in black, "ENDLESS CHOICES." in champagne gold —
-   matches the typography inside the logo file itself. Sized to
-   read confidently next to the 80px header logo. */
+   "ONE WORLD." in black, "ENDLESS CHOICES." in champagne gold. */
 .brand-tagline-side {
   display: flex;
   flex-direction: column;
@@ -2400,9 +2399,10 @@ body.page-home .header-nav { margin-left: auto; }
   z-index: 100;
   transform: translateX(-100%);
   transition: transform 0.25s ease-out;
-  display: flex;
+  display: none;
   flex-direction: column;
   box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+  overflow: hidden;
 }
 .drawer.open { transform: translateX(0); }
 
@@ -2699,6 +2699,8 @@ body.page-home .header-nav { margin-left: auto; }
 .mobile-bottom-nav { display: none; }
 
 @media (max-width: 860px) {
+  .drawer { display: flex; }
+
   .mobile-bottom-nav {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -2800,7 +2802,7 @@ body.page-home .header-nav { margin-left: auto; }
     padding: 10px 14px;
   }
   /* Brand on tablet — keep logo + side tagline */
-  .brand-logo-img { height: 64px; max-width: 240px; }
+  .brand-logo-img { width: 92px; height: 52px; }
   .brand-tagline-side { font-size: 12px; padding-left: 12px; }
   .brand { gap: 10px; }
   .brand-text-main { font-size: 26px; }
@@ -2930,7 +2932,7 @@ body.page-home .header-nav { margin-left: auto; }
   .header-inner { padding: 8px 12px; gap: 8px; }
   /* Phone: hide the side tagline to give the search bar room.
      Logo alone keeps brand identity. */
-  .brand-logo-img { height: 52px; max-width: 180px; }
+  .brand-logo-img { width: 78px; height: 44px; }
   .brand-tagline-side { display: none; }
   .brand-text-main { font-size: 22px; }
   .brand-text-sub  { font-size: 9px; letter-spacing: 0.24em; }
