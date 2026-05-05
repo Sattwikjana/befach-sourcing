@@ -464,7 +464,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: cjOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '8.3',
+    version: '8.4',
     cj: cjOk ? 'connected' : 'disconnected',
     cjError,
     markup: pricing.getMarkupPercent() + '%',
@@ -949,6 +949,30 @@ function mergeProductLists(...lists) {
 
 async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size }) {
   const catalogMeta = catalog.searchProducts({ keyWord, categoryId, page, size });
+
+  // Category browsing must never wait behind CJ's live API queue. During a
+  // large background catalog crawl, live CJ calls can take long enough that
+  // the frontend times out and leaves users staring at skeleton cards. If we
+  // already have local catalog rows, serve those immediately and refresh CJ
+  // in the background for future requests.
+  if (!keyWord && catalogMeta?.products?.length) {
+    searchProductsMerged({ keyWord, categoryId, page, size })
+      .then(liveMeta => {
+        if (liveMeta.products?.length) {
+          catalog.upsertProducts(liveMeta.products, {
+            source: 'cj-live-search',
+            categoryHint: categoryId ? { id: categoryId, name: categoryNameForId(categoryId) } : undefined,
+          });
+        }
+      })
+      .catch(err => console.warn('[products] background CJ refresh failed:', err.message));
+
+    return {
+      ...catalogMeta,
+      source: 'catalog-fast',
+    };
+  }
+
   let liveMeta;
   try {
     liveMeta = await searchProductsMerged({ keyWord, categoryId, page, size });
@@ -2841,7 +2865,7 @@ function scheduleCatalogSync() {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Global Shopper v8.3  (CJDropshipping powered)       ║');
+  console.log('║  Global Shopper v8.4  (CJDropshipping powered)       ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);
