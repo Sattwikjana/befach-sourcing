@@ -464,7 +464,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: cjOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '8.5',
+    version: '8.6',
     cj: cjOk ? 'connected' : 'disconnected',
     cjError,
     markup: pricing.getMarkupPercent() + '%',
@@ -673,6 +673,27 @@ function categoryNameForId(id) {
   return '';
 }
 
+function categoryCatalogFallbackTerms(name) {
+  const label = String(name || '').trim();
+  const n = label.toLowerCase();
+  const terms = [];
+
+  if (/women|woman|girl/.test(n)) terms.push('dress', 'women', 'blouse', 'fashion');
+  if (/\bmen|man|boy/.test(n)) terms.push('shirt', 'men', 'jacket', 'fashion');
+  if (/pet|dog|cat/.test(n)) terms.push('pet', 'dog', 'cat');
+  if (/home|garden|furniture|kitchen/.test(n)) terms.push('home', 'kitchen', 'lamp', 'garden');
+  if (/health|beauty|hair/.test(n)) terms.push('beauty', 'hair', 'makeup', 'skincare');
+  if (/jewel|watch/.test(n)) terms.push('watch', 'jewelry', 'ring');
+  if (/bag|shoe/.test(n)) terms.push('bag', 'shoe', 'backpack');
+  if (/toy|kid|baby/.test(n)) terms.push('toy', 'baby', 'kids');
+  if (/electronic|computer|phone|tech/.test(n)) terms.push('electronic', 'phone', 'gadget');
+  if (/sport|outdoor/.test(n)) terms.push('sport', 'outdoor', 'fitness');
+  if (/school/.test(n)) terms.push('school bag', 'backpack', 'bag');
+
+  if (label) terms.push(label);
+  return [...new Set(terms.filter(Boolean))];
+}
+
 // ── Synthetic MRP / discount badge ────────────────────────────────
 // E-commerce convention: show a struck-through "MRP" alongside the
 // actual sell price with an "X% off" badge. CJ doesn't expose an MRP
@@ -799,9 +820,9 @@ function rankByTrending(products) {
     .map(x => x.p);
 }
 
-async function searchProductsMerged({ keyWord, categoryId, page, size }) {
+async function searchProductsMerged({ keyWord, categoryId, page, size, priority = 'medium' }) {
   if (!keyWord) {
-    const data = await cj.searchProducts({ keyWord, categoryId, page, size });
+    const data = await cj.searchProducts({ keyWord, categoryId, page, size }, { priority });
     const result = parseListV2(data, size);
     result.products = rankByTrending(result.products);
     return result;
@@ -839,11 +860,11 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
       categoryId,
       page: cjLegacyStart + i,
       pageSize: 20,
-    }));
+    }, { priority }));
   }
 
   const [v2Result, ...legacyResults] = await Promise.allSettled([
-    cj.searchProducts({ keyWord, categoryId, page, size }),
+    cj.searchProducts({ keyWord, categoryId, page, size }, { priority }),
     ...legacyCalls,
   ]);
 
@@ -948,6 +969,8 @@ function mergeProductLists(...lists) {
 }
 
 const CATEGORY_LIVE_MERGE_TIMEOUT_MS = parseInt(process.env.CATEGORY_LIVE_MERGE_TIMEOUT_MS || '1500', 10);
+const SEARCH_LIVE_MERGE_TIMEOUT_MS = parseInt(process.env.SEARCH_LIVE_MERGE_TIMEOUT_MS || '1800', 10);
+const LIVE_ONLY_SEARCH_TIMEOUT_MS = parseInt(process.env.LIVE_ONLY_SEARCH_TIMEOUT_MS || '8000', 10);
 
 function cacheLiveProducts(liveMeta, categoryId) {
   if (!liveMeta?.products?.length) return;
@@ -971,27 +994,34 @@ function mergeCatalogAndLiveMeta(liveMeta, catalogMeta, size) {
 
 async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size }) {
   const catalogMeta = catalog.searchProducts({ keyWord, categoryId, page, size });
+  const hasCatalog = !!catalogMeta?.products?.length;
 
-  // Category browsing should include both CJ live and our SQLite catalog, but
-  // it must never wait too long behind CJ's live queue. During a large
-  // background catalog crawl, live CJ calls can take long enough that the
-  // frontend times out. We give CJ a short chance to answer, merge if it does,
-  // and otherwise return the local catalog while the CJ refresh keeps running
-  // in the background for future requests.
-  if (!keyWord && catalogMeta?.products?.length) {
-    const livePromise = searchProductsMerged({ keyWord, categoryId, page, size })
-      .then(liveMeta => {
-        cacheLiveProducts(liveMeta, categoryId);
-        return liveMeta;
-      })
+  const fetchLive = (priority = 'high') => searchProductsMerged({
+    keyWord,
+    categoryId,
+    page,
+    size,
+    priority,
+  }).then(liveMeta => {
+    cacheLiveProducts(liveMeta, categoryId);
+    return liveMeta;
+  });
+
+  const timeout = (ms) => new Promise(resolve => setTimeout(() => resolve(null), ms));
+
+  // If SQLite has products, it is the fast customer-facing path. Give CJ a
+  // short chance to contribute live results, then return the catalog either
+  // way. The live request keeps filling SQLite for the next visit.
+  if (hasCatalog) {
+    const livePromise = fetchLive('high')
       .catch(err => {
-        console.warn('[products] background CJ refresh failed:', err.message);
+        console.warn('[products] live merge failed:', err.message);
         return null;
       });
 
     const liveMeta = await Promise.race([
       livePromise,
-      new Promise(resolve => setTimeout(() => resolve(null), CATEGORY_LIVE_MERGE_TIMEOUT_MS)),
+      timeout(keyWord ? SEARCH_LIVE_MERGE_TIMEOUT_MS : CATEGORY_LIVE_MERGE_TIMEOUT_MS),
     ]);
 
     if (liveMeta?.products?.length) {
@@ -1000,26 +1030,50 @@ async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size
 
     return {
       ...catalogMeta,
-      source: 'catalog-fast',
+      source: keyWord ? 'catalog-search-fast' : 'catalog-fast',
     };
+  }
+
+  // Some broad CJ category ids do not have enough category-tagged rows in
+  // SQLite yet. Do a fast catalog keyword fallback before waiting on CJ live.
+  if (!keyWord && categoryId) {
+    const fallbackName = categoryNameForId(categoryId);
+    const fallbackTerms = categoryCatalogFallbackTerms(fallbackName);
+    for (const term of fallbackTerms) {
+      const fallbackMeta = catalog.searchProducts({ keyWord: term, page, size });
+      if (fallbackMeta?.products?.length) {
+        fetchLive('high').catch(err => {
+          console.warn('[products] background category CJ refresh failed:', err.message);
+        });
+        return {
+          ...fallbackMeta,
+          source: 'catalog-keyword-fast',
+        };
+      }
+    }
   }
 
   let liveMeta;
   try {
-    liveMeta = await searchProductsMerged({ keyWord, categoryId, page, size });
+    liveMeta = await Promise.race([
+      fetchLive('high'),
+      timeout(LIVE_ONLY_SEARCH_TIMEOUT_MS),
+    ]);
   } catch (err) {
-    if (catalogMeta?.products?.length) {
-      return { ...catalogMeta, source: 'catalog-fallback' };
-    }
     throw err;
   }
 
+  if (!liveMeta) {
+    return {
+      products: [],
+      total: 0,
+      totalPages: 1,
+      source: 'live-timeout',
+    };
+  }
+
   liveMeta.source = 'cj';
-  cacheLiveProducts(liveMeta, categoryId);
-
-  if (!catalogMeta?.products?.length) return liveMeta;
-
-  return mergeCatalogAndLiveMeta(liveMeta, catalogMeta, size);
+  return liveMeta;
 }
 
 // Product list / search.
@@ -1460,7 +1514,7 @@ app.get('/api/store/products', async (req, res) => {
       // Glasses → 1000+ products via keyword). The merged search above
       // already calls both endpoints, so this fallback only fires when the
       // category is genuinely empty in both.
-      if (meta.products.length === 0 && categoryId && !keyWord) {
+      if (meta.products.length === 0 && meta.source !== 'live-timeout' && categoryId && !keyWord) {
         const fallbackName = categoryNameForId(categoryId);
         if (fallbackName) {
           console.log(`[products] categoryId ${categoryId} empty → retrying as keyword "${fallbackName}"`);
@@ -1496,7 +1550,7 @@ app.get('/api/store/products', async (req, res) => {
         }
       }
 
-      cacheSet(rawKey, meta);
+      if ((meta.products || []).length) cacheSet(rawKey, meta);
     }
 
     // For each product, decide whether to show it:
@@ -1579,7 +1633,7 @@ app.get('/api/store/products', async (req, res) => {
     //
     // The freight queue runs at low priority, so user-triggered detail
     // clicks still jump ahead.
-    const WARM_PER_REQUEST = meta.source === 'catalog' ? 20 : 150;
+    const WARM_PER_REQUEST = String(meta.source || '').includes('catalog') ? 20 : 80;
     for (const pid of unwarmedToWarm.slice(0, WARM_PER_REQUEST)) {
       getProductShippingUsd(pid, 'low').catch(() => {});
     }
@@ -2888,7 +2942,7 @@ function scheduleCatalogSync() {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Global Shopper v8.5  (CJDropshipping powered)       ║');
+  console.log('║  Global Shopper v8.6  (CJDropshipping powered)       ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);
