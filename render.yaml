@@ -11,7 +11,7 @@ services:
   - type: web
     name: befach-store
     runtime: node
-    plan: starter            # $7/mo, 512MB RAM, always-on
+    plan: standard           # $25/mo, 2GB RAM — needed for the local product catalog
     region: singapore        # closest to India for low latency
     rootDir: server          # package.json lives here
     buildCommand: npm install --production
@@ -83,7 +83,25 @@ services:
         sync: false
       - key: OPENROUTER_DAILY_CAP_USD
         value: "1.0"
+      # SQLite catalog — product summaries only; details/stock/shipping
+      # still refresh live from CJ on click/checkout.
+      - key: CATALOG_ENABLED
+        value: "true"
+      - key: CATALOG_AUTO_SYNC
+        value: "true"
+      - key: CATALOG_SYNC_TARGET
+        value: "50000"       # first safe phase; raise to 100000/300000 after testing
+      - key: CATALOG_SYNC_MAX_CALLS
+        value: "600"         # leaves room inside the 86,400/day CJ limit
+      - key: CATALOG_SYNC_PAGE_SIZE
+        value: "200"
+      - key: CATALOG_SYNC_MIN_DELAY_MS
+        value: "1200"        # ~0.8 req/sec, safe under 1 req/sec daily pacing
+      - key: CATALOG_AUTO_SYNC_DELAY_MS
+        value: "120000"      # let the public cache warm before the catalog crawl starts
+      - key: CATALOG_AUTO_SYNC_INTERVAL_MS
+        value: "86400000"
     disk:
       name: befach-data
       mountPath: /opt/render/project/src/server/data
-      sizeGB: 1              # $0.25/GB-month, plenty for years of data
+      sizeGB: 10             # ~$2.50/mo; enough for 100k-300k lightweight summaries

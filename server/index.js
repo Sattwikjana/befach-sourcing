@@ -23,6 +23,7 @@ const pricing = require('./pricingEngine');
 const orders = require('./orderManager');
 const auth = require('./auth');
 const searchAI = require('./searchAI');
+const catalog = require('./catalogDb');
 
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
@@ -400,6 +401,7 @@ app.get('/api/health', async (req, res) => {
         ? 'live'
         : 'test',
     ai: searchAI.getStatus(),
+    catalog: catalog.getStatus(),
   });
 });
 
@@ -556,10 +558,17 @@ app.get('/api/store/categories', async (req, res) => {
     const cached = cacheGet('categories', 60 * 60 * 1000);
     if (cached) return res.json({ cached: true, data: cached });
     const data = await cj.getCategories();
-    cacheSet('categories', data.data || []);
-    res.json({ data: data.data || [] });
+    const categories = data.data || [];
+    catalog.upsertCategories(categories);
+    cacheSet('categories', categories);
+    res.json({ data: categories });
   } catch (err) {
     console.error('[Categories]', err.message);
+    const fallback = catalog.getCategoryTree();
+    if (fallback.length) {
+      cacheSet('categories', fallback);
+      return res.json({ cached: true, source: 'catalog', data: fallback });
+    }
     res.status(500).json({ error: 'Failed to load categories', detail: err.message });
   }
 });
@@ -844,6 +853,20 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
   };
 }
 
+async function searchProductsCatalogFirst({ keyWord, categoryId, page, size }) {
+  const catalogMeta = catalog.searchProducts({ keyWord, categoryId, page, size });
+  if (catalogMeta && catalogMeta.products?.length) return catalogMeta;
+  const liveMeta = await searchProductsMerged({ keyWord, categoryId, page, size });
+  liveMeta.source = 'cj';
+  if (liveMeta.products?.length) {
+    catalog.upsertProducts(liveMeta.products, {
+      source: 'cj-live-search',
+      categoryHint: categoryId ? { id: categoryId, name: categoryNameForId(categoryId) } : undefined,
+    });
+  }
+  return liveMeta;
+}
+
 // Product list / search.
 //
 // We cache the RAW CJ product list (5 min TTL) — not the final payload —
@@ -1016,14 +1039,14 @@ app.get('/api/store/search/smart', async (req, res) => {
     // products: the narrow term matches few catalog titles literally,
     // while "women clothing" pulls in the whole category.
     const [narrowMeta, broaderMeta] = await Promise.all([
-      searchProductsMerged({
+      searchProductsCatalogFirst({
         keyWord: narrowKeywords,
         categoryId: undefined,
         page,
         size: pageSize,
       }),
       usingBroader
-        ? searchProductsMerged({
+        ? searchProductsCatalogFirst({
             keyWord: broaderKeywords,
             categoryId: undefined,
             page,
@@ -1259,7 +1282,7 @@ app.get('/api/store/products', async (req, res) => {
     }
 
     if (!meta) {
-      meta = await searchProductsMerged({
+      meta = await searchProductsCatalogFirst({
         keyWord,
         categoryId,
         page: parseInt(page) || 1,
@@ -1278,7 +1301,7 @@ app.get('/api/store/products', async (req, res) => {
         if (fallbackName) {
           console.log(`[products] categoryId ${categoryId} empty → retrying as keyword "${fallbackName}"`);
           try {
-            const meta2 = await searchProductsMerged({
+            const meta2 = await searchProductsCatalogFirst({
               keyWord: fallbackName,
               page: parseInt(page) || 1,
               size: pageSize,
@@ -1387,7 +1410,7 @@ app.get('/api/store/products', async (req, res) => {
     //
     // The freight queue runs at low priority, so user-triggered detail
     // clicks still jump ahead.
-    const WARM_PER_REQUEST = 150;
+    const WARM_PER_REQUEST = meta.source === 'catalog' ? 20 : 150;
     for (const pid of unwarmedToWarm.slice(0, WARM_PER_REQUEST)) {
       getProductShippingUsd(pid, 'low').catch(() => {});
     }
@@ -1397,6 +1420,7 @@ app.get('/api/store/products', async (req, res) => {
       total: meta.total,
       page: parseInt(page) || 1,
       totalPages: meta.totalPages,
+      source: meta.source || 'cj',
       // Frontend uses this to know whether to retry without strict
       strictShippable: wantStrict,
       unverifiedCount: unwarmedToWarm.length,
@@ -2083,6 +2107,24 @@ app.get('/api/admin/dashboard', adminAuth, (req, res) => {
   res.json(orders.getDashboardStats());
 });
 
+app.get('/api/admin/catalog/status', adminAuth, (req, res) => {
+  res.json(catalog.getStatus());
+});
+
+app.post('/api/admin/catalog/sync', adminAuth, (req, res) => {
+  const opts = {
+    targetProducts: req.body?.targetProducts,
+    maxCalls: req.body?.maxCalls,
+    pageSize: req.body?.pageSize,
+    minDelayMs: req.body?.minDelayMs,
+  };
+  res.json(catalog.startSync(cj, opts));
+});
+
+app.post('/api/admin/catalog/sync/stop', adminAuth, (req, res) => {
+  res.json(catalog.stopSync());
+});
+
 // Admin Customers panel — every signed-up user with an order rollup.
 // Joins users.json against orders.json so the table shows lifetime
 // order count + revenue per customer alongside contact info. Live
@@ -2439,7 +2481,7 @@ async function prewarmKeyword(keyword, size = 10, page = 1) {
   });
   if (cacheGet(rawKey, 30 * 60 * 1000)) return; // already warm
   try {
-    const meta = await searchProductsMerged({ keyWord: keyword, page, size });
+    const meta = await searchProductsCatalogFirst({ keyWord: keyword, page, size });
     cacheSet(rawKey, meta);
     console.log(`[prewarm] "${keyword}" (${meta.products.length}/${meta.total}) ✓`);
   } catch (e) {
@@ -2450,7 +2492,11 @@ async function prewarmKeyword(keyword, size = 10, page = 1) {
 async function prewarm() {
   console.log('[prewarm] warming caches...');
   try {
-    await cj.getCategories().then(d => cacheSet('categories', d.data || []));
+    await cj.getCategories().then(d => {
+      const categories = d.data || [];
+      catalog.upsertCategories(categories);
+      cacheSet('categories', categories);
+    });
     console.log('[prewarm] categories ✓');
   } catch (e) { console.warn('[prewarm] categories failed:', e.message); }
 
@@ -2503,7 +2549,7 @@ async function prewarm() {
       });
       if (cacheGet(rawKey, 30 * 60 * 1000)) return;
       try {
-        const meta = await searchProductsMerged({ categoryId: id, page: 1, size: 8 });
+        const meta = await searchProductsCatalogFirst({ categoryId: id, page: 1, size: 8 });
         cacheSet(rawKey, meta);
         console.log(`[prewarm] ${label} (${meta.products.length}) ✓`);
       } catch (e) { console.warn(`[prewarm] ${label} failed:`, e.message); }
@@ -2549,6 +2595,7 @@ async function warmExtendedCatalog(maxPages = 4) {
 
       // Cache the raw list at the same key the list endpoint uses
       const rawKey = productsRawKey({ keyWord: '', page: String(page), size: '24', categoryId: '' });
+      catalog.upsertProducts(products, { source: 'cj-warm-listV2-global' });
       cacheSet(rawKey, {
         products,
         total: data.data?.total || data.data?.totalRecords || products.length,
@@ -2568,6 +2615,26 @@ async function warmExtendedCatalog(maxPages = 4) {
   }
 }
 
+function scheduleCatalogSync() {
+  if (process.env.CATALOG_AUTO_SYNC !== 'true') return;
+  const delayMs = parseInt(process.env.CATALOG_AUTO_SYNC_DELAY_MS || '120000', 10);
+  const intervalMs = parseInt(process.env.CATALOG_AUTO_SYNC_INTERVAL_MS || String(24 * 60 * 60 * 1000), 10);
+  const start = () => {
+    const result = catalog.startSync(cj, {
+      targetProducts: process.env.CATALOG_SYNC_TARGET || 50000,
+      maxCalls: process.env.CATALOG_SYNC_MAX_CALLS || 600,
+      pageSize: process.env.CATALOG_SYNC_PAGE_SIZE || 200,
+      minDelayMs: process.env.CATALOG_SYNC_MIN_DELAY_MS || 1200,
+    });
+    if (result.started) console.log('[catalog] background sync started');
+    else console.log('[catalog] background sync already running');
+  };
+  setTimeout(() => {
+    start();
+    setInterval(start, intervalMs);
+  }, delayMs);
+}
+
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
@@ -2583,4 +2650,5 @@ app.listen(PORT, () => {
   // After the home page is hot, keep filling the cache with deeper pages
   // so first-click on any category returns warm shipping data faster.
   prewarm().then(() => warmExtendedCatalog(8)).catch(() => {});
+  scheduleCatalogSync();
 });

@@ -262,12 +262,12 @@ async function searchProducts({ keyWord, page = 1, size = 20, categoryId, minPri
   return cjGet('/product/listV2', params, opts);
 }
 
-/** Get product list (legacy endpoint, fixed 20 per page) */
-async function getProductList({ page = 1, pageSize = 20, categoryId, productNameEn }) {
+/** Get product list (legacy endpoint, supports pageSize up to CJ's account limit). */
+async function getProductList({ page = 1, pageSize = 20, categoryId, productNameEn }, opts = {}) {
   const params = { pageNum: page, pageSize };
   if (categoryId) params.categoryId = categoryId;
   if (productNameEn) params.productNameEn = productNameEn;
-  return cjGet('/product/list', params);
+  return cjGet('/product/list', params, opts);
 }
 
 /** Get product details by product ID (UUID-style pid). */
