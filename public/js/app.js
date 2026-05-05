@@ -1165,102 +1165,118 @@ window._pdWishToggle = function(btn) {
 };
 
 /**
- * Backfill real shipping for any cards with approximate prices.
+ * Backfill real shipping for cards that are waiting on exact prices.
  *
- * Concurrency = 4 because user-clicks use the server's HIGH priority
- * queue and jump ahead of these LOW priority backfills. Aborts on
- * route change so abandoned pages don't keep CJ calls in flight.
+ * Global concurrency = 4 across the whole page. Home renders several
+ * sections in parallel, so a shared queue prevents later sections from
+ * canceling earlier ones while keeping user-clicks ahead in the server's
+ * high-priority queue. Aborts on route change so abandoned pages don't
+ * keep CJ calls in flight.
  *
  * Successful backfills are stored in localStorage so the next visit
  * is instant — no server roundtrip, no skeleton.
  */
 let currentBackfillAbort = null;
+let priceBackfillQueue = [];
+let priceBackfillRunning = 0;
+let priceBackfillSeen = new Set();
+const PRICE_BACKFILL_CONCURRENCY = 4;
+
 function cancelBackfill() {
   if (currentBackfillAbort) {
     try { currentBackfillAbort.abort(); } catch {}
     currentBackfillAbort = null;
   }
+  priceBackfillQueue = [];
+  priceBackfillRunning = 0;
+  priceBackfillSeen = new Set();
 }
 
-async function backfillCardShipping(gridEl) {
-  if (!gridEl) return;
-  cancelBackfill();
-  const abort = new AbortController();
-  currentBackfillAbort = abort;
+async function backfillOneCardPrice(card, abort) {
+  const pid = card.getAttribute('data-pid');
+  if (!pid || abort.signal.aborted || !card.isConnected) return;
 
-  const pending = Array.from(gridEl.querySelectorAll('.product-card[data-accurate="0"]'));
-  if (!pending.length) return;
+  try {
+    const res = await fetch(`/api/store/shipping-for/${encodeURIComponent(pid)}`, {
+      signal: abort.signal,
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (abort.signal.aborted || !card.isConnected) return;
 
-  const CONCURRENCY = 4;
-  const queue = pending.slice();
+    if (data.available === false) {
+      // Unshippable to India — drop the card from the grid so the user
+      // never clicks through to the "Not available in your region" page.
+      card.remove();
+      return;
+    }
 
-  async function worker() {
-    while (queue.length) {
-      if (abort.signal.aborted) return;
-      const card = queue.shift();
-      const pid = card.getAttribute('data-pid');
-      if (!pid) continue;
-      try {
-        const res = await fetch(`/api/store/shipping-for/${encodeURIComponent(pid)}`, {
-          signal: abort.signal,
-        });
-        if (!res.ok) continue;
-        const data = await res.json();
-        if (abort.signal.aborted || !card.isConnected) continue;
+    if (data.displayUsd) {
+      // Persist for instant load on next visit.
+      setCachedDisplayUsd(pid, data.displayUsd);
+      const priceEl = card.querySelector('[data-card-price]');
+      if (priceEl) {
+        priceEl.textContent = fmtINR(data.displayUsd);
+        priceEl.classList.remove('product-price-calc');
+        priceEl.classList.add('product-price-now');
+        priceEl.removeAttribute('aria-label');
+      }
 
-        if (data.available === false) {
-          // Unshippable to India — drop the card from the grid so the
-          // user never clicks through to the "Not available in your
-          // region" page. The server's product list endpoint already
-          // skips known-unshippable items, but on a cold cache the
-          // first request lets them through; this catches them.
-          card.remove();
-          continue;
+      const mrpUsd = parseFloat(card.getAttribute('data-mrp')) || 0;
+      const discountPct = parseInt(card.getAttribute('data-discount'), 10) || 0;
+      const showOffer = (data.mrp || mrpUsd) > parseFloat(data.displayUsd) && discountPct > 0;
+      const mrpEl = card.querySelector('[data-card-mrp]');
+      const saveEl = card.querySelector('[data-card-save]');
+      if (showOffer) {
+        if (mrpEl) {
+          mrpEl.textContent = fmtINR(data.mrp || mrpUsd);
+          mrpEl.removeAttribute('hidden');
         }
-
-        if (data.displayUsd) {
-          // Persist for instant load on next visit
-          setCachedDisplayUsd(pid, data.displayUsd);
-          // Swap the calculating placeholder for the real price.
-          // Replace classes too so styling switches from
-          // .product-price-calc (greyed/pulsing) to .product-price-now.
-          const priceEl = card.querySelector('[data-card-price]');
-          if (priceEl) {
-            priceEl.textContent = fmtINR(data.displayUsd);
-            priceEl.classList.remove('product-price-calc');
-            priceEl.classList.add('product-price-now');
-            priceEl.removeAttribute('aria-label');
-          }
-          // Reveal the strike-through MRP + "X% off" badge once we know
-          // the real price (they were rendered hidden in the calculating
-          // state because we couldn't compute the discount yet).
-          const mrpUsd = parseFloat(card.getAttribute('data-mrp')) || 0;
-          const discountPct = parseInt(card.getAttribute('data-discount'), 10) || 0;
-          const showOffer = (data.mrp || mrpUsd) > parseFloat(data.displayUsd) && discountPct > 0;
-          const mrpEl = card.querySelector('[data-card-mrp]');
-          const saveEl = card.querySelector('[data-card-save]');
-          if (showOffer) {
-            if (mrpEl) {
-              mrpEl.textContent = fmtINR(data.mrp || mrpUsd);
-              mrpEl.removeAttribute('hidden');
-            }
-            if (saveEl) {
-              saveEl.textContent = `${discountPct}% off`;
-              saveEl.removeAttribute('hidden');
-            }
-          }
+        if (saveEl) {
+          saveEl.textContent = `${discountPct}% off`;
+          saveEl.removeAttribute('hidden');
         }
-        card.setAttribute('data-accurate', '1');
-      } catch (e) {
-        if (e.name === 'AbortError') return;
-        // Swallow — card keeps its skeleton; user can refresh.
       }
     }
+    card.setAttribute('data-accurate', '1');
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    // Swallow — card keeps waiting for an exact price.
+  }
+}
+
+function pumpPriceBackfillQueue() {
+  const abort = currentBackfillAbort;
+  if (!abort || abort.signal.aborted) return;
+
+  while (priceBackfillRunning < PRICE_BACKFILL_CONCURRENCY && priceBackfillQueue.length) {
+    const card = priceBackfillQueue.shift();
+    if (!card || !card.isConnected) continue;
+
+    priceBackfillRunning++;
+    backfillOneCardPrice(card, abort).finally(() => {
+      priceBackfillRunning = Math.max(0, priceBackfillRunning - 1);
+      if (abort === currentBackfillAbort && !abort.signal.aborted) {
+        pumpPriceBackfillQueue();
+      }
+    });
+  }
+}
+
+function backfillCardShipping(gridEl) {
+  if (!gridEl || !gridEl.isConnected) return;
+  if (!currentBackfillAbort || currentBackfillAbort.signal.aborted) {
+    currentBackfillAbort = new AbortController();
   }
 
-  const workers = [];
-  for (let i = 0; i < CONCURRENCY; i++) workers.push(worker());
-  await Promise.all(workers);
+  const pending = Array.from(gridEl.querySelectorAll('.product-card[data-accurate="0"]'));
+  for (const card of pending) {
+    const pid = card.getAttribute('data-pid');
+    if (!pid || priceBackfillSeen.has(pid)) continue;
+    priceBackfillSeen.add(pid);
+    priceBackfillQueue.push(card);
+  }
+  pumpPriceBackfillQueue();
 }
 
 function parseProductImage(p) {

@@ -329,6 +329,38 @@ function peekShippingCache(pid) {
   };
 }
 
+function getShippingCacheStats() {
+  const now = Date.now();
+  let total = 0;
+  let fresh = 0;
+  let available = 0;
+  let unavailable = 0;
+
+  for (const hit of Object.values(shippingCache || {})) {
+    if (!hit || hit.v !== SHIPPING_CACHE_VERSION) continue;
+    total++;
+    if (now - hit.ts <= SHIPPING_CACHE_TTL) fresh++;
+    if (hit.available === false) unavailable++;
+    else available++;
+  }
+
+  let sizeBytes = 0;
+  try {
+    if (fs.existsSync(SHIPPING_CACHE_FILE)) {
+      sizeBytes = fs.statSync(SHIPPING_CACHE_FILE).size;
+    }
+  } catch {}
+
+  return {
+    version: SHIPPING_CACHE_VERSION,
+    total,
+    fresh,
+    available,
+    unavailable,
+    sizeBytes,
+  };
+}
+
 /** Whole-cart shipping estimate used at checkout. */
 async function quoteCartShippingUsd(items) {
   if (!Array.isArray(items) || !items.length) return FALLBACK_SHIPPING_USD;
@@ -402,6 +434,7 @@ app.get('/api/health', async (req, res) => {
         : 'test',
     ai: searchAI.getStatus(),
     catalog: catalog.getStatus(),
+    shippingCache: getShippingCacheStats(),
   });
 });
 
@@ -2511,13 +2544,47 @@ async function prewarmKeyword(keyword, size = 10, page = 1) {
   const rawKey = productsRawKey({
     keyWord: keyword || '', page: String(page), size: String(size), categoryId: '',
   });
-  if (cacheGet(rawKey, 30 * 60 * 1000)) return; // already warm
+  const cached = cacheGet(rawKey, 30 * 60 * 1000);
+  if (cached) return cached; // already warm
   try {
     const meta = await searchProductsWithCatalogExtras({ keyWord: keyword, page, size });
     cacheSet(rawKey, meta);
     console.log(`[prewarm] "${keyword}" (${meta.products.length}/${meta.total}) ✓`);
+    return meta;
   } catch (e) {
     console.warn(`[prewarm] "${keyword}" failed:`, e.message);
+    return null;
+  }
+}
+
+function queueShippingWarm(products, label) {
+  const seen = new Set();
+  const pids = [];
+  for (const p of products || []) {
+    const pid = p.pid || p.id || p.productId;
+    if (!pid || seen.has(pid) || peekShippingCache(pid)) continue;
+    seen.add(pid);
+    pids.push(pid);
+  }
+  if (!pids.length) return;
+
+  console.log(`[prewarm] warming exact prices for ${pids.length} ${label} in background...`);
+  let done = 0;
+  let unshippable = 0;
+  const markDone = () => {
+    if (done === pids.length) {
+      console.log(`[prewarm] exact prices warm ✓ (${done} products, ${unshippable} unshippable)`);
+    }
+  };
+  for (const pid of pids) {
+    getProductShippingUsd(pid, 'low').then(r => {
+      done++;
+      if (!r.available) unshippable++;
+      markDone();
+    }).catch(() => {
+      done++;
+      markDone();
+    });
   }
 }
 
@@ -2549,7 +2616,7 @@ async function prewarm() {
   // separate listV2/legacy queues running in parallel, all 4 keyword
   // sections warm in well under a second.
   const kw = todayHomeKeywords();
-  await Promise.all([
+  const keywordMetas = await Promise.all([
     prewarmKeyword(kw.featured, 10),
     prewarmKeyword(kw.trending, 10),
     prewarmKeyword(kw.smart, 10),
@@ -2559,6 +2626,7 @@ async function prewarm() {
   // Pre-warm the men's & women's fashion sections too. They fetch by
   // categoryId of a rotating second-level subcategory, which the
   // frontend resolves at load time. Mirror that resolution here.
+  let fashionMetas = [];
   try {
     const cats = cacheGet('categories', Infinity) || [];
     const findCat = (re) => cats.find(c => re.test(c.categoryFirstName || ''));
@@ -2579,38 +2647,28 @@ async function prewarm() {
       const rawKey = productsRawKey({
         keyWord: '', page: '1', size: '8', categoryId: id,
       });
-      if (cacheGet(rawKey, 30 * 60 * 1000)) return;
+      const cached = cacheGet(rawKey, 30 * 60 * 1000);
+      if (cached) return cached;
       try {
         const meta = await searchProductsWithCatalogExtras({ categoryId: id, page: 1, size: 8 });
         cacheSet(rawKey, meta);
         console.log(`[prewarm] ${label} (${meta.products.length}) ✓`);
-      } catch (e) { console.warn(`[prewarm] ${label} failed:`, e.message); }
+        return meta;
+      } catch (e) {
+        console.warn(`[prewarm] ${label} failed:`, e.message);
+        return null;
+      }
     };
-    await Promise.all([warmCat(menSub, "men's fashion"), warmCat(womenSub, "women's fashion")]);
+    fashionMetas = await Promise.all([warmCat(menSub, "men's fashion"), warmCat(womenSub, "women's fashion")]);
   } catch (e) { console.warn('[prewarm] fashion sections failed:', e.message); }
 
-  // Background-warm shipping for the first batch of products so first
-  // detail-click is fast. Pulls from the featured cache we just wrote.
-  const featuredKey = productsRawKey({
-    keyWord: kw.featured, page: '1', size: '10', categoryId: '',
-  });
-  const featuredMeta = cacheGet(featuredKey, Infinity);
-  const featuredProducts = featuredMeta?.products || [];
-  if (featuredProducts.length) {
-    console.log(`[prewarm] warming shipping for ${featuredProducts.length} featured products in background...`);
-    let done = 0, unshippable = 0;
-    for (const p of featuredProducts) {
-      const pid = p.pid || p.id || p.productId;
-      if (!pid) continue;
-      getProductShippingUsd(pid).then(r => {
-        done++;
-        if (!r.available) unshippable++;
-        if (done === featuredProducts.length) {
-          console.log(`[prewarm] shipping warm ✓ (${done} products, ${unshippable} unshippable)`);
-        }
-      }).catch(() => {});
-    }
-  }
+  // Background-warm exact shipping for every home-page section, not just
+  // featured. Cards still show "Calculating..." until exact shipping lands,
+  // so customers never see a low estimate that later jumps upward.
+  queueShippingWarm(
+    [...keywordMetas, ...fashionMetas].flatMap(meta => meta?.products || []),
+    'home-page products'
+  );
 }
 
 // Slowly warm shipping for additional product pages so search/category
