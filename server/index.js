@@ -152,10 +152,9 @@ function saveBlockedProducts() {
 }
 function isBlocked(pid) { return !!blockedProducts[pid]; }
 
-// ── Persistent per-product shipping cache (disk-backed) ──
-// One entry per product id; survives server restarts so list pages are
-// accurate the moment the server comes up, and the freight API only has
-// to quote each product once per day.
+// ── Persistent per-product shipping + final price cache (disk-backed) ──
+// One entry per product id; survives server restarts so list pages can
+// show exact all-in prices immediately after the first CJ quote.
 const SHIPPING_CACHE_FILE = path.join(__dirname, 'data', 'shipping-cache.json');
 // 6 months — display prices stay fast for almost forever.
 // Order placement re-quotes if the cache is older than ORDER_FRESH_MAX_MS
@@ -244,8 +243,9 @@ async function quoteShippingForItems(items, priority = 'low') {
 }
 
 /**
- * Get per-product shipping cost (for one unit) using the priority chain.
- * Cached on disk, keyed by product id.
+ * Get per-product shipping cost and, when possible, the exact final
+ * display price for one unit using the priority chain. Cached on disk,
+ * keyed by product id.
  *
  * @param {string} pid           CJ product id
  * @param {'high'|'medium'|'low'} priority  CJ queue priority
@@ -265,19 +265,41 @@ const SHIPPING_CACHE_VERSION = 2;
 async function getProductShippingUsd(pid, priority = 'low', maxAgeMs = SHIPPING_CACHE_TTL) {
   const hit = shippingCache[pid];
   if (hit && hit.v === SHIPPING_CACHE_VERSION && Date.now() - hit.ts < maxAgeMs) {
+    if (hit.available !== false && !hit.displayUsd) {
+      try {
+        const raw = await getProductRaw(pid, priority);
+        const wholesaleUsd = parseFloat(raw?.variants?.[0]?.variantSellPrice || raw?.sellPrice || 0) || 0;
+        if (wholesaleUsd > 0) {
+          const displayUsd = computeDisplayUsd(wholesaleUsd, hit.usd);
+          const offer = computeOfferPricing(pid, displayUsd);
+          hit.wholesaleUsd = wholesaleUsd;
+          hit.displayUsd = displayUsd.toFixed(2);
+          hit.mrp = offer?.mrp || null;
+          hit.discountPercent = offer?.discountPercent || null;
+          hit.priceTs = Date.now();
+          saveShippingCache();
+        }
+      } catch {}
+    }
     return {
       usd: hit.usd,
       method: hit.method,
       available: hit.available !== false,
+      wholesaleUsd: hit.wholesaleUsd,
+      displayUsd: hit.displayUsd,
+      mrp: hit.mrp,
+      discountPercent: hit.discountPercent,
       cached: true,
     };
   }
 
   let firstVid = null;
+  let firstWholesaleUsd = 0;
   let maxWholesaleUsd = 0;
   try {
     const raw = await getProductRaw(pid, priority);
     firstVid = raw?.variants?.[0]?.vid || null;
+    firstWholesaleUsd = parseFloat(raw?.variants?.[0]?.variantSellPrice || raw?.sellPrice || 0) || 0;
     // Capture the MAX variant wholesale here so list pages (which only
     // get CJ's "from" price from the search API) can show a price that
     // covers any variant the customer might pick. Without this the list
@@ -298,16 +320,32 @@ async function getProductShippingUsd(pid, priority = 'low', maxAgeMs = SHIPPING_
     return { usd: FALLBACK_SHIPPING_USD, method: 'fallback', available: true, cached: false };
   }
 
+  const displayUsd = quote.available && firstWholesaleUsd > 0
+    ? computeDisplayUsd(firstWholesaleUsd, quote.usd)
+    : 0;
+  const offer = displayUsd > 0 ? computeOfferPricing(pid, displayUsd) : null;
+
   shippingCache[pid] = {
     v: SHIPPING_CACHE_VERSION,
     usd: quote.usd,
     method: quote.method,
     available: quote.available,
+    wholesaleUsd: firstWholesaleUsd,
+    displayUsd: displayUsd ? displayUsd.toFixed(2) : null,
+    mrp: offer?.mrp || null,
+    discountPercent: offer?.discountPercent || null,
     maxWholesaleUsd,
     ts: Date.now(),
   };
   saveShippingCache();
-  return { ...quote, cached: false };
+  return {
+    ...quote,
+    wholesaleUsd: firstWholesaleUsd,
+    displayUsd: displayUsd ? displayUsd.toFixed(2) : null,
+    mrp: offer?.mrp || null,
+    discountPercent: offer?.discountPercent || null,
+    cached: false,
+  };
 }
 
 /** Cheap synchronous peek — does NOT call CJ. */
@@ -322,6 +360,10 @@ function peekShippingCache(pid) {
     usd: hit.usd,
     method: hit.method,
     available: hit.available !== false,
+    wholesaleUsd: hit.wholesaleUsd,
+    displayUsd: hit.displayUsd,
+    mrp: hit.mrp,
+    discountPercent: hit.discountPercent,
     // Optional — populated when the cache was warmed via getProductRaw
     // (i.e. when we actually saw the variants list). Used by the list
     // endpoint to show MAX variant price instead of CJ's "from" price.
@@ -335,13 +377,17 @@ function getShippingCacheStats() {
   let fresh = 0;
   let available = 0;
   let unavailable = 0;
+  let priced = 0;
 
   for (const hit of Object.values(shippingCache || {})) {
     if (!hit || hit.v !== SHIPPING_CACHE_VERSION) continue;
     total++;
     if (now - hit.ts <= SHIPPING_CACHE_TTL) fresh++;
     if (hit.available === false) unavailable++;
-    else available++;
+    else {
+      available++;
+      if (parseFloat(hit.displayUsd || 0) > 0) priced++;
+    }
   }
 
   let sizeBytes = 0;
@@ -357,6 +403,7 @@ function getShippingCacheStats() {
     fresh,
     available,
     unavailable,
+    priced,
     sizeBytes,
   };
 }
@@ -417,7 +464,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: cjOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '8.2',
+    version: '8.3',
     cj: cjOk ? 'connected' : 'disconnected',
     cjError,
     markup: pricing.getMarkupPercent() + '%',
@@ -1195,8 +1242,13 @@ app.get('/api/store/search/smart', async (req, res) => {
       const wholesaleUsd = parseFloat(p.sellPrice || p.nowPrice || 0);
       const hit = peekShippingCache(p.pid || p.id || p.productId || '');
       const shippingUsd = (hit && hit.available) ? hit.usd : FALLBACK_SHIPPING_USD;
-      const displayUsd = computeDisplayUsd(wholesaleUsd, shippingUsd);
-      const offer = computeOfferPricing(p.pid || p.id || p.productId || '', displayUsd);
+      const cachedDisplayUsd = hit && hit.available ? parseFloat(hit.displayUsd || 0) : 0;
+      const displayUsd = cachedDisplayUsd > 0
+        ? cachedDisplayUsd
+        : computeDisplayUsd(wholesaleUsd, shippingUsd);
+      const offer = (cachedDisplayUsd > 0 && hit.mrp && hit.discountPercent)
+        ? { mrp: hit.mrp, discountPercent: hit.discountPercent }
+        : computeOfferPricing(p.pid || p.id || p.productId || '', displayUsd);
       return {
         ...cleaned,
         sellPrice: displayUsd.toFixed(2),
@@ -1425,7 +1477,7 @@ app.get('/api/store/products', async (req, res) => {
         if (isBlocked(pid)) continue;
         const hit = peekShippingCache(pid);
         if (!allowUnshippable && hit && hit.available === false) continue;
-        if (!hit && pid) toWarm.push(pid);
+        if ((!hit || (hit.available && !hit.displayUsd)) && pid) toWarm.push(pid);
 
         out.push({ rawProduct, pid, wholesaleUsd, hit });
       }
@@ -1447,11 +1499,16 @@ app.get('/api/store/products', async (req, res) => {
       // detail page. The detail page now also displays variants[0]'s
       // price by default; the per-variant price refines via API call when
       // the user picks a different size.
-      const displayUsd = computeDisplayUsd(wholesaleUsd, shippingUsd);
+      const cachedDisplayUsd = knownGood ? parseFloat(hit.displayUsd || 0) : 0;
+      const displayUsd = cachedDisplayUsd > 0
+        ? cachedDisplayUsd
+        : computeDisplayUsd(wholesaleUsd, shippingUsd);
 
       // Strip sensitive fields (CJ cost, profit, etc.) before sending to consumer
       const cleaned = pricing.applyStorePricing(rawProduct);
-      const offer = computeOfferPricing(pid, displayUsd);
+      const offer = (cachedDisplayUsd > 0 && hit.mrp && hit.discountPercent)
+        ? { mrp: hit.mrp, discountPercent: hit.discountPercent }
+        : computeOfferPricing(pid, displayUsd);
       priced.push({
         ...cleaned,
         sellPrice: displayUsd.toFixed(2),
@@ -1506,10 +1563,28 @@ app.get('/api/store/shipping-for/:pid', async (req, res) => {
     // Medium priority — these calls are for cards the user is currently
     // looking at, so they should jump ahead of any background warming
     // work but yield to high-priority detail clicks.
-    const { usd, method, available, cached } = await getProductShippingUsd(pid, 'medium');
+    const {
+      usd, method, available, cached,
+      displayUsd: cachedDisplayUsd,
+      mrp: cachedMrp,
+      discountPercent: cachedDiscountPercent,
+    } = await getProductShippingUsd(pid, 'medium');
 
     if (!available) {
       return res.json({ pid, available: false });
+    }
+
+    if (parseFloat(cachedDisplayUsd || 0) > 0) {
+      return res.json({
+        pid,
+        available: true,
+        shippingUsd: usd.toFixed(2),
+        method,
+        displayUsd: cachedDisplayUsd,
+        mrp: cachedMrp,
+        discountPercent: cachedDiscountPercent,
+        cached,
+      });
     }
 
     // variants[0]'s wholesale — matches what the detail page displays as
@@ -1524,6 +1599,22 @@ app.get('/api/store/shipping-for/:pid', async (req, res) => {
 
     const displayUsd = computeDisplayUsd(wholesaleUsd, usd);
     const offer = computeOfferPricing(pid, displayUsd);
+    if (method !== 'fallback') {
+      shippingCache[pid] = {
+        ...(shippingCache[pid] || {}),
+        v: SHIPPING_CACHE_VERSION,
+        usd,
+        method,
+        available: true,
+        wholesaleUsd,
+        displayUsd: displayUsd.toFixed(2),
+        mrp: offer?.mrp || null,
+        discountPercent: offer?.discountPercent || null,
+        ts: shippingCache[pid]?.ts || Date.now(),
+        priceTs: Date.now(),
+      };
+      saveShippingCache();
+    }
     res.json({
       pid,
       available: true,
@@ -1608,6 +1699,23 @@ app.get('/api/store/products/:pid', async (req, res) => {
     product.shippingIncluded = true;
     product.available = true;
     product.variants = variants;
+
+    if (shippingMethod !== 'fallback') {
+      shippingCache[pid] = {
+        ...(shippingCache[pid] || {}),
+        v: SHIPPING_CACHE_VERSION,
+        usd: shippingUsd,
+        method: shippingMethod,
+        available: true,
+        wholesaleUsd: topWholesaleUsd,
+        displayUsd: topDisplayUsd.toFixed(2),
+        mrp: offer?.mrp || null,
+        discountPercent: offer?.discountPercent || null,
+        ts: shippingCache[pid]?.ts || Date.now(),
+        priceTs: Date.now(),
+      };
+      saveShippingCache();
+    }
 
     res.json({ product });
   } catch (err) {
@@ -2564,7 +2672,8 @@ function queueShippingWarm(products, label) {
   const pids = [];
   for (const p of products || []) {
     const pid = p.pid || p.id || p.productId;
-    if (!pid || seen.has(pid) || peekShippingCache(pid)) continue;
+    const hit = pid ? peekShippingCache(pid) : null;
+    if (!pid || seen.has(pid) || (hit && (hit.available === false || hit.displayUsd))) continue;
     seen.add(pid);
     pids.push(pid);
   }
@@ -2732,7 +2841,7 @@ function scheduleCatalogSync() {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Global Shopper v8.2  (CJDropshipping powered)       ║');
+  console.log('║  Global Shopper v8.3  (CJDropshipping powered)       ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);
