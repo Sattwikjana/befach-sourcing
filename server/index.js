@@ -853,10 +853,32 @@ async function searchProductsMerged({ keyWord, categoryId, page, size }) {
   };
 }
 
-async function searchProductsCatalogFirst({ keyWord, categoryId, page, size }) {
+function mergeProductLists(...lists) {
+  const seen = new Set();
+  const products = [];
+  for (const list of lists) {
+    for (const product of list || []) {
+      const pid = product.pid || product.id || product.productId;
+      if (!pid || seen.has(pid)) continue;
+      seen.add(pid);
+      products.push(product);
+    }
+  }
+  return products;
+}
+
+async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size }) {
   const catalogMeta = catalog.searchProducts({ keyWord, categoryId, page, size });
-  if (catalogMeta && catalogMeta.products?.length) return catalogMeta;
-  const liveMeta = await searchProductsMerged({ keyWord, categoryId, page, size });
+  let liveMeta;
+  try {
+    liveMeta = await searchProductsMerged({ keyWord, categoryId, page, size });
+  } catch (err) {
+    if (catalogMeta?.products?.length) {
+      return { ...catalogMeta, source: 'catalog-fallback' };
+    }
+    throw err;
+  }
+
   liveMeta.source = 'cj';
   if (liveMeta.products?.length) {
     catalog.upsertProducts(liveMeta.products, {
@@ -864,7 +886,17 @@ async function searchProductsCatalogFirst({ keyWord, categoryId, page, size }) {
       categoryHint: categoryId ? { id: categoryId, name: categoryNameForId(categoryId) } : undefined,
     });
   }
-  return liveMeta;
+
+  if (!catalogMeta?.products?.length) return liveMeta;
+
+  const products = mergeProductLists(liveMeta.products, catalogMeta.products);
+  const total = Math.max(liveMeta.total || 0, catalogMeta.total || 0, products.length);
+  return {
+    products,
+    total,
+    totalPages: Math.max(Math.ceil(total / size), liveMeta.totalPages || 1, catalogMeta.totalPages || 1),
+    source: 'cj+catalog',
+  };
 }
 
 // Product list / search.
@@ -1039,14 +1071,14 @@ app.get('/api/store/search/smart', async (req, res) => {
     // products: the narrow term matches few catalog titles literally,
     // while "women clothing" pulls in the whole category.
     const [narrowMeta, broaderMeta] = await Promise.all([
-      searchProductsCatalogFirst({
+      searchProductsWithCatalogExtras({
         keyWord: narrowKeywords,
         categoryId: undefined,
         page,
         size: pageSize,
       }),
       usingBroader
-        ? searchProductsCatalogFirst({
+        ? searchProductsWithCatalogExtras({
             keyWord: broaderKeywords,
             categoryId: undefined,
             page,
@@ -1282,7 +1314,7 @@ app.get('/api/store/products', async (req, res) => {
     }
 
     if (!meta) {
-      meta = await searchProductsCatalogFirst({
+      meta = await searchProductsWithCatalogExtras({
         keyWord,
         categoryId,
         page: parseInt(page) || 1,
@@ -1301,7 +1333,7 @@ app.get('/api/store/products', async (req, res) => {
         if (fallbackName) {
           console.log(`[products] categoryId ${categoryId} empty → retrying as keyword "${fallbackName}"`);
           try {
-            const meta2 = await searchProductsCatalogFirst({
+            const meta2 = await searchProductsWithCatalogExtras({
               keyWord: fallbackName,
               page: parseInt(page) || 1,
               size: pageSize,
@@ -2481,7 +2513,7 @@ async function prewarmKeyword(keyword, size = 10, page = 1) {
   });
   if (cacheGet(rawKey, 30 * 60 * 1000)) return; // already warm
   try {
-    const meta = await searchProductsCatalogFirst({ keyWord: keyword, page, size });
+    const meta = await searchProductsWithCatalogExtras({ keyWord: keyword, page, size });
     cacheSet(rawKey, meta);
     console.log(`[prewarm] "${keyword}" (${meta.products.length}/${meta.total}) ✓`);
   } catch (e) {
@@ -2549,7 +2581,7 @@ async function prewarm() {
       });
       if (cacheGet(rawKey, 30 * 60 * 1000)) return;
       try {
-        const meta = await searchProductsCatalogFirst({ categoryId: id, page: 1, size: 8 });
+        const meta = await searchProductsWithCatalogExtras({ categoryId: id, page: 1, size: 8 });
         cacheSet(rawKey, meta);
         console.log(`[prewarm] ${label} (${meta.products.length}) ✓`);
       } catch (e) { console.warn(`[prewarm] ${label} failed:`, e.message); }
