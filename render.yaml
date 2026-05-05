@@ -90,9 +90,9 @@ services:
       - key: CATALOG_AUTO_SYNC
         value: "true"
       - key: CATALOG_SYNC_TARGET
-        value: "50000"       # first safe phase; raise to 100000/300000 after testing
+        value: "300000"      # phase 3: keep walking CJ until the local catalog feels deep
       - key: CATALOG_SYNC_MAX_CALLS
-        value: "600"         # leaves room inside the 86,400/day CJ limit
+        value: "3000"        # ~3.5% of the 86,400/day CJ limit; safe for one daily crawl
       - key: CATALOG_SYNC_PAGE_SIZE
         value: "200"
       - key: CATALOG_SYNC_MIN_DELAY_MS
