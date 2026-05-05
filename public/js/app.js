@@ -1328,11 +1328,11 @@ async function renderHome() {
         <section class="home-hero home-hero-compact">
           <div class="home-hero-inner">
             <div class="home-hero-copy">
-              <span class="home-hero-eyebrow">Global finds for India</span>
-              <h1 class="home-hero-title">Fashion, tech and rare finds <span class="accent">delivered home.</span></h1>
-              <p class="home-hero-sub">Discover eye-catching fashion, smart gadgets, beauty tools and products that are hard to find locally — sourced worldwide and delivered to India in 10–15 days.</p>
+              <span class="home-hero-eyebrow">Curated from across the globe</span>
+              <h1 class="home-hero-title">Shop the world. <span class="accent">Delivered to your door.</span></h1>
+              <p class="home-hero-sub">Premium products, hand-picked from artisans and ateliers in 200+ countries — delivered to India in 10–15 days.</p>
               <form class="home-hero-search" id="heroSearchForm">
-                <input type="text" id="heroSearchInput" placeholder="Search smart watches, co-ords, mini projectors..." autocomplete="off" />
+                <input type="text" id="heroSearchInput" placeholder="Search dresses, watches, lighting, fragrances..." autocomplete="off" />
                 <button type="submit" aria-label="Search">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
                   <span>Search</span>
@@ -1347,7 +1347,7 @@ async function renderHome() {
               <div class="home-hero-stats">
                 <div><strong>200+</strong><span>Countries</span></div>
                 <div><strong>10–15</strong><span>Days to your door</span></div>
-                <div><strong>Exact</strong><span>All-in prices</span></div>
+                <div><strong>Premium</strong><span>Quality, every order</span></div>
               </div>
             </div>
             <div class="home-hero-art" aria-hidden="true">
