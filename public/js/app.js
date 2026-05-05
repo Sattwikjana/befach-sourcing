@@ -1328,30 +1328,51 @@ async function renderHome() {
         <section class="home-hero home-hero-compact">
           <div class="home-hero-inner">
             <div class="home-hero-copy">
-              <span class="home-hero-eyebrow">Curated from across the globe</span>
-              <h1 class="home-hero-title">Shop the world. <span class="accent">Delivered to your door.</span></h1>
-              <p class="home-hero-sub">Premium products, hand-picked from artisans and ateliers in 200+ countries — delivered to India in 10–15 days.</p>
+              <span class="home-hero-eyebrow">Global finds for India</span>
+              <h1 class="home-hero-title">Fashion, tech and rare finds <span class="accent">delivered home.</span></h1>
+              <p class="home-hero-sub">Discover eye-catching fashion, smart gadgets, beauty tools and products that are hard to find locally — sourced worldwide and delivered to India in 10–15 days.</p>
               <form class="home-hero-search" id="heroSearchForm">
-                <input type="text" id="heroSearchInput" placeholder="Search dresses, watches, lighting, fragrances..." autocomplete="off" />
+                <input type="text" id="heroSearchInput" placeholder="Search smart watches, co-ords, mini projectors..." autocomplete="off" />
                 <button type="submit" aria-label="Search">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
                   <span>Search</span>
                 </button>
               </form>
+              <div class="home-hero-chips" aria-label="Popular searches">
+                <a href="/search?q=smart watch">Smart watches</a>
+                <a href="/search?q=co ord set">Co-ords</a>
+                <a href="/search?q=mini projector">Mini projectors</a>
+                <a href="/search?q=makeup organizer">Beauty tools</a>
+              </div>
               <div class="home-hero-stats">
                 <div><strong>200+</strong><span>Countries</span></div>
                 <div><strong>10–15</strong><span>Days to your door</span></div>
-                <div><strong>Premium</strong><span>Quality, every order</span></div>
+                <div><strong>Exact</strong><span>All-in prices</span></div>
               </div>
             </div>
             <div class="home-hero-art" aria-hidden="true">
-              <div class="home-hero-globe">🌍</div>
-              <span class="home-hero-orbit home-hero-orbit-1">📦</span>
-              <span class="home-hero-orbit home-hero-orbit-2">✈️</span>
-              <span class="home-hero-orbit home-hero-orbit-3">🛍️</span>
-              <span class="home-hero-orbit home-hero-orbit-4">✨</span>
+              <div class="hero-showcase-card hero-showcase-main">
+                <img src="/img/cat-women-clothing.png" alt="" />
+                <span>Statement fashion</span>
+              </div>
+              <div class="hero-showcase-card hero-showcase-side">
+                <img src="/img/cat-electronics.png" alt="" />
+                <span>Smart tech</span>
+              </div>
+              <div class="hero-showcase-badge">Global Shopper</div>
             </div>
           </div>
+        </section>
+
+        <section class="mobile-shop-strip" aria-label="Featured departments">
+          <a href="/search?q=women dress"><img src="/img/cat-women-clothing.png" alt="" /><span>Fashion</span></a>
+          <a href="/search?q=smart watch"><img src="/img/cat-electronics.png" alt="" /><span>Gadgets</span></a>
+          <a href="/search?q=headphones"><img src="/img/cat-phones-accessories.png" alt="" /><span>Audio</span></a>
+          <a href="/search?q=mini projector"><img src="/img/cat-computers-office.png" alt="" /><span>Rare tech</span></a>
+          <a href="/search?q=makeup organizer"><img src="/img/cat-health-beauty.png" alt="" /><span>Beauty</span></a>
+          <a href="/search?q=handbag"><img src="/img/cat-bags-shoes.png" alt="" /><span>Bags</span></a>
+          <a href="/search?q=kitchen tools"><img src="/img/cat-home-garden.png" alt="" /><span>Kitchen</span></a>
+          <a href="/search?q=kids toy"><img src="/img/cat-toys-kids.png" alt="" /><span>Toys</span></a>
         </section>
 
         <!-- TRUST BADGES -->
@@ -1379,28 +1400,28 @@ async function renderHome() {
           <a href="/search?q=women dress" class="promo-big" id="promoWomenCta">
             <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
             <div class="promo-big-copy">
-              <span class="promo-eyebrow">SUMMER COLLECTION</span>
-              <h2>Women's Fashion</h2>
-              <p>Up to 65% OFF on premium picks</p>
-              <span class="promo-cta">Shop Women →</span>
+              <span class="promo-eyebrow">Fashion edit</span>
+              <h2>Top fashionable picks</h2>
+              <p>Dresses, co-ords, bags and statement styles sourced globally.</p>
+              <span class="promo-cta">Shop fashion →</span>
             </div>
           </a>
           <div class="promo-stack">
-            <a href="/search?q=smart watch" class="promo-small promo-tech">
+            <a href="/search?q=mini projector" class="promo-small promo-tech">
               <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png')"></div>
               <div class="promo-small-copy">
-                <span class="promo-eyebrow">TECH DEALS</span>
-                <h3>Smart Gadgets</h3>
-                <p>Affordable. Smart.</p>
+                <span class="promo-eyebrow">Hard to find</span>
+                <h3>Rare tech gadgets</h3>
+                <p>Projectors, smart devices and clever tools.</p>
                 <span class="promo-cta">Shop →</span>
               </div>
             </a>
             <a href="/search?q=men shirt" class="promo-small promo-men" id="promoMenCta">
               <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
               <div class="promo-small-copy">
-                <span class="promo-eyebrow">MEN'S FASHION</span>
-                <h3>Up to 40% Off</h3>
-                <p>Premium styles</p>
+                <span class="promo-eyebrow">Men's style</span>
+                <h3>Global streetwear</h3>
+                <p>Shirts, jackets and clean everyday fits.</p>
                 <span class="promo-cta">Shop →</span>
               </div>
             </a>
@@ -1408,22 +1429,37 @@ async function renderHome() {
         </section>
 
         <!-- FEATURED PRODUCTS -->
-        <section class="section">
+        <section class="section home-product-rail">
           <div class="section-head">
-            <h2 class="section-title">Featured Products</h2>
+            <div>
+              <span class="section-kicker">Fresh today</span>
+              <h2 class="section-title">Global finds picked for you</h2>
+            </div>
             <a href="/search?q=trending" class="section-link" id="featuredMore">View all →</a>
           </div>
           <div class="products-grid" id="featuredGrid">${productSkeleton(10)}</div>
         </section>
 
+        <!-- EYE-CATCHING FASHION -->
+        <section class="section home-product-rail">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Looks people notice</span>
+              <h2 class="section-title">Top fashionable picks</h2>
+            </div>
+            <a href="/search?q=co ord set" class="section-link" id="fashionFindsMore">View all →</a>
+          </div>
+          <div class="products-grid" id="fashionFindsGrid">${productSkeleton(10)}</div>
+        </section>
+
         <!-- MEN'S FASHION -->
-        <section class="fashion-section">
+        <section class="fashion-section home-product-rail">
           <div class="fashion-banner fashion-banner-men">
             <div class="fashion-banner-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
             <div class="fashion-banner-copy">
-              <span class="fashion-eyebrow">MEN'S COLLECTION</span>
-              <h2>Men's Fashion</h2>
-              <p>Premium styles, sourced globally</p>
+              <span class="fashion-eyebrow">Men's collection</span>
+              <h2>Sharp everyday style</h2>
+              <p>Global shirts, layers and standout streetwear.</p>
               <a class="fashion-cta" id="menShopCta" href="/search?q=men shirt">Shop Now →</a>
             </div>
           </div>
@@ -1431,22 +1467,37 @@ async function renderHome() {
         </section>
 
         <!-- TRENDING TECH & GADGETS -->
-        <section class="section">
+        <section class="section home-product-rail">
           <div class="section-head">
-            <h2 class="section-title">📱 Consumer Electronics</h2>
+            <div>
+              <span class="section-kicker">Fast-moving tech</span>
+              <h2 class="section-title">Electronics & accessories</h2>
+            </div>
             <a href="/search?q=headphones" class="section-link" id="trendingMore">View all →</a>
           </div>
           <div class="products-grid" id="trendingGrid">${productSkeleton(10)}</div>
         </section>
 
+        <!-- HARD TO FIND IN INDIA -->
+        <section class="section home-product-rail">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Not everywhere locally</span>
+              <h2 class="section-title">Hard-to-find global gadgets</h2>
+            </div>
+            <a href="/search?q=mini projector" class="section-link" id="rareFindsMore">View all →</a>
+          </div>
+          <div class="products-grid" id="rareFindsGrid">${productSkeleton(10)}</div>
+        </section>
+
         <!-- WOMEN'S FASHION -->
-        <section class="fashion-section">
+        <section class="fashion-section home-product-rail">
           <div class="fashion-banner fashion-banner-women">
             <div class="fashion-banner-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
             <div class="fashion-banner-copy">
-              <span class="fashion-eyebrow">WOMEN'S COLLECTION</span>
-              <h2>Women's Fashion</h2>
-              <p>Hand-picked from worldwide suppliers</p>
+              <span class="fashion-eyebrow">Women's collection</span>
+              <h2>Statement-ready fashion</h2>
+              <p>Dresses, sets and accessories with a global look.</p>
               <a class="fashion-cta" id="womenShopCta" href="/search?q=women dress">Shop Now →</a>
             </div>
           </div>
@@ -1454,18 +1505,24 @@ async function renderHome() {
         </section>
 
         <!-- SMART GADGETS -->
-        <section class="section">
+        <section class="section home-product-rail">
           <div class="section-head">
-            <h2 class="section-title">⚡ Smart Gadgets</h2>
+            <div>
+              <span class="section-kicker">Clever upgrades</span>
+              <h2 class="section-title">Smart gadgets</h2>
+            </div>
             <a href="/search?q=smart" class="section-link" id="smartMore">View all →</a>
           </div>
           <div class="products-grid" id="smartGrid">${productSkeleton(10)}</div>
         </section>
 
         <!-- HOME & LIFESTYLE -->
-        <section class="section">
+        <section class="section home-product-rail">
           <div class="section-head">
-            <h2 class="section-title">🛠️ Home Improvement</h2>
+            <div>
+              <span class="section-kicker">Useful imports</span>
+              <h2 class="section-title">Home, tools & lifestyle</h2>
+            </div>
             <a href="/search?q=power tool" class="section-link" id="homeLifestyleMore">View all →</a>
           </div>
           <div class="products-grid" id="homeLifestyleGrid">${productSkeleton(10)}</div>
@@ -1679,9 +1736,11 @@ function hideSidebarFlyout() {
 async function loadHomeProducts() {
   const grids = {
     featured:      document.getElementById('featuredGrid'),
+    fashionFinds:  document.getElementById('fashionFindsGrid'),
     men:           document.getElementById('menGrid'),
     women:         document.getElementById('womenGrid'),
     trending:      document.getElementById('trendingGrid'),
+    rareFinds:     document.getElementById('rareFindsGrid'),
     smart:         document.getElementById('smartGrid'),
     homeLifestyle: document.getElementById('homeLifestyleGrid'),
   };
@@ -1697,10 +1756,19 @@ async function loadHomeProducts() {
     'trending', 'best seller', 'gift set', 'premium',
     'editor pick', 'limited edition', 'top rated', 'new arrival',
   ];
+  const fashionFindsPool = [
+    'co ord set', 'women dress', 'statement earrings', 'handbag',
+    'platform sandals', 'oversized jacket', 'party dress', 'streetwear',
+  ];
   const trendingPool = [
     'headphones', 'tv', 'monitor', 'tablet', 'camera',
     'soundbar', 'home theater', 'projector', 'laptop stand',
     'webcam', 'usb hub', 'docking station', 'wireless charger', 'streaming stick',
+  ];
+  const rareFindsPool = [
+    'mini projector', 'smart glasses', 'portable printer', 'car vacuum',
+    'key finder', 'wireless microscope', 'translator device', 'label maker',
+    'portable blender', 'usb c dock', 'led mask', 'neck massager',
   ];
   const smartPool = [
     'smart bulb', 'smart plug', 'smart light', 'smart band',
@@ -1770,12 +1838,14 @@ async function loadHomeProducts() {
   // (was dropped at 1 req/sec because each section adds ~280ms to the
   // listV2 queue, vs 900ms before — even cold loads stay under 2s).
   const sections = [
-    { grid: grids.featured,      kind: 'kw',  keywords: candidates(featuredPool), size: 10, moreId: 'featuredMore',      label: 'featured products' },
-    { grid: grids.men,           kind: 'cat', cat: menChild   || menCat,          size: 8,  moreId: null,                label: "men's fashion" },
-    { grid: grids.trending,      kind: 'kw',  keywords: candidates(trendingPool), size: 10, moreId: 'trendingMore',      label: 'consumer electronics' },
-    { grid: grids.women,         kind: 'cat', cat: womenChild || womenCat,        size: 8,  moreId: null,                label: "women's fashion" },
-    { grid: grids.smart,         kind: 'kw',  keywords: candidates(smartPool),    size: 10, moreId: 'smartMore',         label: 'smart gadgets' },
-    { grid: grids.homeLifestyle, kind: 'kw',  keywords: candidates(homePool),     size: 10, moreId: 'homeLifestyleMore', label: 'home improvement' },
+    { grid: grids.featured,      kind: 'kw',  keywords: candidates(featuredPool),      size: 10, moreId: 'featuredMore',      label: 'featured products' },
+    { grid: grids.fashionFinds,  kind: 'kw',  keywords: candidates(fashionFindsPool),  size: 10, moreId: 'fashionFindsMore',  label: 'fashion finds' },
+    { grid: grids.men,           kind: 'cat', cat: menChild   || menCat,               size: 8,  moreId: null,                label: "men's fashion" },
+    { grid: grids.trending,      kind: 'kw',  keywords: candidates(trendingPool),      size: 10, moreId: 'trendingMore',      label: 'consumer electronics' },
+    { grid: grids.rareFinds,     kind: 'kw',  keywords: candidates(rareFindsPool),     size: 10, moreId: 'rareFindsMore',     label: 'hard-to-find gadgets' },
+    { grid: grids.women,         kind: 'cat', cat: womenChild || womenCat,             size: 8,  moreId: null,                label: "women's fashion" },
+    { grid: grids.smart,         kind: 'kw',  keywords: candidates(smartPool),         size: 10, moreId: 'smartMore',         label: 'smart gadgets' },
+    { grid: grids.homeLifestyle, kind: 'kw',  keywords: candidates(homePool),          size: 10, moreId: 'homeLifestyleMore', label: 'home improvement' },
   ];
 
   // Point keyword-based section "View all →" links at the keyword we

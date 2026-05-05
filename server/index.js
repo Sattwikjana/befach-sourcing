@@ -2532,7 +2532,9 @@ function todayHomeKeywords() {
   const pick = (arr) => arr[dayOfYear % arr.length];
   return {
     featured:      pick(['trending', 'best seller', 'gift set', 'premium', 'editor pick', 'limited edition', 'top rated', 'new arrival']),
+    fashionFinds:  pick(['co ord set', 'women dress', 'statement earrings', 'handbag', 'platform sandals', 'oversized jacket', 'party dress', 'streetwear']),
     trending:      pick(['earbuds', 'wireless headphones', 'smart watch', 'bluetooth speaker', 'power bank', 'phone holder', 'gaming mouse', 'mini projector', 'action camera', 'mechanical keyboard', 'smart glasses', 'drone', 'vr headset', 'air purifier']),
+    rareFinds:     pick(['mini projector', 'smart glasses', 'portable printer', 'car vacuum', 'key finder', 'wireless microscope', 'translator device', 'label maker', 'portable blender', 'usb c dock', 'led mask', 'neck massager']),
     smart:         pick(['smart bulb', 'smart plug', 'smart light', 'smart band', 'smart sensor', 'smart camera', 'smart watch', 'smart scale', 'smart fan', 'smart lock', 'smart key finder', 'smart speaker']),
     homeLifestyle: pick(['led light', 'kitchen tools', 'wall art', 'desk lamp', 'storage organizer', 'cushion cover', 'blanket', 'bathroom mat', 'plant pot', 'humidifier', 'aroma diffuser', 'room decor', 'coffee mug', 'cookware']),
   };
@@ -2618,7 +2620,9 @@ async function prewarm() {
   const kw = todayHomeKeywords();
   const keywordMetas = await Promise.all([
     prewarmKeyword(kw.featured, 10),
+    prewarmKeyword(kw.fashionFinds, 10),
     prewarmKeyword(kw.trending, 10),
+    prewarmKeyword(kw.rareFinds, 10),
     prewarmKeyword(kw.smart, 10),
     prewarmKeyword(kw.homeLifestyle, 10),
   ]);
