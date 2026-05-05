@@ -15,7 +15,9 @@ let syncJob = {
   startedAt: null,
   finishedAt: null,
   error: null,
+  lastWarning: null,
   calls: 0,
+  skipped: 0,
   upserted: 0,
   seen: 0,
   phase: 'idle',
@@ -481,6 +483,14 @@ async function syncOneCategoryPage(cj, leaves, pageSize) {
   return { products: parsed.products, upserted, category, page };
 }
 
+function advanceCategoryCursor(leaves) {
+  if (!leaves.length) return;
+  let idx = parseInt(getState('categoryIndex', '0'), 10) || 0;
+  if (idx >= leaves.length) idx = 0;
+  setState('categoryIndex', String((idx + 1) % leaves.length));
+  setState('categoryPage', '1');
+}
+
 async function syncOneGlobalPage(cj, pageSize) {
   let page = parseInt(getState('globalPage', '1'), 10) || 1;
   const data = await cj.getProductList({ page, pageSize }, { priority: 'low' });
@@ -491,6 +501,23 @@ async function syncOneGlobalPage(cj, pageSize) {
   else page += 1;
   setState('globalPage', String(page));
   return { products: parsed.products, upserted, page };
+}
+
+function advanceGlobalCursor() {
+  const page = parseInt(getState('globalPage', '1'), 10) || 1;
+  setState('globalPage', String(page + 1));
+}
+
+function isSkippableSyncError(err) {
+  const status = err?.response?.status;
+  if (status === 400 || status === 404) return true;
+  return /status code (400|404)/i.test(err?.message || '');
+}
+
+function syncErrorMessage(err) {
+  const status = err?.response?.status;
+  const apiMessage = err?.response?.data?.message || err?.response?.data?.msg;
+  return [status ? `HTTP ${status}` : null, apiMessage || err?.message].filter(Boolean).join(': ');
 }
 
 async function runCatalogSync(cj, opts = {}) {
@@ -506,7 +533,9 @@ async function runCatalogSync(cj, opts = {}) {
     startedAt: new Date().toISOString(),
     finishedAt: null,
     error: null,
+    lastWarning: null,
     calls: 0,
+    skipped: 0,
     upserted: 0,
     seen: 0,
     phase: 'categories',
@@ -520,9 +549,22 @@ async function runCatalogSync(cj, opts = {}) {
     while (!syncJob.stopRequested && syncJob.calls < maxCalls && syncJob.seen < targetProducts) {
       const useCategory = leaves.length && (syncJob.calls % 3 !== 2);
       syncJob.phase = useCategory ? 'category-pages' : 'global-pages';
-      const result = useCategory
-        ? await syncOneCategoryPage(cj, leaves, pageSize)
-        : await syncOneGlobalPage(cj, pageSize);
+      let result;
+      try {
+        result = useCategory
+          ? await syncOneCategoryPage(cj, leaves, pageSize)
+          : await syncOneGlobalPage(cj, pageSize);
+      } catch (err) {
+        if (!isSkippableSyncError(err)) throw err;
+        syncJob.calls += 1;
+        syncJob.skipped += 1;
+        syncJob.lastWarning = syncErrorMessage(err);
+        if (useCategory) advanceCategoryCursor(leaves);
+        else advanceGlobalCursor();
+        setState('lastSyncAt', new Date().toISOString());
+        await sleep(minDelayMs);
+        continue;
+      }
 
       syncJob.calls += 1;
       syncJob.seen += result.products.length;
