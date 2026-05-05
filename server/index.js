@@ -464,7 +464,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: cjOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '8.9',
+    version: '8.10',
     cj: cjOk ? 'connected' : 'disconnected',
     cjError,
     markup: pricing.getMarkupPercent() + '%',
@@ -3108,7 +3108,7 @@ function scheduleCatalogSync() {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Global Shopper v8.9  (CJDropshipping powered)       ║');
+  console.log('║  Global Shopper v8.10 (CJDropshipping powered)       ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);
