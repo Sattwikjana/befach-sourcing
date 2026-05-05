@@ -2732,7 +2732,7 @@ function scheduleCatalogSync() {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Global Shopper v8.0  (CJDropshipping powered)       ║');
+  console.log('║  Global Shopper v8.1  (CJDropshipping powered)       ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);
