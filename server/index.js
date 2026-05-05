@@ -456,7 +456,10 @@ app.get('/api/health', async (req, res) => {
   let cjOk = false;
   let cjError = null;
   try {
-    await cj.ensureToken();
+    await Promise.race([
+      cj.ensureToken(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('CJ health check timeout')), 1200)),
+    ]);
     cjOk = true;
   } catch (err) {
     cjError = err.message;
@@ -464,7 +467,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: cjOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '8.10',
+    version: '8.11',
     cj: cjOk ? 'connected' : 'disconnected',
     cjError,
     markup: pricing.getMarkupPercent() + '%',
@@ -684,8 +687,8 @@ function categoryCatalogFallbackTerms(name) {
   add(label);
 
   if (/prescription.*glass|glass|eyewear|spectacle|sunglass/.test(n)) {
-    if (/prescription/.test(n)) add('prescription glasses');
-    add('eyeglasses', 'glasses', 'eyewear', 'sunglasses');
+    if (/prescription/.test(n)) add('reading glasses', 'blue light glasses', 'prescription glasses');
+    add('smart glasses', 'sunglasses', 'glasses', 'eyewear', 'eyeglasses');
     return [...new Set(terms.filter(Boolean))];
   }
 
@@ -3108,7 +3111,7 @@ function scheduleCatalogSync() {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Global Shopper v8.10 (CJDropshipping powered)       ║');
+  console.log('║  Global Shopper v8.11 (CJDropshipping powered)       ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);
