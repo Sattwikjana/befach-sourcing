@@ -1141,10 +1141,14 @@ function descendantLeafIds(rootId) {
 async function pinnedMyProductsForCategory(categoryId) {
   if (!categoryId) return [];
   try {
-    const [products, catMap] = await Promise.all([
-      getCachedMyProducts(),
-      getMyProductCategoryMap(),
-    ]);
+    // Keep customer category pages fast. Building this map can require one
+    // CJ detail call per seller-curated product after every deploy, so only
+    // use it when it is already warm in memory. The SQLite catalog remains
+    // the primary source for browse pages.
+    const products = cacheGet('my-products', 30 * 60 * 1000);
+    const catMap = cacheGet('my-product-category-map', 60 * 60 * 1000);
+    if (!products || !catMap) return [];
+
     const leafIds = descendantLeafIds(categoryId);
     if (!leafIds.size) return [];
     return products.filter(p => {
