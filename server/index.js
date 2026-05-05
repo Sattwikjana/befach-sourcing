@@ -464,7 +464,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: cjOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '8.4',
+    version: '8.5',
     cj: cjOk ? 'connected' : 'disconnected',
     cjError,
     markup: pricing.getMarkupPercent() + '%',
@@ -947,25 +947,56 @@ function mergeProductLists(...lists) {
   return products;
 }
 
+const CATEGORY_LIVE_MERGE_TIMEOUT_MS = parseInt(process.env.CATEGORY_LIVE_MERGE_TIMEOUT_MS || '1500', 10);
+
+function cacheLiveProducts(liveMeta, categoryId) {
+  if (!liveMeta?.products?.length) return;
+  catalog.upsertProducts(liveMeta.products, {
+    source: 'cj-live-search',
+    categoryHint: categoryId ? { id: categoryId, name: categoryNameForId(categoryId) } : undefined,
+  });
+}
+
+function mergeCatalogAndLiveMeta(liveMeta, catalogMeta, size) {
+  if (!catalogMeta?.products?.length) return { ...liveMeta, source: 'cj' };
+  const products = mergeProductLists(liveMeta.products, catalogMeta.products);
+  const total = Math.max(liveMeta.total || 0, catalogMeta.total || 0, products.length);
+  return {
+    products,
+    total,
+    totalPages: Math.max(Math.ceil(total / size), liveMeta.totalPages || 1, catalogMeta.totalPages || 1),
+    source: 'cj+catalog',
+  };
+}
+
 async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size }) {
   const catalogMeta = catalog.searchProducts({ keyWord, categoryId, page, size });
 
-  // Category browsing must never wait behind CJ's live API queue. During a
-  // large background catalog crawl, live CJ calls can take long enough that
-  // the frontend times out and leaves users staring at skeleton cards. If we
-  // already have local catalog rows, serve those immediately and refresh CJ
+  // Category browsing should include both CJ live and our SQLite catalog, but
+  // it must never wait too long behind CJ's live queue. During a large
+  // background catalog crawl, live CJ calls can take long enough that the
+  // frontend times out. We give CJ a short chance to answer, merge if it does,
+  // and otherwise return the local catalog while the CJ refresh keeps running
   // in the background for future requests.
   if (!keyWord && catalogMeta?.products?.length) {
-    searchProductsMerged({ keyWord, categoryId, page, size })
+    const livePromise = searchProductsMerged({ keyWord, categoryId, page, size })
       .then(liveMeta => {
-        if (liveMeta.products?.length) {
-          catalog.upsertProducts(liveMeta.products, {
-            source: 'cj-live-search',
-            categoryHint: categoryId ? { id: categoryId, name: categoryNameForId(categoryId) } : undefined,
-          });
-        }
+        cacheLiveProducts(liveMeta, categoryId);
+        return liveMeta;
       })
-      .catch(err => console.warn('[products] background CJ refresh failed:', err.message));
+      .catch(err => {
+        console.warn('[products] background CJ refresh failed:', err.message);
+        return null;
+      });
+
+    const liveMeta = await Promise.race([
+      livePromise,
+      new Promise(resolve => setTimeout(() => resolve(null), CATEGORY_LIVE_MERGE_TIMEOUT_MS)),
+    ]);
+
+    if (liveMeta?.products?.length) {
+      return mergeCatalogAndLiveMeta(liveMeta, catalogMeta, size);
+    }
 
     return {
       ...catalogMeta,
@@ -984,23 +1015,11 @@ async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size
   }
 
   liveMeta.source = 'cj';
-  if (liveMeta.products?.length) {
-    catalog.upsertProducts(liveMeta.products, {
-      source: 'cj-live-search',
-      categoryHint: categoryId ? { id: categoryId, name: categoryNameForId(categoryId) } : undefined,
-    });
-  }
+  cacheLiveProducts(liveMeta, categoryId);
 
   if (!catalogMeta?.products?.length) return liveMeta;
 
-  const products = mergeProductLists(liveMeta.products, catalogMeta.products);
-  const total = Math.max(liveMeta.total || 0, catalogMeta.total || 0, products.length);
-  return {
-    products,
-    total,
-    totalPages: Math.max(Math.ceil(total / size), liveMeta.totalPages || 1, catalogMeta.totalPages || 1),
-    source: 'cj+catalog',
-  };
+  return mergeCatalogAndLiveMeta(liveMeta, catalogMeta, size);
 }
 
 // Product list / search.
@@ -2865,7 +2884,7 @@ function scheduleCatalogSync() {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Global Shopper v8.4  (CJDropshipping powered)       ║');
+  console.log('║  Global Shopper v8.5  (CJDropshipping powered)       ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);
