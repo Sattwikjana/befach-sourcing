@@ -579,6 +579,29 @@ function getRoute() {
   return { path, params };
 }
 
+let marketingInitialPageViewSeen = false;
+function trackMarketingPageView() {
+  // Meta Pixel and GTM already send the first page view from index.html.
+  // This SPA needs explicit events only after client-side navigation.
+  if (!marketingInitialPageViewSeen) {
+    marketingInitialPageViewSeen = true;
+    return;
+  }
+
+  if (window.dataLayer && typeof window.dataLayer.push === 'function') {
+    window.dataLayer.push({
+      event: 'virtual_page_view',
+      page_path: location.pathname + location.search,
+      page_location: location.href,
+      page_title: document.title,
+    });
+  }
+
+  if (typeof window.fbq === 'function') {
+    window.fbq('track', 'PageView');
+  }
+}
+
 // Programmatic navigation. Accepts a clean path like "/cart" or
 // "/search?q=foo" — never a "#/cart". Pushes a new history entry and
 // triggers the route handler manually since pushState doesn't fire a
@@ -601,6 +624,7 @@ window.navigate = function(href) {
 function handleRoute() {
   const { path, params } = getRoute();
   state.currentPage = path;
+  trackMarketingPageView();
 
   if (typeof cancelBackfill === 'function') cancelBackfill();
 
