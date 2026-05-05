@@ -464,7 +464,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: cjOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '8.8',
+    version: '8.9',
     cj: cjOk ? 'connected' : 'disconnected',
     cjError,
     markup: pricing.getMarkupPercent() + '%',
@@ -690,7 +690,27 @@ function categoryCatalogFallbackTerms(name) {
   }
 
   if (/school/.test(n) && /bag|backpack/.test(n)) {
-    add('school bag', 'school backpack', 'student backpack', 'backpack', 'bag');
+    add('school bag', 'school backpack', 'student backpack', 'kids backpack', 'backpack');
+    return [...new Set(terms.filter(Boolean))];
+  }
+
+  if (/laptop|notebook|tablet|computer/.test(n) && /bag|case|cover|sleeve/.test(n)) {
+    add('laptop bag', 'laptop case', 'laptop sleeve', 'notebook bag', 'computer bag', 'tablet case');
+    return [...new Set(terms.filter(Boolean))];
+  }
+
+  if (/office|school|stationer/.test(n) && /suppl|stationer/.test(n)) {
+    add('school supplies', 'office supplies', 'stationery', 'pencil case', 'notebook');
+    return [...new Set(terms.filter(Boolean))];
+  }
+
+  if (/pet/.test(n) && /bed|mat|nest|blanket|quilt/.test(n)) {
+    add('pet bed', 'dog bed', 'cat bed', 'pet mat', 'pet blanket', 'pet nest');
+    return [...new Set(terms.filter(Boolean))];
+  }
+
+  if (/pet/.test(n) && /bag|carrier|travel/.test(n)) {
+    add('pet carrier', 'pet travel bag', 'dog carrier', 'cat carrier');
     return [...new Set(terms.filter(Boolean))];
   }
 
@@ -703,10 +723,12 @@ function categoryCatalogFallbackTerms(name) {
   if (/jacket|coat|outerwear|hoodie|sweatshirt|sweater/.test(n)) add('jacket', 'coat', 'hoodie', 'sweater');
   if (/pant|jean|short|skirt|legging|bottom/.test(n)) add('pants', 'jeans', 'shorts', 'skirt');
   if (/bag|backpack|handbag|purse|wallet/.test(n)) add('bag', 'backpack', 'handbag');
+  if (/case|cover|sleeve/.test(n)) add('case', 'cover', 'sleeve');
   if (/shoe|sandal|boot|sneaker/.test(n)) add('shoes', 'sneakers', 'sandals');
   if (/watch/.test(n)) add('watch', 'smart watch');
   if (/jewel|ring|necklace|earring|bracelet/.test(n)) add('jewelry', 'ring', 'necklace', 'earrings');
   if (/pet|dog|cat/.test(n)) add('pet', 'dog', 'cat');
+  if (/bed|mat|nest|blanket|quilt/.test(n)) add('bed', 'mat', 'blanket');
   if (/toy|baby|kid/.test(n)) add('toy', 'baby', 'kids');
   if (/electronic|computer|phone|tech/.test(n)) add('electronic', 'phone', 'gadget');
   if (/projector|speaker|earphone|headphone|camera|charger|cable|power bank/.test(n)) add('projector', 'speaker', 'earphones', 'camera', 'charger');
@@ -1215,6 +1237,18 @@ function descendantLeafIds(rootId) {
   return out;
 }
 
+function categoryHasChildren(id) {
+  if (!id) return false;
+  const tree = cacheGet('categories', Infinity) || [];
+  for (const top of tree) {
+    if (top.categoryFirstId === id) return (top.categoryFirstList || []).length > 0;
+    for (const sec of (top.categoryFirstList || [])) {
+      if (sec.categorySecondId === id) return (sec.categorySecondList || []).length > 0;
+    }
+  }
+  return false;
+}
+
 function productSearchText(product) {
   return [
     product.productNameEn,
@@ -1330,6 +1364,12 @@ async function pinnedMyProductsForResults({ categoryId, keyWord, page, limit = 8
       });
       if (exact.length) return exact.slice(0, limit);
     }
+
+    // Leaf categories are specific enough that fuzzy name pinning causes
+    // false positives (e.g. "School Bags" matching any product with the
+    // word "bag"). If the exact CJ category map is cold, skip pinning for
+    // leaves and let the catalog/live result set stay clean.
+    if (!categoryHasChildren(categoryId)) return [];
 
     const categoryName = categoryNameForId(categoryId);
     return pinnedMyProductsByCategoryName(products, categoryName).slice(0, limit);
@@ -3068,7 +3108,7 @@ function scheduleCatalogSync() {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Global Shopper v8.8  (CJDropshipping powered)       ║');
+  console.log('║  Global Shopper v8.9  (CJDropshipping powered)       ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);
