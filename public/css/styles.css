@@ -1362,6 +1362,9 @@ main {
   gap: 24px;
   align-items: start;
 }
+.search-layout-no-filters {
+  grid-template-columns: 1fr;
+}
 .search-filters {
   background: var(--surface);
   border: 1px solid var(--border);

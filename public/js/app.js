@@ -1998,10 +1998,8 @@ async function renderSearch(query, page = 1, opts = {}) {
     </nav>
   ` : '';
 
-  // Read filter state from URL (?priceMin, ?priceMax, ?sort)
+  // Read sort state from URL.
   const urlParams = new URLSearchParams(location.search);
-  const filterPriceMin = parseInt(urlParams.get('priceMin')) || 0;
-  const filterPriceMax = parseInt(urlParams.get('priceMax')) || 0;
   const filterSort = urlParams.get('sort') || 'relevance';
 
   app.innerHTML = `
@@ -2012,14 +2010,9 @@ async function renderSearch(query, page = 1, opts = {}) {
     <div class="search-header">
       <div>
         <h1 class="page-title">${title}</h1>
-        <div class="muted" id="searchCount">Loading...</div>
         <div id="intentPill"></div>
       </div>
       <div class="search-toolbar">
-        <button class="btn btn-ghost btn-sm" id="filterToggle" aria-label="Filter results">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
-          Filter
-        </button>
         <select class="search-sort" id="searchSort" aria-label="Sort results">
           <option value="relevance" ${filterSort === 'relevance' ? 'selected' : ''}>Sort: Relevance</option>
           <option value="price_asc" ${filterSort === 'price_asc' ? 'selected' : ''}>Price: Low to High</option>
@@ -2028,26 +2021,7 @@ async function renderSearch(query, page = 1, opts = {}) {
       </div>
     </div>
     ${childChips}
-    <div class="search-layout">
-      <aside class="search-filters" id="searchFilters">
-        <div class="filter-group">
-          <h4 class="filter-title">Price range (₹)</h4>
-          <div class="filter-price-inputs">
-            <input type="number" id="filterPriceMin" placeholder="Min" value="${filterPriceMin || ''}" min="0" />
-            <span>—</span>
-            <input type="number" id="filterPriceMax" placeholder="Max" value="${filterPriceMax || ''}" min="0" />
-          </div>
-          <div class="filter-price-quick">
-            <button data-price-quick="0-500">Under ₹500</button>
-            <button data-price-quick="500-1000">₹500–1k</button>
-            <button data-price-quick="1000-2500">₹1k–2.5k</button>
-            <button data-price-quick="2500-5000">₹2.5k–5k</button>
-            <button data-price-quick="5000-0">₹5k+</button>
-          </div>
-          <button class="btn btn-primary btn-sm filter-apply" id="filterApply">Apply</button>
-          <button class="btn btn-ghost btn-sm filter-clear" id="filterClear">Clear filters</button>
-        </div>
-      </aside>
+    <div class="search-layout search-layout-no-filters">
       <div class="search-results">
         <div class="products-grid" id="searchGrid">${productSkeleton(12)}</div>
         <div class="pagination" id="pagination"></div>
@@ -2055,51 +2029,28 @@ async function renderSearch(query, page = 1, opts = {}) {
     </div>
   `;
 
-  // Wire up filter sidebar
-  function applyFilter() {
-    const min = parseInt(document.getElementById('filterPriceMin').value) || 0;
-    const max = parseInt(document.getElementById('filterPriceMax').value) || 0;
+  function applySort() {
     const sort = document.getElementById('searchSort').value;
     const params = new URLSearchParams();
-    if (opts.categoryId) {
-      // Stay on category page
-      const catName = opts.categoryName ? `?name=${encodeURIComponent(opts.categoryName)}` : '';
-      let hash = `/category/${opts.categoryId}${catName}`;
-      if (min) params.set('priceMin', min);
-      if (max) params.set('priceMax', max);
+    if (opts.categoryId && query) {
+      params.set('q', query);
+      params.set('categoryId', opts.categoryId);
+      if (opts.categoryName) params.set('catName', opts.categoryName);
       if (sort !== 'relevance') params.set('sort', sort);
-      const sep = hash.includes('?') ? '&' : '?';
-      hash += params.toString() ? `${sep}${params}` : '';
-      navigate(hash);
+      navigate(`/search?${params}`);
+    } else if (opts.categoryId) {
+      const params = new URLSearchParams();
+      if (opts.categoryName) params.set('name', opts.categoryName);
+      if (sort !== 'relevance') params.set('sort', sort);
+      const suffix = params.toString() ? `?${params}` : '';
+      navigate(`/category/${opts.categoryId}${suffix}`);
     } else if (query) {
       params.set('q', query);
-      if (min) params.set('priceMin', min);
-      if (max) params.set('priceMax', max);
       if (sort !== 'relevance') params.set('sort', sort);
       navigate(`/search?${params}`);
     }
   }
-  document.getElementById('filterApply').onclick = applyFilter;
-  document.getElementById('searchSort').onchange = applyFilter;
-  document.getElementById('filterClear').onclick = () => {
-    if (opts.categoryId) {
-      const catName = opts.categoryName ? `?name=${encodeURIComponent(opts.categoryName)}` : '';
-      navigate(`/category/${opts.categoryId}${catName}`);
-    } else if (query) {
-      navigate(`/search?q=${encodeURIComponent(query)}`);
-    }
-  };
-  document.querySelectorAll('[data-price-quick]').forEach(btn => {
-    btn.onclick = () => {
-      const [min, max] = btn.getAttribute('data-price-quick').split('-').map(Number);
-      document.getElementById('filterPriceMin').value = min || '';
-      document.getElementById('filterPriceMax').value = max || '';
-      applyFilter();
-    };
-  });
-  document.getElementById('filterToggle').onclick = () => {
-    document.getElementById('searchFilters').classList.toggle('open');
-  };
+  document.getElementById('searchSort').onchange = applySort;
 
   try {
     // Use the smart search endpoint when there's a free-text query (and no
@@ -2128,25 +2079,12 @@ async function renderSearch(query, page = 1, opts = {}) {
 
     let products = res.products || [];
 
-    // Client-side price filter — applied even after server returns.
-    // The smart endpoint applies filters too but for category-browse and
-    // sort-only changes we filter here as well so the UI behaves the same.
-    if (filterPriceMin || filterPriceMax) {
-      const usdToInr = state.config.usdToInr || 85;
-      const min = filterPriceMin || 0;
-      const max = filterPriceMax || Number.MAX_SAFE_INTEGER;
-      products = products.filter(p => {
-        const inr = (parseFloat(p.price || p.sellPrice || 0) || 0) * usdToInr;
-        return inr >= min && inr <= max;
-      });
-    }
     if (filterSort === 'price_asc') {
       products.sort((a, b) => parseFloat(a.price || 0) - parseFloat(b.price || 0));
     } else if (filterSort === 'price_desc') {
       products.sort((a, b) => parseFloat(b.price || 0) - parseFloat(a.price || 0));
     }
 
-    const total = res.total || products.length;
     const totalPages = res.totalPages || 1;
 
     // "Showing results for: blue cooling jacket under ₹2000" pill
@@ -2163,7 +2101,6 @@ async function renderSearch(query, page = 1, opts = {}) {
       }
     }
 
-    document.getElementById('searchCount').textContent = `${total.toLocaleString('en-IN')} products`;
     const grid = document.getElementById('searchGrid');
     if (!products.length) {
       grid.innerHTML = `<div class="empty-state">
@@ -2188,13 +2125,8 @@ async function renderSearch(query, page = 1, opts = {}) {
       } else {
         baseHash = `/search?q=${encodeURIComponent(query)}`;
       }
-      // Carry the active filters into every page link so a user sorting
-      // by Price: Low→High and clicking "Next" doesn't lose the sort
-      // (or the price range, etc.). Anything other than `page` should
-      // survive pagination.
+      // Carry the active sort into every page link.
       const filterParams = [];
-      if (filterPriceMin) filterParams.push(`priceMin=${filterPriceMin}`);
-      if (filterPriceMax) filterParams.push(`priceMax=${filterPriceMax}`);
       if (filterSort && filterSort !== 'relevance') filterParams.push(`sort=${filterSort}`);
       const filterSuffix = filterParams.length ? `&${filterParams.join('&')}` : '';
       const mkLink = (p) => {
