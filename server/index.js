@@ -464,7 +464,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: cjOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '8.7',
+    version: '8.8',
     cj: cjOk ? 'connected' : 'disconnected',
     cjError,
     markup: pricing.getMarkupPercent() + '%',
@@ -677,20 +677,46 @@ function categoryCatalogFallbackTerms(name) {
   const label = String(name || '').trim();
   const n = label.toLowerCase();
   const terms = [];
+  const add = (...items) => {
+    for (const item of items) if (item) terms.push(item);
+  };
 
-  if (/women|woman|girl/.test(n)) terms.push('dress', 'women', 'blouse', 'fashion');
-  if (/\bmen|man|boy/.test(n)) terms.push('shirt', 'men', 'jacket', 'fashion');
-  if (/pet|dog|cat/.test(n)) terms.push('pet', 'dog', 'cat');
-  if (/home|garden|furniture|kitchen/.test(n)) terms.push('home', 'kitchen', 'lamp', 'garden');
-  if (/health|beauty|hair/.test(n)) terms.push('beauty', 'hair', 'makeup', 'skincare');
-  if (/jewel|watch/.test(n)) terms.push('watch', 'jewelry', 'ring');
-  if (/bag|shoe/.test(n)) terms.push('bag', 'shoe', 'backpack');
-  if (/toy|kid|baby/.test(n)) terms.push('toy', 'baby', 'kids');
-  if (/electronic|computer|phone|tech/.test(n)) terms.push('electronic', 'phone', 'gadget');
-  if (/sport|outdoor/.test(n)) terms.push('sport', 'outdoor', 'fitness');
-  if (/school/.test(n)) terms.push('school bag', 'backpack', 'bag');
+  add(label);
 
-  if (label) terms.push(label);
+  if (/prescription.*glass|glass|eyewear|spectacle|sunglass/.test(n)) {
+    if (/prescription/.test(n)) add('prescription glasses');
+    add('eyeglasses', 'glasses', 'eyewear', 'sunglasses');
+    return [...new Set(terms.filter(Boolean))];
+  }
+
+  if (/school/.test(n) && /bag|backpack/.test(n)) {
+    add('school bag', 'school backpack', 'student backpack', 'backpack', 'bag');
+    return [...new Set(terms.filter(Boolean))];
+  }
+
+  const isBroadWomen = /^(women'?s|woman|ladies?)\s+(clothing|fashion)$/i.test(label);
+  const isBroadMen = /^(men'?s|man)\s+(clothing|fashion)$/i.test(label);
+  const hasSpecificProductNoun = /shirt|blouse|dress|jacket|coat|hoodie|sweatshirt|pant|jean|short|skirt|legging|sweater|suit|set|vest|camis|bag|backpack|handbag|shoe|sandal|boot|sneaker|watch|jewel|ring|necklace|earring|bracelet|toy|pet|bowl|bed|lamp|light|projector|speaker|earphone|headphone|camera|charger|phone|case|cover|cable|power bank|laptop|tablet|printer|tool|storage|curtain|pillow|towel|makeup|hair|nail|wig|mask|razor|perfume|car|motorcycle|fishing|sport|outdoor|fitness|kitchen|garden|home/.test(n);
+
+  if (/shirt|blouse|top|camis|vest/.test(n)) add('shirt', 'blouse', 'top');
+  if (/dress/.test(n)) add('dress', 'dresses');
+  if (/jacket|coat|outerwear|hoodie|sweatshirt|sweater/.test(n)) add('jacket', 'coat', 'hoodie', 'sweater');
+  if (/pant|jean|short|skirt|legging|bottom/.test(n)) add('pants', 'jeans', 'shorts', 'skirt');
+  if (/bag|backpack|handbag|purse|wallet/.test(n)) add('bag', 'backpack', 'handbag');
+  if (/shoe|sandal|boot|sneaker/.test(n)) add('shoes', 'sneakers', 'sandals');
+  if (/watch/.test(n)) add('watch', 'smart watch');
+  if (/jewel|ring|necklace|earring|bracelet/.test(n)) add('jewelry', 'ring', 'necklace', 'earrings');
+  if (/pet|dog|cat/.test(n)) add('pet', 'dog', 'cat');
+  if (/toy|baby|kid/.test(n)) add('toy', 'baby', 'kids');
+  if (/electronic|computer|phone|tech/.test(n)) add('electronic', 'phone', 'gadget');
+  if (/projector|speaker|earphone|headphone|camera|charger|cable|power bank/.test(n)) add('projector', 'speaker', 'earphones', 'camera', 'charger');
+  if (/home|garden|furniture|kitchen/.test(n)) add('home', 'kitchen', 'lamp', 'garden');
+  if (/health|beauty|hair|makeup|nail|wig|skin/.test(n)) add('beauty', 'hair', 'makeup', 'skincare');
+  if (/sport|outdoor|fitness/.test(n)) add('sport', 'outdoor', 'fitness');
+
+  if (isBroadWomen || (/women|woman|girl|ladies/.test(n) && !hasSpecificProductNoun)) add('dress', 'women', 'blouse', 'fashion');
+  if (isBroadMen || (/\b(men|man|boy)\b/.test(n) && !hasSpecificProductNoun)) add('shirt', 'men', 'jacket', 'fashion');
+
   return [...new Set(terms.filter(Boolean))];
 }
 
@@ -1201,6 +1227,12 @@ function productSearchText(product) {
   ].filter(Boolean).join(' ').toLowerCase();
 }
 
+const CATEGORY_MATCH_STOP_WORDS = new Set([
+  'and', 'with', 'for', 'the', 'new',
+  'men', 'man', 'mens', 'women', 'woman', 'womens', 'lady', 'ladies',
+  'girl', 'girls', 'boy', 'boys', 'kid', 'kids', 'baby', 'child', 'parent', 'couple',
+]);
+
 function keywordTokens(value) {
   return String(value || '')
     .toLowerCase()
@@ -1209,12 +1241,38 @@ function keywordTokens(value) {
     .slice(0, 8);
 }
 
+function tokenStem(token) {
+  if (token.endsWith('ies') && token.length > 4) return token.slice(0, -3) + 'y';
+  if (token.endsWith('es') && token.length > 4) return token.slice(0, -2);
+  if (token.endsWith('s') && token.length > 4) return token.slice(0, -1);
+  return token;
+}
+
+function productWordSet(product) {
+  const words = keywordTokens(productSearchText(product));
+  const out = new Set(words);
+  for (const word of words) out.add(tokenStem(word));
+  return out;
+}
+
+function wordSetHasToken(words, token) {
+  const stem = tokenStem(token);
+  if (words.has(token) || words.has(stem)) return true;
+  if (stem.length < 4) return false;
+  for (const word of words) {
+    if (word.length >= 4 && (word.startsWith(stem) || stem.startsWith(word))) return true;
+  }
+  return false;
+}
+
 function matchesAnyTerm(product, terms) {
-  const text = productSearchText(product);
+  const words = productWordSet(product);
   return terms.some(term => {
-    const tokens = keywordTokens(term);
+    const allTokens = keywordTokens(term);
+    const specificTokens = allTokens.filter(t => !CATEGORY_MATCH_STOP_WORDS.has(t));
+    const tokens = specificTokens.length ? specificTokens : allTokens;
     if (!tokens.length) return false;
-    return tokens.some(token => text.includes(token));
+    return tokens.every(token => wordSetHasToken(words, token));
   });
 }
 
@@ -1222,9 +1280,10 @@ function pinnedMyProductsByCategoryName(products, categoryName) {
   const terms = categoryCatalogFallbackTerms(categoryName);
   const expanded = [...terms];
   const n = String(categoryName || '').toLowerCase();
-  if (/women|woman|girl/.test(n)) expanded.push('dress', 'dresses', 'skirt', 'top', 'blouse', 'clothing', 'apparel');
-  if (/\bmen|man|boy/.test(n)) expanded.push('shirt', 'shirts', 'hoodie', 'jacket', 'pants', 'clothing', 'apparel');
-  if (/bag|shoe/.test(n)) expanded.push('bag', 'bags', 'backpack', 'handbag', 'shoe', 'shoes', 'sneaker', 'sandal');
+  if (/prescription.*glass|glass|eyewear|spectacle|sunglass/.test(n)) expanded.push('prescription glasses', 'eyeglasses', 'glasses', 'eyewear');
+  if (/^(women'?s|woman|ladies?)\s+(clothing|fashion)$/i.test(categoryName || '')) expanded.push('dress', 'dresses', 'skirt', 'top', 'blouse', 'clothing', 'apparel');
+  if (/^(men'?s|man)\s+(clothing|fashion)$/i.test(categoryName || '')) expanded.push('shirt', 'shirts', 'hoodie', 'jacket', 'pants', 'clothing', 'apparel');
+  if (/bag|shoe/.test(n)) expanded.push('bag', 'backpack', 'handbag', 'shoe', 'shoes', 'sneaker', 'sandal');
   if (/school/.test(n)) expanded.push('school', 'backpack', 'bag');
   if (/electronic|tech|phone|computer/.test(n)) expanded.push('gadget', 'phone', 'charger', 'earbud', 'speaker', 'camera', 'keyboard');
   return products.filter(product => matchesAnyTerm(product, expanded));
@@ -3009,7 +3068,7 @@ function scheduleCatalogSync() {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Global Shopper v8.7  (CJDropshipping powered)       ║');
+  console.log('║  Global Shopper v8.8  (CJDropshipping powered)       ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);

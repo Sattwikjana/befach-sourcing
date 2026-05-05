@@ -57,10 +57,16 @@ function ensureDb() {
 
     CREATE INDEX IF NOT EXISTS idx_catalog_products_category
       ON catalog_products(category_id, listed_num DESC);
+    CREATE INDEX IF NOT EXISTS idx_catalog_products_active_category
+      ON catalog_products(active, category_id, listed_num DESC, sell_price ASC);
     CREATE INDEX IF NOT EXISTS idx_catalog_products_trending
       ON catalog_products(listed_num DESC, sell_price ASC);
+    CREATE INDEX IF NOT EXISTS idx_catalog_products_active_trending
+      ON catalog_products(active, listed_num DESC, sell_price ASC);
     CREATE INDEX IF NOT EXISTS idx_catalog_products_updated
       ON catalog_products(updated_at);
+    CREATE INDEX IF NOT EXISTS idx_catalog_products_sku
+      ON catalog_products(product_sku);
 
     CREATE VIRTUAL TABLE IF NOT EXISTS catalog_products_fts
       USING fts5(pid UNINDEXED, name, category_name, product_sku, tokenize='unicode61');
