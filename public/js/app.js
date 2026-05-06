@@ -58,6 +58,8 @@ const headerSearchForm = document.getElementById('headerSearchForm');
 const headerSearchInput = document.getElementById('headerSearchInput');
 const headerCatBtn = document.getElementById('headerCatBtn');
 const catDropdown = document.getElementById('catDropdown');
+const photoSearchInput = document.getElementById('photoSearchInput');
+const headerPhotoSearchBtn = document.getElementById('headerPhotoSearchBtn');
 
 // ── Mobile drawer ──
 const hamburgerBtn = document.getElementById('headerHamburger');
@@ -356,6 +358,99 @@ async function apiPost(path, body, extraHeaders = {}) {
     throw err;
   }
   return data;
+}
+
+function fileToImageDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//i.test(file.type || '')) {
+      reject(new Error('Please choose a product photo'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read the photo'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Could not open the photo'));
+      img.onload = () => {
+        const maxEdge = 900;
+        const scale = Math.min(1, maxEdge / Math.max(img.width || maxEdge, img.height || maxEdge));
+        const width = Math.max(1, Math.round((img.width || maxEdge) * scale));
+        const height = Math.max(1, Math.round((img.height || maxEdge) * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        let quality = 0.74;
+        let out = canvas.toDataURL('image/jpeg', quality);
+        while (out.length > 1_700_000 && quality > 0.46) {
+          quality -= 0.08;
+          out = canvas.toDataURL('image/jpeg', quality);
+        }
+        if (out.length > 1_950_000) {
+          reject(new Error('Photo is too large. Please choose a smaller image.'));
+          return;
+        }
+        resolve(out);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function setPhotoSearchBusy(isBusy) {
+  document.querySelectorAll('[data-photo-search]').forEach(btn => {
+    btn.disabled = isBusy;
+    btn.classList.toggle('is-busy', isBusy);
+    btn.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+  });
+}
+
+function openPhotoSearchPicker() {
+  if (!photoSearchInput) return showToast('Photo search is not available here');
+  photoSearchInput.value = '';
+  photoSearchInput.click();
+}
+
+function getPhotoSearchPayload(key, query) {
+  if (!key) return null;
+  try {
+    const payload = JSON.parse(sessionStorage.getItem(key) || 'null');
+    if (!payload || !Array.isArray(payload.products)) return null;
+    if (Date.now() - (payload.cachedAt || 0) > 10 * 60 * 1000) return null;
+    if (query && payload.query && payload.query.toLowerCase() !== query.toLowerCase()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+async function runPhotoSearch(file) {
+  if (runPhotoSearch.busy) return;
+  runPhotoSearch.busy = true;
+  setPhotoSearchBusy(true);
+  try {
+    showToast('Reading photo...');
+    const imageDataUrl = await fileToImageDataUrl(file);
+    showToast('Finding similar products...');
+    const res = await apiPost('/api/store/search/photo', { imageDataUrl, page: 1, size: 40 });
+    const query = (res.query || res.intent?.understood || res.intent?.keywords || '').trim();
+    if (!query) throw new Error('Could not identify the product in this photo');
+
+    const key = `photo-search:${Date.now()}`;
+    sessionStorage.setItem(key, JSON.stringify({ ...res, cachedAt: Date.now() }));
+    showToast(`Photo matched: ${query}`, 2600);
+    navigate(`/search?q=${encodeURIComponent(query)}&photo=${encodeURIComponent(key)}`);
+  } catch (err) {
+    showToast(err.message || 'Photo search failed. Please try another image.', 4200);
+  } finally {
+    setPhotoSearchBusy(false);
+    runPhotoSearch.busy = false;
+    if (photoSearchInput) photoSearchInput.value = '';
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -660,6 +755,7 @@ function handleRoute() {
       {
         categoryId: params.get('categoryId') || '',
         categoryName: params.get('catName') || '',
+        photoKey: params.get('photo') || '',
       }
     );
   }
@@ -718,6 +814,11 @@ headerSearchForm?.addEventListener('submit', (e) => {
   if (q.length < 2) return showToast('Type at least 2 characters');
   hideSearchSuggestions();
   navigate(`/search?q=${encodeURIComponent(q)}`);
+});
+headerPhotoSearchBtn?.addEventListener('click', openPhotoSearchPicker);
+photoSearchInput?.addEventListener('change', (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (file) runPhotoSearch(file);
 });
 
 // ── Search autocomplete dropdown ──
@@ -1334,6 +1435,9 @@ async function renderHome() {
               <p class="home-hero-sub">Premium products, hand-picked from artisans and ateliers in 200+ countries — delivered to India in 10–15 days.</p>
               <form class="home-hero-search" id="heroSearchForm">
                 <input type="text" id="heroSearchInput" placeholder="Search dresses, watches, lighting, fragrances..." autocomplete="off" />
+                <button type="button" class="hero-photo-btn" id="heroPhotoSearchBtn" data-photo-search aria-label="Search by photo" title="Search by photo">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3v13H4V7z"/><circle cx="12" cy="13" r="4"/></svg>
+                </button>
                 <button type="submit" aria-label="Search">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
                   <span>Search</span>
@@ -1546,6 +1650,7 @@ async function renderHome() {
     if (q.length < 2) return showToast('Type at least 2 characters');
     navigate(`/search?q=${encodeURIComponent(q)}`);
   });
+  document.getElementById('heroPhotoSearchBtn')?.addEventListener('click', openPhotoSearchPicker);
 
   loadCategories().then(() => renderHomeSidebar());
   loadHomeProducts();
@@ -2085,7 +2190,10 @@ async function renderSearch(query, page = 1, opts = {}) {
     // and search results show twice as many products per page. Pairs
     // with the deep-walk prewarm so even page 5 loads instantly from
     // cache. Customer can paginate further; deep pages hit CJ live.
-    if (query && !opts.categoryId) {
+    const photoPayload = page === 1 ? getPhotoSearchPayload(opts.photoKey, query) : null;
+    if (photoPayload) {
+      res = photoPayload;
+    } else if (query && !opts.categoryId) {
       const smartQs = new URLSearchParams({ q: query, page: String(page), size: '40' });
       res = await apiGet('/api/store/search/smart?' + smartQs.toString());
     } else {

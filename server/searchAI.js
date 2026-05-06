@@ -25,8 +25,7 @@
  *      cheap output.
  */
 
-const path = require('path');
-const fs = require('fs');
+const crypto = require('crypto');
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODEL = 'google/gemini-2.0-flash-001';
@@ -150,6 +149,29 @@ Rules:
 - If the query is highly specific (a product SKU, a brand name), keywords and broader_keywords can be the same.
 - If query is gibberish or empty, return keywords as-is, broader_keywords as-is, other fields null.`;
 
+const IMAGE_SYSTEM_PROMPT = `You identify shoppable products from a customer photo for an Indian e-commerce search engine.
+
+Look at the main product in the image. Ignore people, background, rooms, hands, packaging text unless it helps identify the product.
+
+Return JSON ONLY (no prose), this exact shape:
+{
+  "query": "best concise search query, 2-5 english words",
+  "keywords": "narrow search words for product API, 1-4 english words",
+  "broader_keywords": "broader fallback term for the same intent, 1-3 english words",
+  "category": "clothing|electronics|home|jewelry|beauty|accessories|toys|sports|other|null",
+  "color": "english color name or null",
+  "gender": "men|women|kids|unisex|null",
+  "price_min": null,
+  "price_max": null,
+  "intent": "1-line English summary, e.g. 'Black wireless earbuds' or 'Women's floral dress'"
+}
+
+Rules:
+- Prefer the product type over brand guesses.
+- Include visible material/style when useful: leather handbag, floral dress, wireless earbuds, mini projector.
+- If multiple products are visible, choose the most prominent customer-searchable one.
+- If uncertain, use a broad useful query like "women fashion", "phone accessory", "home decor", or "tech gadget".`;
+
 /**
  * Parse a user query. Returns:
  *   { keywords, category, color, gender, price_min, price_max, intent, source }
@@ -222,6 +244,83 @@ async function parseQuery(rawQuery) {
 }
 
 /**
+ * Parse a user-uploaded product photo into the same structured intent as
+ * text search. This is only called from the explicit photo-search endpoint,
+ * so normal typing/search performance is untouched.
+ */
+async function parseImageSearch(imageDataUrl) {
+  const image = String(imageDataUrl || '').trim();
+  if (!image || !/^data:image\/(png|jpe?g|webp);base64,/i.test(image)) {
+    return photoFallback('invalid-image');
+  }
+
+  const cacheKey = `image:${crypto.createHash('sha1').update(image).digest('hex')}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) return { ...cached, source: 'cache-image' };
+
+  if (!process.env.OPENROUTER_API_KEY) return photoFallback('no-key');
+  if (isOverBudget()) return photoFallback('over-budget');
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
+    const res = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://globalshopper.in',
+        'X-Title': 'Global Shopper',
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: IMAGE_SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Identify the main shoppable product and create the best search query.' },
+              { type: 'image_url', image_url: { url: image } },
+            ],
+          },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+        max_tokens: 220,
+      }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.warn(`[searchAI:image] HTTP ${res.status}: ${text.slice(0, 200)}`);
+      return photoFallback('http-error');
+    }
+
+    const data = await res.json();
+    const usage = data.usage || {};
+    trackSpend(usage.prompt_tokens || 0, usage.completion_tokens || 0);
+
+    const content = data.choices?.[0]?.message?.content || '{}';
+    let parsed;
+    try { parsed = JSON.parse(content); }
+    catch { return photoFallback('invalid-json'); }
+
+    const result = normaliseImage(parsed);
+    cacheSet(cacheKey, result);
+    return { ...result, source: 'ai-image' };
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      console.warn('[searchAI:image] timeout');
+    } else {
+      console.warn('[searchAI:image] error:', err.message);
+    }
+    return photoFallback('error');
+  }
+}
+
+/**
  * Normalise the AI response so downstream code can rely on the shape.
  * Handles missing fields, wrong types, and obvious garbage.
  */
@@ -249,6 +348,19 @@ function normalise(parsed, originalQuery) {
   return { keywords, broader_keywords: broader, category, color, gender, price_min, price_max, intent };
 }
 
+function normaliseImage(parsed) {
+  const rawQuery = typeof parsed.query === 'string' && parsed.query.trim()
+    ? parsed.query.trim()
+    : (typeof parsed.keywords === 'string' && parsed.keywords.trim() ? parsed.keywords.trim() : 'photo search');
+  const base = normalise({
+    ...parsed,
+    keywords: parsed.keywords || rawQuery,
+    broader_keywords: parsed.broader_keywords || parsed.keywords || rawQuery,
+    intent: parsed.intent || rawQuery,
+  }, rawQuery);
+  return { ...base, query: rawQuery };
+}
+
 function isFiniteNumber(n) {
   return typeof n === 'number' && Number.isFinite(n) && n > 0;
 }
@@ -273,6 +385,22 @@ function fallback(query, reason) {
   };
 }
 
+function photoFallback(reason) {
+  return {
+    query: '',
+    keywords: '',
+    broader_keywords: '',
+    category: null,
+    color: null,
+    gender: null,
+    price_min: null,
+    price_max: null,
+    intent: '',
+    source: 'fallback',
+    fallbackReason: reason,
+  };
+}
+
 /** For /api/health — surface AI status without exposing the key. */
 function getStatus() {
   rolloverIfNewDay();
@@ -286,4 +414,4 @@ function getStatus() {
   };
 }
 
-module.exports = { parseQuery, getStatus };
+module.exports = { parseQuery, parseImageSearch, getStatus };

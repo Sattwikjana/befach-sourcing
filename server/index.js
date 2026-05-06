@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.19';
+const APP_VERSION = '8.20';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -58,7 +58,7 @@ app.use(cookieParser());
 // verify HMAC signatures (e.g. Razorpay webhooks) can re-hash the exact
 // payload Razorpay signed. Adds < 1ms; we never use rawBody elsewhere.
 app.use(express.json({
-  limit: '1mb',
+  limit: '3mb',
   verify: (req, res, buf) => { req.rawBody = buf; },
 }));
 app.use(auth.attachUser);
@@ -1439,178 +1439,226 @@ async function pinnedMyProductsForResults({ categoryId, keyWord, page, limit = 8
 //
 // Falls back to plain CJ search if AI is unavailable, over budget, or
 // errors out — search always works, AI just makes it smarter.
+async function buildSmartSearchResponse(rawQuery, {
+  page = 1,
+  pageSize = 20,
+  intentOverride = null,
+  recordQuery = false,
+} = {}) {
+  page = parseInt(page, 10) || 1;
+  pageSize = Math.min(parseInt(pageSize, 10) || 20, 40);
+  rawQuery = String(rawQuery || '').trim();
+  if (!rawQuery) throw new Error('Search query is required');
+  if (recordQuery) {
+    recordRecentQuery(rawQuery);
+  }
+
+  const fastIntent = {
+    keywords: rawQuery,
+    broader_keywords: rawQuery,
+    category: null,
+    color: null,
+    gender: null,
+    price_min: null,
+    price_max: null,
+    intent: null,
+    source: 'fallback',
+    fallbackReason: 'fast-path',
+  };
+  const intent = intentOverride || await Promise.race([
+    searchAI.parseQuery(rawQuery).catch(() => fastIntent),
+    new Promise(resolve => setTimeout(() => resolve(fastIntent), SEARCH_AI_WAIT_MS)),
+  ]);
+  const narrowKeywords = intent.keywords || rawQuery;
+  const broaderKeywords = intent.broader_keywords || narrowKeywords;
+  const usingBroader = broaderKeywords && broaderKeywords.toLowerCase() !== narrowKeywords.toLowerCase();
+
+  // Always run the narrow search. If a different broader fallback is
+  // available, run it in parallel and merge — narrow matches first
+  // (more relevant) followed by broader ones (still useful, but more
+  // generic). This is the fix for "women dresses" returning only 60
+  // products: the narrow term matches few catalog titles literally,
+  // while "women clothing" pulls in the whole category.
+  const [narrowMeta, broaderMeta] = await Promise.all([
+    searchProductsWithCatalogExtras({
+      keyWord: narrowKeywords,
+      categoryId: undefined,
+      page,
+      size: pageSize,
+    }),
+    usingBroader
+      ? searchProductsWithCatalogExtras({
+          keyWord: broaderKeywords,
+          categoryId: undefined,
+          page,
+          size: pageSize,
+        })
+      : Promise.resolve({ products: [], total: 0, totalPages: 1 }),
+  ]);
+
+  // Merge: narrow first (relevance), then broader (de-duplicated).
+  const seenPids = new Set();
+  let products = [];
+  for (const p of narrowMeta.products || []) {
+    const pid = p.pid || p.id || p.productId;
+    if (!pid || seenPids.has(pid)) continue;
+    seenPids.add(pid);
+    products.push(p);
+  }
+  for (const p of broaderMeta.products || []) {
+    const pid = p.pid || p.id || p.productId;
+    if (!pid || seenPids.has(pid)) continue;
+    seenPids.add(pid);
+    products.push(p);
+  }
+
+  // Total = sum of both totals minus the dupes. Conservative estimate
+  // because we can only count overlaps within the page we fetched, but
+  // good enough for pagination.
+  const rawMerged = Math.max(
+    products.length,
+    (narrowMeta.total || 0) + (usingBroader ? (broaderMeta.total || 0) : 0)
+  );
+  // Track unfiltered count so we can scale the total by the filter
+  // pass-rate after gender/price filters run below.
+  const beforeFilters = products.length;
+
+  // Apply AI-extracted filters client-side (CJ doesn't support these).
+
+  // ── Gender filter ──
+  // CJ's keyword search ignores prefix words like "men" — searching
+  // "men dress" returns mostly women's dresses because the title
+  // matcher is loose. We post-filter using the OPPOSITE gender's
+  // marker words against productNameEn + categoryName.
+  const GENDER_EXCLUDES = {
+    men:    ['women', 'woman', 'ladies', 'lady', 'female', 'girl', 'girls'],
+    women:  ['men', 'mens', 'gentleman', 'male', 'boy', 'boys'],
+    kids:   [],     // products labelled "men" or "women" usually fit kids too
+    unisex: [],     // anything goes
+  };
+  if (intent.gender && GENDER_EXCLUDES[intent.gender]?.length) {
+    const excludes = GENDER_EXCLUDES[intent.gender];
+    const excludeRegex = new RegExp(`\\b(${excludes.join('|')})\\b`, 'i');
+    const before = products.length;
+    products = products.filter(p => {
+      const name = (p.productNameEn || p.nameEn || p.productName || '').toLowerCase();
+      const cat  = (p.categoryName  || p.threeCategoryName || '').toLowerCase();
+      return !excludeRegex.test(name) && !excludeRegex.test(cat);
+    });
+    console.log(`[smart-search] gender=${intent.gender}: ${before} -> ${products.length} after filter`);
+  }
+
+  // Price filter — applied in INR using the same conversion as display.
+  const usdToInr = parseFloat(process.env.USD_TO_INR) || 85;
+  if (intent.price_min || intent.price_max) {
+    const min = intent.price_min || 0;
+    const max = intent.price_max || Number.MAX_SAFE_INTEGER;
+    products = products.filter(p => {
+      const usd = parseFloat(p.sellPrice || p.nowPrice || 0) || 0;
+      const inr = usd * usdToInr;
+      return inr >= min && inr <= max;
+    });
+  }
+
+  // Strip CJ cost fields, apply pricing
+  const priced = products.map(p => {
+    const cleaned = pricing.applyStorePricing(p);
+    const wholesaleUsd = parseFloat(p.sellPrice || p.nowPrice || 0);
+    const hit = peekShippingCache(p.pid || p.id || p.productId || '');
+    const shippingUsd = (hit && hit.available) ? hit.usd : FALLBACK_SHIPPING_USD;
+    const cachedDisplayUsd = hit && hit.available ? parseFloat(hit.displayUsd || 0) : 0;
+    const displayUsd = cachedDisplayUsd > 0
+      ? cachedDisplayUsd
+      : computeDisplayUsd(wholesaleUsd, shippingUsd);
+    const offer = (cachedDisplayUsd > 0 && hit.mrp && hit.discountPercent)
+      ? { mrp: hit.mrp, discountPercent: hit.discountPercent }
+      : computeOfferPricing(p.pid || p.id || p.productId || '', displayUsd);
+    return {
+      ...cleaned,
+      sellPrice: displayUsd.toFixed(2),
+      price: displayUsd.toFixed(2),
+      mrp: offer?.mrp,
+      discountPercent: offer?.discountPercent,
+      shippingAccurate: !!(hit && hit.available),
+      shippingIncluded: true,
+    };
+  });
+
+  // Scale the merged total by the filter pass-rate we observed on this page.
+  const filterRatio = beforeFilters > 0 ? products.length / beforeFilters : 1;
+  const adjustedTotal = Math.round(rawMerged * filterRatio);
+
+  return {
+    products: priced,
+    total: adjustedTotal,
+    totalPages: Math.max(1, Math.ceil(adjustedTotal / pageSize)),
+    query: rawQuery,
+    intent: {
+      understood: intent.intent,                   // human-readable
+      keywords: intent.keywords,
+      broader_keywords: intent.broader_keywords,
+      category: intent.category,
+      color: intent.color,
+      gender: intent.gender,
+      price_min: intent.price_min,
+      price_max: intent.price_max,
+      source: intent.source,                       // "ai" | "cache" | "fallback" | image variants
+    },
+  };
+}
+
 app.get('/api/store/search/smart', async (req, res) => {
   try {
     const rawQuery = (req.query.q || '').toString().trim();
     if (!rawQuery) {
       return res.status(400).json({ error: 'Query parameter q is required' });
     }
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = Math.min(parseInt(req.query.size) || 20, 40);
-
-    recordRecentQuery(rawQuery);
-    const fastIntent = {
-      keywords: rawQuery,
-      broader_keywords: rawQuery,
-      category: null,
-      color: null,
-      gender: null,
-      price_min: null,
-      price_max: null,
-      intent: null,
-      source: 'fallback',
-      fallbackReason: 'fast-path',
-    };
-    const intent = await Promise.race([
-      searchAI.parseQuery(rawQuery).catch(() => fastIntent),
-      new Promise(resolve => setTimeout(() => resolve(fastIntent), SEARCH_AI_WAIT_MS)),
-    ]);
-    const narrowKeywords = intent.keywords || rawQuery;
-    const broaderKeywords = intent.broader_keywords || narrowKeywords;
-    const usingBroader = broaderKeywords && broaderKeywords.toLowerCase() !== narrowKeywords.toLowerCase();
-
-    // Always run the narrow search. If a different broader fallback is
-    // available, run it in parallel and merge — narrow matches first
-    // (more relevant) followed by broader ones (still useful, but more
-    // generic). This is the fix for "women dresses" returning only 60
-    // products: the narrow term matches few catalog titles literally,
-    // while "women clothing" pulls in the whole category.
-    const [narrowMeta, broaderMeta] = await Promise.all([
-      searchProductsWithCatalogExtras({
-        keyWord: narrowKeywords,
-        categoryId: undefined,
-        page,
-        size: pageSize,
-      }),
-      usingBroader
-        ? searchProductsWithCatalogExtras({
-            keyWord: broaderKeywords,
-            categoryId: undefined,
-            page,
-            size: pageSize,
-          })
-        : Promise.resolve({ products: [], total: 0, totalPages: 1 }),
-    ]);
-
-    // Merge: narrow first (relevance), then broader (de-duplicated).
-    const seenPids = new Set();
-    let products = [];
-    for (const p of narrowMeta.products || []) {
-      const pid = p.pid || p.id || p.productId;
-      if (!pid || seenPids.has(pid)) continue;
-      seenPids.add(pid);
-      products.push(p);
-    }
-    for (const p of broaderMeta.products || []) {
-      const pid = p.pid || p.id || p.productId;
-      if (!pid || seenPids.has(pid)) continue;
-      seenPids.add(pid);
-      products.push(p);
-    }
-
-    // Total = sum of both totals minus the dupes. Conservative estimate
-    // because we can only count overlaps within the page we fetched, but
-    // good enough for the pagination UI ("Showing 1500 products" feels
-    // right even if the true total is 1480).
-    const rawMerged = Math.max(
-      products.length,
-      (narrowMeta.total || 0) + (usingBroader ? (broaderMeta.total || 0) : 0)
-    );
-    // Track unfiltered count so we can scale the total by the filter
-    // pass-rate after gender/price filters run below — otherwise the
-    // pagination UI shows 5000 products but the user sees 50 because
-    // the rest got filtered.
-    const beforeFilters = products.length;
-
-    // Apply AI-extracted filters client-side (CJ doesn't support these).
-
-    // ── Gender filter ──
-    // CJ's keyword search ignores prefix words like "men" — searching
-    // "men dress" returns mostly women's dresses because the title
-    // matcher is loose. We post-filter using the OPPOSITE gender's
-    // marker words against productNameEn + categoryName. Word-boundary
-    // regex so "winter" doesn't trip "win", "lady" trips "lady" not
-    // "ladybird" (intentional — that's still a lady-styled product).
-    const GENDER_EXCLUDES = {
-      men:    ['women', 'woman', 'ladies', 'lady', 'female', 'girl', 'girls'],
-      women:  ['men', 'mens', 'gentleman', 'male', 'boy', 'boys'],
-      kids:   [],     // products labelled "men" or "women" usually fit kids too
-      unisex: [],     // anything goes
-    };
-    if (intent.gender && GENDER_EXCLUDES[intent.gender]?.length) {
-      const excludes = GENDER_EXCLUDES[intent.gender];
-      const excludeRegex = new RegExp(`\\b(${excludes.join('|')})\\b`, 'i');
-      const before = products.length;
-      products = products.filter(p => {
-        const name = (p.productNameEn || p.nameEn || p.productName || '').toLowerCase();
-        const cat  = (p.categoryName  || p.threeCategoryName || '').toLowerCase();
-        return !excludeRegex.test(name) && !excludeRegex.test(cat);
-      });
-      console.log(`[smart-search] gender=${intent.gender}: ${before} → ${products.length} after filter`);
-    }
-
-    // Price filter — applied in INR using the same conversion as display.
-    const usdToInr = parseFloat(process.env.USD_TO_INR) || 85;
-    if (intent.price_min || intent.price_max) {
-      const min = intent.price_min || 0;
-      const max = intent.price_max || Number.MAX_SAFE_INTEGER;
-      products = products.filter(p => {
-        const usd = parseFloat(p.sellPrice || p.nowPrice || 0) || 0;
-        const inr = usd * usdToInr;
-        return inr >= min && inr <= max;
-      });
-    }
-
-    // Strip CJ cost fields, apply pricing
-    const priced = products.map(p => {
-      const cleaned = pricing.applyStorePricing(p);
-      const wholesaleUsd = parseFloat(p.sellPrice || p.nowPrice || 0);
-      const hit = peekShippingCache(p.pid || p.id || p.productId || '');
-      const shippingUsd = (hit && hit.available) ? hit.usd : FALLBACK_SHIPPING_USD;
-      const cachedDisplayUsd = hit && hit.available ? parseFloat(hit.displayUsd || 0) : 0;
-      const displayUsd = cachedDisplayUsd > 0
-        ? cachedDisplayUsd
-        : computeDisplayUsd(wholesaleUsd, shippingUsd);
-      const offer = (cachedDisplayUsd > 0 && hit.mrp && hit.discountPercent)
-        ? { mrp: hit.mrp, discountPercent: hit.discountPercent }
-        : computeOfferPricing(p.pid || p.id || p.productId || '', displayUsd);
-      return {
-        ...cleaned,
-        sellPrice: displayUsd.toFixed(2),
-        price: displayUsd.toFixed(2),
-        mrp: offer?.mrp,
-        discountPercent: offer?.discountPercent,
-        shippingAccurate: !!(hit && hit.available),
-        shippingIncluded: true,
-      };
+    const payload = await buildSmartSearchResponse(rawQuery, {
+      page: req.query.page,
+      pageSize: req.query.size,
+      recordQuery: true,
     });
-
-    // Scale the merged total by the filter pass-rate we observed on
-    // this page. If 50% of fetched items got filtered out by gender or
-    // price, the true total is roughly half of CJ's reported total.
-    const filterRatio = beforeFilters > 0 ? products.length / beforeFilters : 1;
-    const adjustedTotal = Math.round(rawMerged * filterRatio);
-
-    res.json({
-      products: priced,
-      total: adjustedTotal,
-      totalPages: Math.max(1, Math.ceil(adjustedTotal / pageSize)),
-      query: rawQuery,
-      intent: {
-        understood: intent.intent,                   // human-readable
-        keywords: intent.keywords,
-        broader_keywords: intent.broader_keywords,
-        category: intent.category,
-        color: intent.color,
-        gender: intent.gender,
-        price_min: intent.price_min,
-        price_max: intent.price_max,
-        source: intent.source,                       // "ai" | "cache" | "fallback"
-      },
-    });
+    res.json(payload);
   } catch (err) {
     console.error('[Smart Search]', err.message);
     res.status(500).json({ error: 'Search failed', detail: err.message });
+  }
+});
+
+app.post('/api/store/search/photo', async (req, res) => {
+  try {
+    const imageDataUrl = (req.body?.imageDataUrl || req.body?.image || '').toString();
+    if (!/^data:image\/(png|jpe?g|webp);base64,/i.test(imageDataUrl)) {
+      return res.status(400).json({ error: 'Please upload a JPG, PNG, or WEBP image.' });
+    }
+    if (imageDataUrl.length > 2_800_000) {
+      return res.status(413).json({ error: 'Photo is too large. Please try a smaller image.' });
+    }
+
+    const imageIntent = await searchAI.parseImageSearch(imageDataUrl);
+    if (imageIntent.source === 'fallback' || !imageIntent.query) {
+      return res.status(503).json({
+        error: 'Photo search is temporarily unavailable',
+        detail: imageIntent.fallbackReason || 'ai-unavailable',
+      });
+    }
+
+    const payload = await buildSmartSearchResponse(imageIntent.query, {
+      page: req.body?.page,
+      pageSize: req.body?.size || 40,
+      intentOverride: imageIntent,
+      recordQuery: true,
+    });
+    res.json({
+      ...payload,
+      photo: {
+        query: imageIntent.query,
+        source: imageIntent.source,
+      },
+    });
+  } catch (err) {
+    console.error('[Photo Search]', err.message);
+    res.status(500).json({ error: 'Photo search failed', detail: err.message });
   }
 });
 

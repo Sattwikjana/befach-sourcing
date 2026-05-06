@@ -45,7 +45,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260506b" />
+  <link rel="stylesheet" href="/css/styles.css?v=20260506c" />
   <!-- Inline style as a safety net — guaranteed to load with no race
        conditions against the external CSS. -->
   <style>
@@ -112,6 +112,9 @@
           <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 7L1 3h8z"/></svg>
         </button>
         <input type="text" id="headerSearchInput" placeholder="Search products..." autocomplete="off" />
+        <button type="button" class="header-photo-btn" id="headerPhotoSearchBtn" data-photo-search aria-label="Search by photo" title="Search by photo">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3v13H4V7z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
         <button type="submit" class="header-search-btn" aria-label="Search">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
         </button>
@@ -258,12 +261,13 @@
 
   <!-- Category dropdown portal (populated at runtime) -->
   <div class="cat-dropdown" id="catDropdown" hidden></div>
+  <input type="file" id="photoSearchInput" accept="image/png,image/jpeg,image/webp" capture="environment" hidden />
 
   <!-- Razorpay Checkout — loaded async so it doesn't block the page;
        only used on the checkout page when the customer hits "Pay & Place order". -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
-  <script src="/js/app.js?v=20260506b"></script>
-  <script src="/js/app-store.js?v=20260506b"></script>
+  <script src="/js/app.js?v=20260506c"></script>
+  <script src="/js/app-store.js?v=20260506c"></script>
   <!-- Surface any uncaught JS error in the page so we can debug from
        the browser without DevTools. Goes to console.error and shows
        a discreet banner if anything blows up. -->
