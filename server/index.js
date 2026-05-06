@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.23';
+const APP_VERSION = '8.24';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -1358,6 +1358,7 @@ const CATEGORY_FAMILY_RULES = {
     positive: /\b(electronic|gadget|phone|mobile|charger|cable|usb|earbud|earbuds|headphone|headphones|speaker|camera|projector|laptop|tablet|keyboard|mouse|power bank|smartwatch|smart watch|drone|adapter)\b/,
   },
 };
+const BROAD_CLOTHING_REJECT_RE = /\b(shoe|shoes|sneaker|sneakers|sandal|sandals|boot|boots|heel|heels|slipper|slippers|footwear|handbag|backpack|duffle|luggage|tote|purse|wallet|bag|bags|watch|watches|jewelry|jewellery|earring|earrings|necklace|bracelet|ring|rings|sunglass|sunglasses|eyeglass|eyeglasses|glasses|eyewear|spectacle|spectacles|belt|belts|sock|socks|hat|hats|cap|caps|beanie|scarf|scarves|glove|gloves|tie|ties|baby|child|children|kids|kid|boys|boy|girls|girl)\b/;
 
 function categoryFamilyFromName(name) {
   const label = String(name || '').trim();
@@ -1385,7 +1386,7 @@ function productConflictsWithCategoryFamily(product, family) {
   // Clothing is the most sensitive broad category: shoes, bags, watches,
   // jewelry, eyewear, and gadgets are valid store products, just not garments.
   if (family === 'clothing') {
-    return Object.entries(CATEGORY_FAMILY_RULES)
+    return BROAD_CLOTHING_REJECT_RE.test(text) || Object.entries(CATEGORY_FAMILY_RULES)
       .filter(([other]) => other !== 'clothing')
       .some(([, rule]) => rule.positive.test(text));
   }
