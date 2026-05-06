@@ -1366,14 +1366,18 @@ async function renderHome() {
         </section>
 
         <section class="mobile-shop-strip" aria-label="Featured departments">
-          <a href="/search?q=women dress"><img src="/img/cat-women-clothing.png" alt="" /><span>Fashion</span></a>
-          <a href="/search?q=smart watch"><img src="/img/cat-electronics.png" alt="" /><span>Gadgets</span></a>
-          <a href="/search?q=headphones"><img src="/img/cat-phones-accessories.png" alt="" /><span>Audio</span></a>
-          <a href="/search?q=mini projector"><img src="/img/cat-computers-office.png" alt="" /><span>Rare tech</span></a>
-          <a href="/search?q=makeup organizer"><img src="/img/cat-health-beauty.png" alt="" /><span>Beauty</span></a>
-          <a href="/search?q=handbag"><img src="/img/cat-bags-shoes.png" alt="" /><span>Bags</span></a>
-          <a href="/search?q=kitchen tools"><img src="/img/cat-home-garden.png" alt="" /><span>Kitchen</span></a>
-          <a href="/search?q=kids toy"><img src="/img/cat-toys-kids.png" alt="" /><span>Toys</span></a>
+          <a id="mobileWomenCat" href="/search?q=women dress"><img src="/img/cat-women-clothing.png" alt="" width="58" height="58" /><span>Women</span></a>
+          <a id="mobileMenCat" href="/search?q=men shirt"><img src="/img/cat-men-clothing.png" alt="" width="58" height="58" /><span>Men</span></a>
+          <a id="mobileElectronicsCat" href="/search?q=smart watch"><img src="/img/cat-electronics.png" alt="" width="58" height="58" /><span>Gadgets</span></a>
+          <a id="mobileAudioCat" href="/search?q=headphones"><img src="/img/cat-phones-accessories.png" alt="" width="58" height="58" /><span>Audio</span></a>
+          <a id="mobileJewelryCat" href="/search?q=watch"><img src="/img/cat-jewelry-watches.png" alt="" width="58" height="58" loading="lazy" /><span>Watches</span></a>
+          <a id="mobileBeautyCat" href="/search?q=makeup organizer"><img src="/img/cat-health-beauty.png" alt="" width="58" height="58" loading="lazy" /><span>Beauty</span></a>
+          <a id="mobileBagsCat" href="/search?q=handbag"><img src="/img/cat-bags-shoes.png" alt="" width="58" height="58" loading="lazy" /><span>Bags</span></a>
+          <a id="mobileHomeCat" href="/search?q=kitchen tools"><img src="/img/cat-home-garden.png" alt="" width="58" height="58" loading="lazy" /><span>Home</span></a>
+          <a id="mobilePetsCat" href="/search?q=pet supplies"><img src="/img/cat-pet-supplies.png" alt="" width="58" height="58" loading="lazy" /><span>Pets</span></a>
+          <a id="mobileKidsCat" href="/search?q=kids toy"><img src="/img/cat-toys-kids.png" alt="" width="58" height="58" loading="lazy" /><span>Kids</span></a>
+          <a id="mobileSportsCat" href="/search?q=sports"><img src="/img/cat-sports-outdoors.png" alt="" width="58" height="58" loading="lazy" /><span>Sports</span></a>
+          <a href="/category"><img src="/img/cat-computers-office.png" alt="" width="58" height="58" loading="lazy" /><span>All</span></a>
         </section>
 
         <!-- TRUST BADGES -->
@@ -1807,6 +1811,22 @@ async function loadHomeProducts() {
   setHref('womenShopCta',  womenCat);
   setHref('promoMenCta',   menCat);
   setHref('promoWomenCta', womenCat);
+
+  const setMobileHref = (id, re) => {
+    const cat = findCat(re);
+    const el = document.getElementById(id);
+    if (cat && el) el.href = categoryHref(cat);
+  };
+  setMobileHref('mobileWomenCat', /^women.?s\s+clothing/i);
+  setMobileHref('mobileMenCat', /^men.?s\s+clothing/i);
+  setMobileHref('mobileElectronicsCat', /electronic/i);
+  setMobileHref('mobileJewelryCat', /jewel|watch/i);
+  setMobileHref('mobileBeautyCat', /health|beauty/i);
+  setMobileHref('mobileBagsCat', /bag|shoe/i);
+  setMobileHref('mobileHomeCat', /^home|garden|furniture/i);
+  setMobileHref('mobilePetsCat', /pet/i);
+  setMobileHref('mobileKidsCat', /toy|kid|bab/i);
+  setMobileHref('mobileSportsCat', /sport|outdoor/i);
 
   // Pick a child of the top-level women/men category so each daily load
   // surfaces a different slice (Dresses one day, Tops the next, etc.)

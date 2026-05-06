@@ -3959,6 +3959,8 @@ body {
     overflow-x: auto;
     margin: 0 -12px 14px;
     padding: 2px 12px 10px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
   .mobile-shop-strip::-webkit-scrollbar { display: none; }
@@ -3971,7 +3973,9 @@ body {
     color: #172033;
     font-size: 11.5px;
     font-weight: 800;
+    line-height: 1.2;
     text-align: center;
+    scroll-snap-align: start;
   }
   .mobile-shop-strip img {
     width: 58px;
