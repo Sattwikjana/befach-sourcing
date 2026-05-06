@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.20';
+const APP_VERSION = '8.21';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -101,7 +101,7 @@ const CACHE = new Map(); // insertion order = LRU order
 // shape or sort order. Old cached entries with a different version
 // won't be read, so users see the new behavior immediately on deploy
 // without waiting for the 30-min TTL to expire.
-const PRODUCTS_CACHE_VERSION = 'v6';
+const PRODUCTS_CACHE_VERSION = 'v7';
 const productsRawKey = (params) => `productsRaw:${PRODUCTS_CACHE_VERSION}:${JSON.stringify(params)}`;
 
 function cacheGet(key, ttlMs) {
@@ -737,7 +737,7 @@ app.get('/api/store/categories', async (req, res) => {
 // the same name with 1000+ products but to a categoryId query with 0.
 function categoryNameForId(id) {
   if (!id) return '';
-  const tree = cacheGet('categories', Infinity) || [];
+  const tree = cacheGet('categories', Infinity) || catalog.getCategoryTree() || [];
   for (const top of tree) {
     if (top.categoryFirstId === id) return top.categoryFirstName || '';
     for (const sec of (top.categoryFirstList || [])) {
@@ -813,8 +813,12 @@ function categoryCatalogFallbackTerms(name) {
   if (/health|beauty|hair|makeup|nail|wig|skin/.test(n)) add('beauty', 'hair', 'makeup', 'skincare');
   if (/sport|outdoor|fitness/.test(n)) add('sport', 'outdoor', 'fitness');
 
-  if (isBroadWomen || (/women|woman|girl|ladies/.test(n) && !hasSpecificProductNoun)) add('dress', 'women', 'blouse', 'fashion');
-  if (isBroadMen || (/\b(men|man|boy)\b/.test(n) && !hasSpecificProductNoun)) add('shirt', 'men', 'jacket', 'fashion');
+  if (isBroadWomen || (/women|woman|girl|ladies/.test(n) && !hasSpecificProductNoun)) {
+    add('women dress', 'women top', 'women blouse', 'women pants', 'women jacket', 'skirt', 'leggings');
+  }
+  if (isBroadMen || (/\b(men|man|boy)\b/.test(n) && !hasSpecificProductNoun)) {
+    add('men shirt', 'men pants', 'men jacket', 'hoodie', 't-shirt');
+  }
 
   return [...new Set(terms.filter(Boolean))];
 }
@@ -1304,6 +1308,114 @@ function productSearchText(product) {
     product.sku,
     product.categoryName,
   ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function productTitleText(product) {
+  return [
+    product.productNameEn,
+    product.productName,
+    product.nameEn,
+    product.name,
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+const CATEGORY_FAMILY_RULES = {
+  clothing: {
+    name: /^(women'?s|woman|ladies?|men'?s|man)\s+(clothing|fashion)$/i,
+    positive: /\b(shirt|shirts|t-?shirt|tee|top|tops|blouse|dress|dresses|gown|skirt|pants|trouser|jeans|shorts|leggings?|tights?|jacket|coat|hoodie|sweater|cardigan|vest|camisole|bodysuit|jumpsuit|romper|kurta|saree|lehenga|swimwear|bikini|bra|apparel|clothing)\b/,
+  },
+  bagsShoes: {
+    name: /bag|shoe|footwear|luggage/i,
+    positive: /\b(bag|bags|handbag|backpack|duffle|tote|purse|wallet|luggage|suitcase|shoe|shoes|sneaker|sneakers|sandal|sandals|boot|boots|heel|heels|slipper|slippers|footwear)\b/,
+  },
+  pet: {
+    name: /pet/i,
+    positive: /\b(pet|dog|cat|puppy|kitten|hamster|rabbit|bird|aquarium|fish|leash|collar|harness|paw|pets)\b/,
+  },
+  home: {
+    name: /home|garden|furniture|kitchen/i,
+    positive: /\b(home|kitchen|garden|furniture|sofa|chair|table|lamp|light|curtain|pillow|blanket|bedsheet|storage|organizer|rack|tool|drill|decor|bathroom|cookware)\b/,
+  },
+  beauty: {
+    name: /health|beauty|hair|makeup|skin/i,
+    positive: /\b(beauty|makeup|hair|wig|nail|skin|skincare|cream|serum|lipstick|mascara|brush|comb|dryer|perfume|fragrance|razor|shaver|cosmetic)\b/,
+  },
+  jewelry: {
+    name: /jewel|watch/i,
+    positive: /\b(jewelry|jewellery|ring|rings|necklace|earring|earrings|bracelet|pendant|chain|watch|watches|bangle|anklet)\b/,
+  },
+  toys: {
+    name: /toy|kids|baby/i,
+    positive: /\b(toy|toys|baby|kids|kid|doll|plush|puzzle|game|blocks|stroller|crib|toddler)\b/,
+  },
+  sports: {
+    name: /sport|outdoor|fitness/i,
+    positive: /\b(sport|sports|fitness|gym|yoga|outdoor|camping|fishing|cycling|bike|bicycle|ball|training|exercise)\b/,
+  },
+  electronics: {
+    name: /electronic|phone|computer|tech/i,
+    positive: /\b(electronic|gadget|phone|mobile|charger|cable|usb|earbud|earbuds|headphone|headphones|speaker|camera|projector|laptop|tablet|keyboard|mouse|power bank|smartwatch|smart watch|drone|adapter)\b/,
+  },
+};
+
+function categoryFamilyFromName(name) {
+  const label = String(name || '').trim();
+  if (!label) return '';
+  for (const [family, rule] of Object.entries(CATEGORY_FAMILY_RULES)) {
+    if (rule.name.test(label)) return family;
+  }
+  return '';
+}
+
+function categoryNameForQualityFilter({ categoryId, keyWord, categoryName }) {
+  const explicit = String(categoryName || '').trim();
+  if (categoryFamilyFromName(explicit)) return explicit;
+  const fromId = categoryId ? categoryNameForId(categoryId) : '';
+  if (categoryFamilyFromName(fromId)) return fromId;
+  const kw = String(keyWord || '').trim();
+  return categoryFamilyFromName(kw) ? kw : '';
+}
+
+function productConflictsWithCategoryFamily(product, family) {
+  const text = productTitleText(product);
+  const current = CATEGORY_FAMILY_RULES[family];
+  if (!current) return false;
+
+  // Clothing is the most sensitive broad category: shoes, bags, watches,
+  // jewelry, eyewear, and gadgets are valid store products, just not garments.
+  if (family === 'clothing') {
+    return Object.entries(CATEGORY_FAMILY_RULES)
+      .filter(([other]) => other !== 'clothing')
+      .some(([, rule]) => rule.positive.test(text));
+  }
+
+  const hasCurrentSignal = current.positive.test(text);
+  if (hasCurrentSignal) return false;
+  return Object.entries(CATEGORY_FAMILY_RULES)
+    .filter(([other]) => other !== family)
+    .some(([, rule]) => rule.positive.test(text));
+}
+
+function applyCategoryQualityFilter(meta, { categoryId, keyWord, categoryName, pageSize }) {
+  const filterName = categoryNameForQualityFilter({ categoryId, keyWord, categoryName });
+  const family = categoryFamilyFromName(filterName);
+  if (!family || !meta?.products?.length) return meta;
+
+  const before = meta.products.length;
+  const products = meta.products.filter(product => !productConflictsWithCategoryFamily(product, family));
+  if (products.length === before) return meta;
+
+  const ratio = before > 0 ? products.length / before : 1;
+  const adjustedTotal = Math.max(products.length, Math.round((meta.total || products.length) * ratio));
+  const limit = Math.max(1, parseInt(pageSize, 10) || before);
+  console.log(`[products] filtered ${before - products.length} off-category items from ${filterName}`);
+  return {
+    ...meta,
+    products,
+    total: adjustedTotal,
+    totalPages: Math.max(1, Math.ceil(adjustedTotal / limit)),
+    source: `${meta.source || 'catalog'}+category-filter`,
+  };
 }
 
 const CATEGORY_MATCH_STOP_WORDS = new Set([
@@ -1825,6 +1937,12 @@ app.get('/api/store/products', async (req, res) => {
         };
       }
     }
+
+    meta = applyCategoryQualityFilter(meta, {
+      categoryId,
+      keyWord: trimmedKw,
+      pageSize,
+    });
 
     // For each product, decide whether to show it:
     //   1. Cached AND shippable to India → real (wholesale + shipping) × (1+markup).
