@@ -118,6 +118,14 @@ services:
       - key: MY_PRODUCTS_PIN_WAIT_MS
         value: "200"
       - key: PREWARM_ENABLED
+        value: "true"
+      - key: PREWARM_DELAY_MS
+        value: "60000"
+      - key: PREWARM_LIVE_CJ
+        value: "false"
+      - key: PREWARM_MY_PRODUCTS_MAP
+        value: "false"
+      - key: PREWARM_SHIPPING
         value: "false"
     disk:
       name: befach-data

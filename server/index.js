@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.15';
+const APP_VERSION = '8.16';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -1074,7 +1074,7 @@ function mergeCatalogAndLiveMeta(liveMeta, catalogMeta, size) {
   };
 }
 
-async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size }) {
+async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size, allowLive = true }) {
   const catalogMeta = catalog.searchProducts({ keyWord, categoryId, page, size });
   const hasCatalog = !!catalogMeta?.products?.length;
 
@@ -1096,7 +1096,7 @@ async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size
   // way. The live request keeps filling SQLite for the next visit.
   if (hasCatalog) {
     const currentPage = parseInt(page, 10) || 1;
-    const shouldTryLive = currentPage === 1 && !catalog.isSyncRunning();
+    const shouldTryLive = allowLive && currentPage === 1 && !catalog.isSyncRunning();
     let livePromise = null;
     if (shouldTryLive && CATALOG_BACKGROUND_LIVE_REFRESH) {
       livePromise = fetchLive('low').catch(err => {
@@ -1136,7 +1136,7 @@ async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size
     for (const term of fallbackTerms) {
       const fallbackMeta = catalog.searchProducts({ keyWord: term, page, size });
       if (fallbackMeta?.products?.length) {
-        fetchLive('high').catch(err => {
+        if (allowLive) fetchLive('high').catch(err => {
           console.warn('[products] background category CJ refresh failed:', err.message);
         });
         return {
@@ -1145,6 +1145,15 @@ async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size
         };
       }
     }
+  }
+
+  if (!allowLive) {
+    return {
+      products: [],
+      total: 0,
+      totalPages: 1,
+      source: 'catalog-prewarm-empty',
+    };
   }
 
   let liveMeta;
@@ -1220,7 +1229,9 @@ async function fetchAllMyProducts() {
     sellPrice: p.sellPrice,
     productWeight: p.weight,
   }));
-  catalog.upsertProducts(normalized, { source: 'cj-my-products' });
+  if (CATALOG_CACHE_LIVE_WRITES) {
+    catalog.upsertProducts(normalized, { source: 'cj-my-products' });
+  }
   return normalized;
 }
 
@@ -2981,14 +2992,14 @@ function todayHomeKeywords() {
 
 // Warm a specific keyword search and cache it under the same key the
 // /api/store/products endpoint uses. Single keyword → one merged search.
-async function prewarmKeyword(keyword, size = 10, page = 1) {
+async function prewarmKeyword(keyword, size = 10, page = 1, allowLive = false) {
   const rawKey = productsRawKey({
     keyWord: keyword || '', page: String(page), size: String(size), categoryId: '',
   });
   const cached = cacheGet(rawKey, 30 * 60 * 1000);
   if (cached) return cached; // already warm
   try {
-    const meta = await searchProductsWithCatalogExtras({ keyWord: keyword, page, size });
+    const meta = await searchProductsWithCatalogExtras({ keyWord: keyword, page, size, allowLive });
     cacheSet(rawKey, meta);
     console.log(`[prewarm] "${keyword}" (${meta.products.length}/${meta.total}) ✓`);
     return meta;
@@ -3031,6 +3042,7 @@ function queueShippingWarm(products, label) {
 }
 
 async function prewarm() {
+  const allowLive = process.env.PREWARM_LIVE_CJ === 'true';
   console.log('[prewarm] warming caches...');
   try {
     await cj.getCategories().then(d => {
@@ -3041,16 +3053,16 @@ async function prewarm() {
     console.log('[prewarm] categories ✓');
   } catch (e) { console.warn('[prewarm] categories failed:', e.message); }
 
-  // Background-warm the My Products → leaf category map. ~280ms per
-  // product (cjGet rate-limit), so ~3s for a 10-item list. Fire-and-
-  // forget so startup isn't blocked; the cache lasts an hour and the
-  // pin logic is a no-op when the map isn't ready yet.
-  (async () => {
-    try {
-      const map = await getMyProductCategoryMap();
-      console.log(`[prewarm] my-products map (${Object.keys(map).length}) ✓`);
-    } catch (e) { console.warn('[prewarm] my-products failed:', e.message); }
-  })();
+  if (process.env.PREWARM_MY_PRODUCTS_MAP === 'true') {
+    // Optional: this can take many CJ detail calls, so keep it off during
+    // normal storefront startup.
+    (async () => {
+      try {
+        const map = await getMyProductCategoryMap();
+        console.log(`[prewarm] my-products map (${Object.keys(map).length}) ✓`);
+      } catch (e) { console.warn('[prewarm] my-products failed:', e.message); }
+    })();
+  }
 
   // Warm the actual keywords the home page will fetch today, so the
   // first user visit hits cache instead of paying the per-endpoint
@@ -3059,12 +3071,12 @@ async function prewarm() {
   // sections warm in well under a second.
   const kw = todayHomeKeywords();
   const keywordMetas = await Promise.all([
-    prewarmKeyword(kw.featured, 10),
-    prewarmKeyword(kw.fashionFinds, 10),
-    prewarmKeyword(kw.trending, 10),
-    prewarmKeyword(kw.rareFinds, 10),
-    prewarmKeyword(kw.smart, 10),
-    prewarmKeyword(kw.homeLifestyle, 10),
+    prewarmKeyword(kw.featured, 10, 1, allowLive),
+    prewarmKeyword(kw.fashionFinds, 10, 1, allowLive),
+    prewarmKeyword(kw.trending, 10, 1, allowLive),
+    prewarmKeyword(kw.rareFinds, 10, 1, allowLive),
+    prewarmKeyword(kw.smart, 10, 1, allowLive),
+    prewarmKeyword(kw.homeLifestyle, 10, 1, allowLive),
   ]);
 
   // Pre-warm the men's & women's fashion sections too. They fetch by
@@ -3094,7 +3106,7 @@ async function prewarm() {
       const cached = cacheGet(rawKey, 30 * 60 * 1000);
       if (cached) return cached;
       try {
-        const meta = await searchProductsWithCatalogExtras({ categoryId: id, page: 1, size: 8 });
+        const meta = await searchProductsWithCatalogExtras({ categoryId: id, page: 1, size: 8, allowLive });
         cacheSet(rawKey, meta);
         console.log(`[prewarm] ${label} (${meta.products.length}) ✓`);
         return meta;
@@ -3109,10 +3121,12 @@ async function prewarm() {
   // Background-warm exact shipping for every home-page section, not just
   // featured. Cards still show "Calculating..." until exact shipping lands,
   // so customers never see a low estimate that later jumps upward.
-  queueShippingWarm(
-    [...keywordMetas, ...fashionMetas].flatMap(meta => meta?.products || []),
-    'home-page products'
-  );
+  if (process.env.PREWARM_SHIPPING === 'true') {
+    queueShippingWarm(
+      [...keywordMetas, ...fashionMetas].flatMap(meta => meta?.products || []),
+      'home-page products'
+    );
+  }
 }
 
 // Slowly warm shipping for additional product pages so search/category
@@ -3185,12 +3199,16 @@ app.listen(PORT, () => {
   // so first-click on any category returns warm shipping data faster.
   if (process.env.PREWARM_ENABLED !== 'false') {
     const extendedWarmPages = Math.max(0, parseInt(process.env.WARM_EXTENDED_CATALOG_PAGES || '0', 10));
-    prewarm()
-      .then(() => {
-        if (extendedWarmPages > 0) return warmExtendedCatalog(extendedWarmPages);
-        return null;
-      })
-      .catch(() => {});
+    const prewarmDelayMs = Math.max(0, parseInt(process.env.PREWARM_DELAY_MS || '60000', 10));
+    setTimeout(() => {
+      prewarm()
+        .then(() => {
+          if (extendedWarmPages > 0) return warmExtendedCatalog(extendedWarmPages);
+          return null;
+        })
+        .catch(() => {});
+    }, prewarmDelayMs);
+    console.log(`[prewarm] scheduled in ${prewarmDelayMs}ms`);
   } else {
     console.log('[prewarm] disabled');
   }
