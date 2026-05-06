@@ -129,7 +129,7 @@ function isRetryable(err) {
 /**
  * Per-endpoint priority queues.
  *
- * CJ rate-limits each endpoint at 1 request per second per API key.
+ * CJ rate-limits each endpoint per API key; Prime is 4 req/sec.
  * Different endpoints have *independent* limits — so calls to
  * /product/listV2 and /product/getCategory can go out in parallel.
  *
@@ -141,21 +141,23 @@ function isRetryable(err) {
  * Cached responses serve the vast majority of traffic; queues only
  * engage on genuine cache misses.
  */
-// Per-endpoint queue gap. CJ's /interface frequency tiers:
-//   Free / sales 0–1 → 1 req/sec   → 900ms gap
-//   Plus  / sales 2  → 2 req/sec   → 480ms gap
-//   Prime / sales 3  → 4 req/sec   → 280ms gap   ← we are here
-//   Adv.  / sales 4–5 → 6 req/sec  → 180ms gap
-// 280ms = ~3.6 req/sec keeps 10% safety margin under the Prime limit so
-// transient clock drift doesn't trigger 429s. Override via CJ_MIN_GAP_MS
-// env var if you upgrade or downgrade plan.
+// Per-endpoint queue gap. Keep the Prime-plan fast path by default.
+// Burst control is handled by request coalescing/caching and by stopping
+// background freight warmers, not by slowing every customer request.
 const MIN_GAP_MS = parseInt(process.env.CJ_MIN_GAP_MS, 10) || 280;
+const FREIGHT_MIN_GAP_MS = process.env.FREIGHT_MIN_GAP_MS
+  ? parseInt(process.env.FREIGHT_MIN_GAP_MS, 10)
+  : MIN_GAP_MS;
 const queues = new Map(); // path → { high: [], medium: [], low: [], lastAt, running }
+
+function minGapForPath(path) {
+  return path === '/logistic/freightCalculate' ? FREIGHT_MIN_GAP_MS : MIN_GAP_MS;
+}
 
 function enqueueCj(path, fn, priority = 'low') {
   let q = queues.get(path);
   if (!q) {
-    q = { high: [], medium: [], low: [], lastAt: 0, running: false };
+    q = { path, high: [], medium: [], low: [], lastAt: 0, running: false };
     queues.set(path, q);
   }
 
@@ -173,7 +175,7 @@ async function drain(q) {
   q.running = true;
   try {
     while (q.high.length || q.medium.length || q.low.length) {
-      const wait = MIN_GAP_MS - (Date.now() - q.lastAt);
+      const wait = minGapForPath(q.path) - (Date.now() - q.lastAt);
       if (wait > 0) await sleep(wait);
       const task = q.high.shift() || q.medium.shift() || q.low.shift();
       if (!task) break;
@@ -259,15 +261,27 @@ async function searchProducts({ keyWord, page = 1, size = 20, categoryId, minPri
   if (maxPrice !== undefined) params.maxPrice = maxPrice;
   if (countryCode) params.countryCode = countryCode;
   if (sort) params.sort = sort;
-  return cjGet('/product/listV2', params, opts);
+  let last = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const data = await cjGet('/product/listV2', params, opts);
+    last = data;
+    if (data?.data !== null && data?.data !== undefined) return data;
+
+    const requestId = data?.requestId || data?.requestID || data?.traceId || 'unknown';
+    console.warn(`[CJ] /product/listV2 returned data=null requestId=${requestId} attempt=${attempt + 1}`);
+    await sleep(500 * (attempt + 1));
+  }
+  return last;
 }
 
-/** Get product list (legacy endpoint, supports pageSize up to CJ's account limit). */
+/** Compatibility wrapper. Do not call deprecated /product/list. */
 async function getProductList({ page = 1, pageSize = 20, categoryId, productNameEn }, opts = {}) {
-  const params = { pageNum: page, pageSize };
-  if (categoryId) params.categoryId = categoryId;
-  if (productNameEn) params.productNameEn = productNameEn;
-  return cjGet('/product/list', params, opts);
+  return searchProducts({
+    keyWord: productNameEn,
+    categoryId,
+    page,
+    size: pageSize,
+  }, opts);
 }
 
 /** Get product details by product ID (UUID-style pid). */

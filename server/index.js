@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.16';
+const APP_VERSION = '8.17';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -186,6 +186,27 @@ function saveShippingCache() {
   }, 1000);
 }
 
+const FREIGHT_QUOTE_TTL_MS = parseInt(process.env.FREIGHT_QUOTE_TTL_MS || String(60 * 60 * 1000), 10);
+const productRawInFlight = new Map();
+const shippingInFlight = new Map();
+const freightInFlight = new Map();
+
+function freightQuoteKey(items) {
+  const products = (items || [])
+    .map(i => ({
+      vid: String(i.vid || ''),
+      quantity: parseInt(i.quantity, 10) || 1,
+    }))
+    .filter(i => i.vid)
+    .sort((a, b) => a.vid.localeCompare(b.vid));
+  if (!products.length) return '';
+  return JSON.stringify({
+    from: DEFAULT_SHIP_FROM,
+    to: DEFAULT_SHIP_TO,
+    products,
+  });
+}
+
 /**
  * Single source of truth for fetching a CJ product detail.
  *
@@ -200,9 +221,20 @@ async function getProductRaw(pid, priority = 'low') {
   const key = 'productRaw:' + pid;
   const cached = cacheGet(key, 10 * 60 * 1000);
   if (cached) return cached;
-  const data = await cj.getProductDetail(pid, { priority });
-  if (data?.data) cacheSet(key, data.data);
-  return data?.data || null;
+  if (productRawInFlight.has(pid)) return productRawInFlight.get(pid);
+
+  const promise = (async () => {
+    const data = await cj.getProductDetail(pid, { priority });
+    if (data?.data) cacheSet(key, data.data);
+    return data?.data || null;
+  })();
+
+  productRawInFlight.set(pid, promise);
+  try {
+    return await promise;
+  } finally {
+    productRawInFlight.delete(pid);
+  }
 }
 
 /**
@@ -215,7 +247,15 @@ async function getProductRaw(pid, priority = 'low') {
  *   null                                — request failed (treat as unknown)
  */
 async function quoteShippingForItems(items, priority = 'low') {
-  try {
+  const key = freightQuoteKey(items);
+  if (!key) return null;
+
+  const cacheKey = 'freightQuote:' + key;
+  const cached = cacheGet(cacheKey, FREIGHT_QUOTE_TTL_MS);
+  if (cached) return cached;
+  if (freightInFlight.has(key)) return freightInFlight.get(key);
+
+  const promise = (async () => {
     const data = await cj.calculateFreight({
       startCountryCode: DEFAULT_SHIP_FROM,
       endCountryCode: DEFAULT_SHIP_TO,
@@ -231,15 +271,26 @@ async function quoteShippingForItems(items, priority = 'low') {
       const m = methods.find(x => x.logisticName === wanted);
       if (m && m.logisticPrice != null) {
         const adjustedUsd = parseFloat(m.logisticPrice) * shipFactor;
-        return { usd: adjustedUsd, method: m.logisticName, available: true };
+        const result = { usd: adjustedUsd, method: m.logisticName, available: true };
+        cacheSet(cacheKey, result);
+        return result;
       }
     }
     // CJ responded but none of our priority methods is available — treat
     // this product as not shippable (we only ship via Ordinary / Sensitive).
-    return { usd: 0, method: null, available: false };
+    const result = { usd: 0, method: null, available: false };
+    cacheSet(cacheKey, result);
+    return result;
+  })();
+
+  freightInFlight.set(key, promise);
+  try {
+    return await promise;
   } catch (e) {
     // Transient — caller handles by falling back to cached/flat estimate
     return null;
+  } finally {
+    freightInFlight.delete(key);
   }
 }
 
@@ -294,59 +345,71 @@ async function getProductShippingUsd(pid, priority = 'low', maxAgeMs = SHIPPING_
     };
   }
 
-  let firstVid = null;
-  let firstWholesaleUsd = 0;
-  let maxWholesaleUsd = 0;
+  const inFlightKey = `${pid}:${maxAgeMs}`;
+  if (shippingInFlight.has(inFlightKey)) return shippingInFlight.get(inFlightKey);
+
+  const promise = (async () => {
+    let firstVid = null;
+    let firstWholesaleUsd = 0;
+    let maxWholesaleUsd = 0;
+    try {
+      const raw = await getProductRaw(pid, priority);
+      firstVid = raw?.variants?.[0]?.vid || null;
+      firstWholesaleUsd = parseFloat(raw?.variants?.[0]?.variantSellPrice || raw?.sellPrice || 0) || 0;
+      // Capture the MAX variant wholesale here so list pages (which only
+      // get CJ's "from" price from the search API) can show a price that
+      // covers any variant the customer might pick. Without this the list
+      // shows the cheap-variant price and a customer who clicks Buy Now
+      // on a more expensive variant gets a higher price in the cart.
+      const variantPrices = (raw?.variants || [])
+        .map(v => parseFloat(v.variantSellPrice || 0))
+        .filter(p => p > 0);
+      if (variantPrices.length) maxWholesaleUsd = Math.max(...variantPrices);
+    } catch {}
+
+    if (!firstVid) {
+      return { usd: 0, method: null, available: false, cached: false };
+    }
+
+    const quote = await quoteShippingForItems([{ vid: firstVid, quantity: 1 }], priority);
+    if (!quote) {
+      return { usd: FALLBACK_SHIPPING_USD, method: 'fallback', available: true, cached: false };
+    }
+
+    const displayUsd = quote.available && firstWholesaleUsd > 0
+      ? computeDisplayUsd(firstWholesaleUsd, quote.usd)
+      : 0;
+    const offer = displayUsd > 0 ? computeOfferPricing(pid, displayUsd) : null;
+
+    shippingCache[pid] = {
+      v: SHIPPING_CACHE_VERSION,
+      usd: quote.usd,
+      method: quote.method,
+      available: quote.available,
+      wholesaleUsd: firstWholesaleUsd,
+      displayUsd: displayUsd ? displayUsd.toFixed(2) : null,
+      mrp: offer?.mrp || null,
+      discountPercent: offer?.discountPercent || null,
+      maxWholesaleUsd,
+      ts: Date.now(),
+    };
+    saveShippingCache();
+    return {
+      ...quote,
+      wholesaleUsd: firstWholesaleUsd,
+      displayUsd: displayUsd ? displayUsd.toFixed(2) : null,
+      mrp: offer?.mrp || null,
+      discountPercent: offer?.discountPercent || null,
+      cached: false,
+    };
+  })();
+
+  shippingInFlight.set(inFlightKey, promise);
   try {
-    const raw = await getProductRaw(pid, priority);
-    firstVid = raw?.variants?.[0]?.vid || null;
-    firstWholesaleUsd = parseFloat(raw?.variants?.[0]?.variantSellPrice || raw?.sellPrice || 0) || 0;
-    // Capture the MAX variant wholesale here so list pages (which only
-    // get CJ's "from" price from the search API) can show a price that
-    // covers any variant the customer might pick. Without this the list
-    // shows the cheap-variant price and a customer who clicks Buy Now
-    // on a more expensive variant gets a higher price in the cart.
-    const variantPrices = (raw?.variants || [])
-      .map(v => parseFloat(v.variantSellPrice || 0))
-      .filter(p => p > 0);
-    if (variantPrices.length) maxWholesaleUsd = Math.max(...variantPrices);
-  } catch {}
-
-  if (!firstVid) {
-    return { usd: 0, method: null, available: false, cached: false };
+    return await promise;
+  } finally {
+    shippingInFlight.delete(inFlightKey);
   }
-
-  const quote = await quoteShippingForItems([{ vid: firstVid, quantity: 1 }], priority);
-  if (!quote) {
-    return { usd: FALLBACK_SHIPPING_USD, method: 'fallback', available: true, cached: false };
-  }
-
-  const displayUsd = quote.available && firstWholesaleUsd > 0
-    ? computeDisplayUsd(firstWholesaleUsd, quote.usd)
-    : 0;
-  const offer = displayUsd > 0 ? computeOfferPricing(pid, displayUsd) : null;
-
-  shippingCache[pid] = {
-    v: SHIPPING_CACHE_VERSION,
-    usd: quote.usd,
-    method: quote.method,
-    available: quote.available,
-    wholesaleUsd: firstWholesaleUsd,
-    displayUsd: displayUsd ? displayUsd.toFixed(2) : null,
-    mrp: offer?.mrp || null,
-    discountPercent: offer?.discountPercent || null,
-    maxWholesaleUsd,
-    ts: Date.now(),
-  };
-  saveShippingCache();
-  return {
-    ...quote,
-    wholesaleUsd: firstWholesaleUsd,
-    displayUsd: displayUsd ? displayUsd.toFixed(2) : null,
-    mrp: offer?.mrp || null,
-    discountPercent: offer?.discountPercent || null,
-    cached: false,
-  };
 }
 
 /** Cheap synchronous peek — does NOT call CJ. */
@@ -631,23 +694,15 @@ app.get('/api/store/config', (req, res) => {
   });
 });
 
-// TEMP debug: compare listV2 vs legacy list for the same query so we can
-// see which endpoint returns more results. Remove once we've decided.
 app.get('/api/store/_debug/compare', async (req, res) => {
   const { q, categoryId } = req.query;
   try {
-    const [v2, legacy] = await Promise.all([
-      cj.searchProducts({ keyWord: q, categoryId, page: 1, size: 20 }),
-      cj.getProductList({ productNameEn: q, categoryId, page: 1, pageSize: 20 }),
-    ]);
+    const v2 = await cj.searchProducts({ keyWord: q, categoryId, page: 1, size: 20 });
     const v2Total = v2.data?.total || v2.data?.totalRecords || 0;
     const v2Sample = (v2.data?.list || []).slice(0, 3).map(p => p.productNameEn || p.productName);
-    const legacyTotal = legacy.data?.total || legacy.data?.totalRecords || 0;
-    const legacySample = (legacy.data?.list || []).slice(0, 3).map(p => p.productNameEn || p.productName);
     res.json({
       query: { q: q || null, categoryId: categoryId || null },
       listV2: { total: v2Total, sample: v2Sample },
-      legacyList: { total: legacyTotal, sample: legacySample },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -830,27 +885,9 @@ function parseListV2(data, pageSize) {
   return { products, total, totalPages };
 }
 
-// Smart keyword search that merges CJ's two product endpoints to maximize
-// catalog coverage. Why both:
-//
-//   - /product/listV2 is precise but severely under-indexed. Probing showed
-//     "earbuds" → 2 results, "watch" → 360, "glasses" → 1, while CJ's seller
-//     dashboard shows thousands for those same queries.
-//   - /product/list (legacy) hits the full catalog (15k+ "watch" results),
-//     but for multi-word queries it does word-OR matching: "smart glasses"
-//     returns 9149 because it also matches "Smart Bracelet", "Wine Glasses",
-//     etc.
-//
-// Strategy:
-//   1. Fetch both endpoints in parallel.
-//   2. For multi-word queries, post-filter legacy results to those whose
-//      productNameEn contains EVERY query token (case-insensitive AND).
-//      This collapses "smart glasses" from 9149 fuzzy hits down to actual
-//      smart-glasses products.
-//   3. Union by productId, dedupe, and return.
-//
-// For pure category browse (no keyWord) we just use listV2 — categoryId
-// filtering on the legacy endpoint is unreliable.
+// Smart keyword search through CJ's current /product/listV2 endpoint.
+// CJ support confirmed listV2 is now synchronized with seller dashboard
+// counts, so we no longer call the deprecated /product/list endpoint.
 // Re-rank a list of CJ products by a "trending + low cost" score so
 // page 1 of every category surfaces bestsellers instead of CJ's mostly-
 // arbitrary default order. listedNum is CJ's truest popularity signal:
@@ -905,64 +942,20 @@ async function searchProductsMerged({ keyWord, categoryId, page, size, priority 
     return tokens.every(t => name.includes(t));
   };
 
-  // Pagination depth tuned for perceived latency:
-  //   - size > 12 (real search page) + multi-word → 2 legacy pages
-  //     ≈ 560ms on the legacy queue, parallel with listV2's 280ms.
-  //     Probes showed 5 pages cost 3s cold and the marginal coverage
-  //     past page 2 is small for most queries.
-  //   - small sizes (home rows, related lists) → 1 page so home
-  //     sections all complete in ~280ms.
-  //   - single-word → 1 page (legacy already matches strictly with
-  //     a single token, no need for deeper fetch).
-  const isWideSearch = size > 12;
-  const legacyPagesToFetch = isMultiWord && isWideSearch ? 2 : 1;
-  // CJ-side page math. Previously this used (page + i) which overlapped
-  // across user pages — user page 1 fetched CJ legacy pages 1+2, user
-  // page 2 fetched CJ legacy pages 2+3, so CJ page 2 showed up on both.
-  // Now each user page consumes its own slice of CJ pages with no
-  // overlap: user page N → CJ legacy pages
-  // (N-1)*legacyPagesToFetch + 1 ... (N-1)*legacyPagesToFetch + legacyPagesToFetch.
-  const cjLegacyStart = (page - 1) * legacyPagesToFetch + 1;
-  const legacyCalls = [];
-  for (let i = 0; i < legacyPagesToFetch; i++) {
-    legacyCalls.push(cj.getProductList({
-      productNameEn: keyWord,
-      categoryId,
-      page: cjLegacyStart + i,
-      pageSize: 20,
-    }, { priority }));
-  }
-
-  const [v2Result, ...legacyResults] = await Promise.allSettled([
+  const [v2Result] = await Promise.allSettled([
     cj.searchProducts({ keyWord, categoryId, page, size }, { priority }),
-    ...legacyCalls,
   ]);
 
   const v2 = v2Result.status === 'fulfilled'
     ? parseListV2(v2Result.value, size)
     : { products: [], total: 0, totalPages: 1 };
 
-  // Aggregate legacy items across all fetched pages. Track the page-1
-  // total separately because that's the legacy index's authoritative
-  // OR-matched count (later pages don't update the total).
-  let legacyAllItems = [];
-  let legacyRawTotal = 0;
-  legacyResults.forEach((r, idx) => {
-    if (r.status !== 'fulfilled') return;
-    const items = r.value?.data?.list || [];
-    legacyAllItems = legacyAllItems.concat(items);
-    if (idx === 0) {
-      legacyRawTotal = r.value?.data?.total || items.length;
-    }
-  });
-
-  // Strict-AND filter both endpoints for multi-word queries. listV2's
+  // Strict-AND filter multi-word queries. listV2's
   // elasticsearch returns category-tagged matches that don't contain
   // every keyword in the name (e.g. "Pet Glasses Dog" for "smart
-  // glasses"), so we drop those too — not just legacy. If filtering
+  // glasses"), so we drop those. If filtering
   // leaves us with too few results we fall back to unfiltered below.
-  const legacyFiltered = isMultiWord ? legacyAllItems.filter(matchesAll) : legacyAllItems;
-  const v2Filtered     = isMultiWord ? v2.products.filter(matchesAll)    : v2.products;
+  const v2Filtered = isMultiWord ? v2.products.filter(matchesAll) : v2.products;
 
   const unionByPid = (...lists) => {
     const seen = new Set();
@@ -976,7 +969,7 @@ async function searchProductsMerged({ keyWord, categoryId, page, size, priority 
     return out;
   };
 
-  let merged = unionByPid(v2Filtered, legacyFiltered);
+  let merged = unionByPid(v2Filtered);
 
   // Fallback: if strict-AND filtering gave us nothing useful (CJ's catalog
   // genuinely has very few products literally named "smart glasses" —
@@ -985,7 +978,7 @@ async function searchProductsMerged({ keyWord, categoryId, page, size, priority 
   // empty page. The sort below still tries to float real matches up.
   let usedFallback = false;
   if (isMultiWord && merged.length < 4) {
-    merged = unionByPid(v2Filtered, legacyFiltered, v2.products, legacyAllItems);
+    merged = unionByPid(v2Filtered, v2.products);
     usedFallback = true;
   }
 
@@ -1003,18 +996,12 @@ async function searchProductsMerged({ keyWord, categoryId, page, size, priority 
     merged = rankByTrending(merged);
   }
 
-  // Total estimate. When we used the fallback path, the filtered counts
-  // are misleadingly low — fall back to listV2 total. Otherwise scale
-  // legacy total by the observed across-pages strict-match rate.
   let total;
-  if (isMultiWord && !usedFallback && legacyAllItems.length > 0) {
-    const matchRate = legacyFiltered.length / legacyAllItems.length;
-    total = Math.max(Math.round(legacyRawTotal * matchRate), v2Filtered.length, merged.length);
-  } else if (isMultiWord && usedFallback) {
+  if (isMultiWord && usedFallback) {
     // Fallback view: total is what listV2 has + any extra strict matches.
     total = Math.max(v2.total, merged.length);
   } else {
-    total = Math.max(legacyRawTotal, v2.total, merged.length);
+    total = Math.max(v2.total, merged.length);
   }
 
   return {
@@ -1748,9 +1735,8 @@ app.get('/api/store/products', async (req, res) => {
       // return 0 even though products clearly exist. If we got nothing AND
       // we were querying by id, retry with the category name as a keyword.
       // This recovers entire empty pages (e.g. Woman/Man Prescription
-      // Glasses → 1000+ products via keyword). The merged search above
-      // already calls both endpoints, so this fallback only fires when the
-      // category is genuinely empty in both.
+      // Glasses → 1000+ products via keyword). This fallback only fires when
+      // the category id path is genuinely empty.
       if (meta.products.length === 0 && meta.source !== 'live-timeout' && categoryId && !keyWord) {
         const fallbackName = categoryNameForId(categoryId);
         if (fallbackName) {
@@ -1872,9 +1858,8 @@ app.get('/api/store/products', async (req, res) => {
     //
     // The freight queue runs at low priority, so user-triggered detail
     // clicks still jump ahead.
-    const WARM_PER_REQUEST = catalog.isSyncRunning()
-      ? 0
-      : (String(meta.source || '').includes('catalog') ? 4 : 12);
+    const configuredWarm = parseInt(process.env.LISTING_SHIPPING_WARM_PER_REQUEST || '0', 10);
+    const WARM_PER_REQUEST = catalog.isSyncRunning() ? 0 : Math.max(0, configuredWarm);
     for (const pid of unwarmedToWarm.slice(0, WARM_PER_REQUEST)) {
       getProductShippingUsd(pid, 'low').catch(() => {});
     }
