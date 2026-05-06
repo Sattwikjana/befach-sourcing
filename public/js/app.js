@@ -637,6 +637,7 @@ function handleRoute() {
   const slug = path === '/' || path === ''
     ? 'home'
     : path.split('/')[1] || 'home';
+  document.documentElement.dataset.page = slug;
   document.body.className = document.body.className
     .split(' ')
     .filter(c => !c.startsWith('page-'))
