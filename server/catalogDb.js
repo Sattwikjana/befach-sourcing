@@ -328,12 +328,69 @@ function getDescendantCategoryIds(categoryId) {
   return [...out];
 }
 
-function ftsQuery(input) {
-  const tokens = String(input || '')
+const CATEGORY_KEYWORD_STOP_WORDS = new Set([
+  'and', 'with', 'for', 'the', 'new', 'best', 'top',
+  'men', 'man', 'mens', 'women', 'woman', 'womens', 'lady', 'ladies',
+  'girl', 'girls', 'boy', 'boys', 'kid', 'kids', 'baby', 'child',
+]);
+
+function keywordTokens(input) {
+  return String(input || '')
     .toLowerCase()
     .split(/[^a-z0-9]+/i)
-    .filter(t => t.length >= 2)
-    .slice(0, 8);
+    .filter(t => t.length >= 3)
+    .slice(0, 6);
+}
+
+function tokenStem(token) {
+  if (token.endsWith('ies') && token.length > 4) return token.slice(0, -3) + 'y';
+  if (token.endsWith('es') && token.length > 4) return token.slice(0, -2);
+  if (token.endsWith('s') && token.length > 4) return token.slice(0, -1);
+  return token;
+}
+
+function rowWordSet(value) {
+  const words = keywordTokens(value);
+  const out = new Set(words);
+  for (const word of words) out.add(tokenStem(word));
+  return out;
+}
+
+function wordSetHasToken(words, token) {
+  const stem = tokenStem(token);
+  if (words.has(token) || words.has(stem)) return true;
+  if (stem.length < 4) return false;
+  for (const word of words) {
+    if (word.length >= 4 && (word.startsWith(stem) || stem.startsWith(word))) return true;
+  }
+  return false;
+}
+
+function inferCategoryIdsFromKeyword(keyWord) {
+  if (!keyWord || !isEnabled()) return [];
+  const tokens = keywordTokens(keyWord).filter(t => !CATEGORY_KEYWORD_STOP_WORDS.has(t));
+  if (!tokens.length || tokens.length > 2) return [];
+
+  const rows = prepared.allCategories.all();
+  const matches = rows.filter(row => {
+    const words = rowWordSet(row.name);
+    return tokens.every(token => wordSetHasToken(words, token));
+  });
+  if (!matches.length) return [];
+
+  // Prefer leaf/deeper matches. If "bag" matches both "Bags & Shoes" and
+  // "School Bags", using only the deepest rows avoids pulling shoe products.
+  const maxLevel = Math.max(...matches.map(row => row.level || 1));
+  const bestMatches = matches.filter(row => (row.level || 1) === maxLevel);
+  const out = new Set();
+  for (const row of bestMatches.slice(0, 40)) {
+    for (const id of getDescendantCategoryIds(row.id)) out.add(id);
+  }
+  return [...out];
+}
+
+function ftsQuery(input) {
+  const tokens = keywordTokens(input).filter(t => t.length >= 2).slice(0, 8);
   if (!tokens.length) return '';
   return tokens.map(t => `${t.replace(/"/g, '')}*`).join(' AND ');
 }
@@ -382,12 +439,13 @@ function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20, in
   const limit = Math.max(1, Math.min(parseInt(size, 10) || 20, 100));
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
   const offset = (currentPage - 1) * limit;
-  const categoryIds = getDescendantCategoryIds(categoryId);
+  const inferredCategoryIds = !categoryId ? inferCategoryIdsFromKeyword(keyWord) : [];
+  const categoryIds = categoryId ? getDescendantCategoryIds(categoryId) : inferredCategoryIds;
   const categorySql = categoryIds.length
     ? ` AND p.category_id IN (${placeholders(categoryIds)})`
     : '';
   const categoryArgs = categoryIds;
-  const q = ftsQuery(keyWord);
+  const q = inferredCategoryIds.length ? '' : ftsQuery(keyWord);
 
   let rows;
   let total = null;
