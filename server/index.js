@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.21';
+const APP_VERSION = '8.22';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -1068,12 +1068,13 @@ function mergeCatalogAndLiveMeta(liveMeta, catalogMeta, size) {
 async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size, allowLive = true }) {
   const catalogMeta = catalog.searchProducts({ keyWord, categoryId, page, size });
   const hasCatalog = !!catalogMeta?.products?.length;
+  const liveSize = Math.min(parseInt(size, 10) || 20, 40);
 
   const fetchLive = (priority = 'high') => searchProductsMerged({
     keyWord,
     categoryId,
     page,
-    size,
+    size: liveSize,
     priority,
   }).then(liveMeta => {
     cacheLiveProducts(liveMeta, categoryId);
@@ -1415,6 +1416,16 @@ function applyCategoryQualityFilter(meta, { categoryId, keyWord, categoryName, p
     total: adjustedTotal,
     totalPages: Math.max(1, Math.ceil(adjustedTotal / limit)),
     source: `${meta.source || 'catalog'}+category-filter`,
+  };
+}
+
+function limitMetaProductsForDisplay(meta, pageSize) {
+  if (!meta?.products?.length) return meta;
+  const limit = Math.max(1, parseInt(pageSize, 10) || 40);
+  return {
+    ...meta,
+    products: meta.products.slice(0, limit),
+    totalPages: Math.max(1, Math.ceil((meta.total || meta.products.length) / limit)),
   };
 }
 
@@ -1812,9 +1823,16 @@ app.get('/api/store/products', async (req, res) => {
     const wantStrict = strictShippable === '1' || strictShippable === 'true';
     const pageSize = Math.min(parseInt(size) || 20, 40);
     const trimmedKw = (keyWord || '').trim();
+    const currentPage = parseInt(page, 10) || 1;
+    // On broad category landing pages, grab extra SQLite rows on page 1 so the
+    // quality filter can remove off-category noise without leaving a thin grid.
+    // CJ live still caps at 40, but the local catalog can cheaply return 100.
+    const fetchPageSize = categoryId && !trimmedKw && currentPage === 1
+      ? Math.min(100, pageSize * 3)
+      : pageSize;
 
     const rawKey = productsRawKey({
-      keyWord: keyWord || '', page: page || '1', size: size || '20', categoryId: categoryId || '',
+      keyWord: keyWord || '', page: page || '1', size: size || '20', fetchPageSize, categoryId: categoryId || '',
     });
 
     // Cache for 30 min. The home page rotates keywords by day-of-year so
@@ -1887,8 +1905,8 @@ app.get('/api/store/products', async (req, res) => {
       meta = await searchProductsWithCatalogExtras({
         keyWord,
         categoryId,
-        page: parseInt(page) || 1,
-        size: pageSize,
+        page: currentPage,
+        size: fetchPageSize,
       });
 
       // CJ's listV2 categoryId index has gaps — many leaf-level categories
@@ -1904,8 +1922,8 @@ app.get('/api/store/products', async (req, res) => {
           try {
             const meta2 = await searchProductsWithCatalogExtras({
               keyWord: fallbackName,
-              page: parseInt(page) || 1,
-              size: pageSize,
+              page: currentPage,
+              size: fetchPageSize,
             });
             if (meta2.products.length > 0) meta = meta2;
           } catch (e) {
@@ -1943,6 +1961,7 @@ app.get('/api/store/products', async (req, res) => {
       keyWord: trimmedKw,
       pageSize,
     });
+    meta = limitMetaProductsForDisplay(meta, pageSize);
 
     // For each product, decide whether to show it:
     //   1. Cached AND shippable to India → real (wholesale + shipping) × (1+markup).
