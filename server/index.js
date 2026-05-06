@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.22';
+const APP_VERSION = '8.23';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -101,7 +101,7 @@ const CACHE = new Map(); // insertion order = LRU order
 // shape or sort order. Old cached entries with a different version
 // won't be read, so users see the new behavior immediately on deploy
 // without waiting for the 30-min TTL to expire.
-const PRODUCTS_CACHE_VERSION = 'v7';
+const PRODUCTS_CACHE_VERSION = 'v8';
 const productsRawKey = (params) => `productsRaw:${PRODUCTS_CACHE_VERSION}:${JSON.stringify(params)}`;
 
 function cacheGet(key, ttlMs) {
@@ -1397,13 +1397,18 @@ function productConflictsWithCategoryFamily(product, family) {
     .some(([, rule]) => rule.positive.test(text));
 }
 
+function filterProductsForCategoryFamily(products, family) {
+  if (!family) return products || [];
+  return (products || []).filter(product => !productConflictsWithCategoryFamily(product, family));
+}
+
 function applyCategoryQualityFilter(meta, { categoryId, keyWord, categoryName, pageSize }) {
   const filterName = categoryNameForQualityFilter({ categoryId, keyWord, categoryName });
   const family = categoryFamilyFromName(filterName);
   if (!family || !meta?.products?.length) return meta;
 
   const before = meta.products.length;
-  const products = meta.products.filter(product => !productConflictsWithCategoryFamily(product, family));
+  const products = filterProductsForCategoryFamily(meta.products, family);
   if (products.length === before) return meta;
 
   const ratio = before > 0 ? products.length / before : 1;
@@ -1416,6 +1421,28 @@ function applyCategoryQualityFilter(meta, { categoryId, keyWord, categoryName, p
     total: adjustedTotal,
     totalPages: Math.max(1, Math.ceil(adjustedTotal / limit)),
     source: `${meta.source || 'catalog'}+category-filter`,
+  };
+}
+
+function fillCategoryPageFromCatalog(meta, { categoryId, keyWord, pageSize }) {
+  const filterName = categoryNameForQualityFilter({ categoryId, keyWord });
+  const family = categoryFamilyFromName(filterName);
+  const limit = Math.max(1, parseInt(pageSize, 10) || 40);
+  if (!categoryId || keyWord || !family || !meta?.products?.length || meta.products.length >= limit) return meta;
+
+  let products = [...meta.products];
+  for (let extraPage = 2; products.length < limit && extraPage <= 6; extraPage++) {
+    const extra = catalog.searchProducts({ categoryId, page: extraPage, size: 100 });
+    const filtered = filterProductsForCategoryFamily(extra?.products || [], family);
+    products = mergeProductLists(products, filtered);
+    if (!extra?.products?.length || extra.products.length < 100) break;
+  }
+
+  if (products.length === meta.products.length) return meta;
+  return {
+    ...meta,
+    products,
+    source: `${meta.source || 'catalog'}+filled`,
   };
 }
 
@@ -1961,6 +1988,13 @@ app.get('/api/store/products', async (req, res) => {
       keyWord: trimmedKw,
       pageSize,
     });
+    if (currentPage === 1) {
+      meta = fillCategoryPageFromCatalog(meta, {
+        categoryId,
+        keyWord: trimmedKw,
+        pageSize,
+      });
+    }
     meta = limitMetaProductsForDisplay(meta, pageSize);
 
     // For each product, decide whether to show it:
