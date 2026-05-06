@@ -16,7 +16,7 @@ services:
     rootDir: server          # package.json lives here
     buildCommand: npm install --production
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /api/live
     autoDeploy: true         # redeploy on every git push
     envVars:
       - key: NODE_ENV
@@ -83,6 +83,8 @@ services:
         sync: false
       - key: OPENROUTER_DAILY_CAP_USD
         value: "1.0"
+      - key: SEARCH_AI_WAIT_MS
+        value: "1000"
       # SQLite catalog — product summaries only; details/stock/shipping
       # still refresh live from CJ on click/checkout.
       - key: CATALOG_ENABLED
@@ -90,17 +92,25 @@ services:
       - key: CATALOG_AUTO_SYNC
         value: "true"
       - key: CATALOG_SYNC_TARGET
-        value: "300000"      # phase 3: keep walking CJ until the local catalog feels deep
+        value: "25000"       # daily incremental crawl; the web service must stay responsive
       - key: CATALOG_SYNC_MAX_CALLS
-        value: "3000"        # ~3.5% of the 86,400/day CJ limit; safe for one daily crawl
+        value: "350"         # safe background budget; use manual sync for bigger one-off walks
       - key: CATALOG_SYNC_PAGE_SIZE
-        value: "200"
+        value: "100"
       - key: CATALOG_SYNC_MIN_DELAY_MS
-        value: "1200"        # ~0.8 req/sec, safe under 1 req/sec daily pacing
+        value: "3000"        # keep CPU/SQLite writes away from shopper requests
       - key: CATALOG_AUTO_SYNC_DELAY_MS
-        value: "120000"      # let the public cache warm before the catalog crawl starts
+        value: "900000"      # let Render health settle before the catalog crawl starts
       - key: CATALOG_AUTO_SYNC_INTERVAL_MS
         value: "86400000"
+      - key: WARM_EXTENDED_CATALOG_PAGES
+        value: "0"
+      - key: CATALOG_WAIT_FOR_LIVE_MS
+        value: "0"
+      - key: CATALOG_BACKGROUND_LIVE_REFRESH
+        value: "false"
+      - key: MY_PRODUCTS_PIN_WAIT_MS
+        value: "200"
     disk:
       name: befach-data
       mountPath: /opt/render/project/src/server/data

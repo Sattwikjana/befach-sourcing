@@ -30,6 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const APP_VERSION = '8.12';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -453,6 +454,16 @@ function computeDisplayUsd(wholesaleUsd, shippingUsd) {
 //  HEALTH
 // ══════════════════════════════════════════════════════════════════
 app.get('/api/health', async (req, res) => {
+  const full = req.query.full === '1' || req.query.full === 'true';
+  if (!full) {
+    return res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      version: APP_VERSION,
+      catalog: catalog.getLightStatus(),
+    });
+  }
+
   let cjOk = false;
   let cjError = null;
   try {
@@ -467,7 +478,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: cjOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '8.11',
+    version: APP_VERSION,
     cj: cjOk ? 'connected' : 'disconnected',
     cjError,
     markup: pricing.getMarkupPercent() + '%',
@@ -485,6 +496,14 @@ app.get('/api/health', async (req, res) => {
     ai: searchAI.getStatus(),
     catalog: catalog.getStatus(),
     shippingCache: getShippingCacheStats(),
+  });
+});
+
+app.get('/api/live', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: APP_VERSION,
   });
 });
 
@@ -1022,13 +1041,22 @@ function mergeProductLists(...lists) {
 const CATEGORY_LIVE_MERGE_TIMEOUT_MS = parseInt(process.env.CATEGORY_LIVE_MERGE_TIMEOUT_MS || '700', 10);
 const SEARCH_LIVE_MERGE_TIMEOUT_MS = parseInt(process.env.SEARCH_LIVE_MERGE_TIMEOUT_MS || '1200', 10);
 const LIVE_ONLY_SEARCH_TIMEOUT_MS = parseInt(process.env.LIVE_ONLY_SEARCH_TIMEOUT_MS || '6000', 10);
-const MY_PRODUCTS_PIN_WAIT_MS = parseInt(process.env.MY_PRODUCTS_PIN_WAIT_MS || '700', 10);
+const MY_PRODUCTS_PIN_WAIT_MS = parseInt(process.env.MY_PRODUCTS_PIN_WAIT_MS || '200', 10);
+const CATALOG_WAIT_FOR_LIVE_MS = parseInt(process.env.CATALOG_WAIT_FOR_LIVE_MS || '0', 10);
+const CATALOG_BACKGROUND_LIVE_REFRESH = process.env.CATALOG_BACKGROUND_LIVE_REFRESH !== 'false';
+const SEARCH_AI_WAIT_MS = parseInt(process.env.SEARCH_AI_WAIT_MS || '1000', 10);
 
 function cacheLiveProducts(liveMeta, categoryId) {
   if (!liveMeta?.products?.length) return;
-  catalog.upsertProducts(liveMeta.products, {
-    source: 'cj-live-search',
-    categoryHint: categoryId ? { id: categoryId, name: categoryNameForId(categoryId) } : undefined,
+  setImmediate(() => {
+    try {
+      catalog.upsertProducts(liveMeta.products, {
+        source: 'cj-live-search',
+        categoryHint: categoryId ? { id: categoryId, name: categoryNameForId(categoryId) } : undefined,
+      });
+    } catch (err) {
+      console.warn('[products] live cache write failed:', err.message);
+    }
   });
 }
 
@@ -1065,19 +1093,29 @@ async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size
   // short chance to contribute live results, then return the catalog either
   // way. The live request keeps filling SQLite for the next visit.
   if (hasCatalog) {
-    const livePromise = fetchLive('high')
-      .catch(err => {
-        console.warn('[products] live merge failed:', err.message);
+    let livePromise = null;
+    if (CATALOG_BACKGROUND_LIVE_REFRESH && !catalog.isSyncRunning()) {
+      livePromise = fetchLive('low').catch(err => {
+        console.warn('[products] background live refresh failed:', err.message);
         return null;
       });
+    }
 
-    const liveMeta = await Promise.race([
-      livePromise,
-      timeout(keyWord ? SEARCH_LIVE_MERGE_TIMEOUT_MS : CATEGORY_LIVE_MERGE_TIMEOUT_MS),
-    ]);
+    if (CATALOG_WAIT_FOR_LIVE_MS > 0 && !catalog.isSyncRunning()) {
+      livePromise = livePromise || fetchLive('high')
+        .catch(err => {
+          console.warn('[products] live merge failed:', err.message);
+          return null;
+        });
 
-    if (liveMeta?.products?.length) {
-      return mergeCatalogAndLiveMeta(liveMeta, catalogMeta, size);
+      const liveMeta = await Promise.race([
+        livePromise,
+        timeout(CATALOG_WAIT_FOR_LIVE_MS),
+      ]);
+
+      if (liveMeta?.products?.length) {
+        return mergeCatalogAndLiveMeta(liveMeta, catalogMeta, size);
+      }
     }
 
     return {
@@ -1169,7 +1207,7 @@ async function fetchAllMyProducts() {
   }
   // Normalize to catalog product shape so buildPriced / pricing /
   // productCard all work without special-casing My Products fields.
-  return all.map(p => ({
+  const normalized = all.map(p => ({
     pid: p.productId,
     productId: p.productId,
     productSku: p.sku,
@@ -1178,6 +1216,8 @@ async function fetchAllMyProducts() {
     sellPrice: p.sellPrice,
     productWeight: p.weight,
   }));
+  catalog.upsertProducts(normalized, { source: 'cj-my-products' });
+  return normalized;
 }
 
 async function getCachedMyProducts() {
@@ -1407,7 +1447,22 @@ app.get('/api/store/search/smart', async (req, res) => {
     const pageSize = Math.min(parseInt(req.query.size) || 20, 40);
 
     recordRecentQuery(rawQuery);
-    const intent = await searchAI.parseQuery(rawQuery);
+    const fastIntent = {
+      keywords: rawQuery,
+      broader_keywords: rawQuery,
+      category: null,
+      color: null,
+      gender: null,
+      price_min: null,
+      price_max: null,
+      intent: null,
+      source: 'fallback',
+      fallbackReason: 'fast-path',
+    };
+    const intent = await Promise.race([
+      searchAI.parseQuery(rawQuery).catch(() => fastIntent),
+      new Promise(resolve => setTimeout(() => resolve(fastIntent), SEARCH_AI_WAIT_MS)),
+    ]);
     const narrowKeywords = intent.keywords || rawQuery;
     const broaderKeywords = intent.broader_keywords || narrowKeywords;
     const usingBroader = broaderKeywords && broaderKeywords.toLowerCase() !== narrowKeywords.toLowerCase();
@@ -1802,7 +1857,9 @@ app.get('/api/store/products', async (req, res) => {
     //
     // The freight queue runs at low priority, so user-triggered detail
     // clicks still jump ahead.
-    const WARM_PER_REQUEST = String(meta.source || '').includes('catalog') ? 20 : 80;
+    const WARM_PER_REQUEST = catalog.isSyncRunning()
+      ? 0
+      : (String(meta.source || '').includes('catalog') ? 4 : 12);
     for (const pid of unwarmedToWarm.slice(0, WARM_PER_REQUEST)) {
       getProductShippingUsd(pid, 'low').catch(() => {});
     }
@@ -3111,7 +3168,7 @@ function scheduleCatalogSync() {
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  Global Shopper v8.11 (CJDropshipping powered)       ║');
+  console.log(`║  Global Shopper v${APP_VERSION} (CJDropshipping powered)       ║`);
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`  URL:       http://localhost:${PORT}`);
   console.log(`  CJ key:    ${process.env.CJ_API_KEY ? 'loaded' : 'MISSING'}`);
@@ -3122,6 +3179,12 @@ app.listen(PORT, () => {
   // Fire-and-forget so the server starts accepting requests immediately.
   // After the home page is hot, keep filling the cache with deeper pages
   // so first-click on any category returns warm shipping data faster.
-  prewarm().then(() => warmExtendedCatalog(8)).catch(() => {});
+  const extendedWarmPages = Math.max(0, parseInt(process.env.WARM_EXTENDED_CATALOG_PAGES || '0', 10));
+  prewarm()
+    .then(() => {
+      if (extendedWarmPages > 0) return warmExtendedCatalog(extendedWarmPages);
+      return null;
+    })
+    .catch(() => {});
   scheduleCatalogSync();
 });

@@ -23,6 +23,8 @@ let syncJob = {
   phase: 'idle',
 };
 
+let cachedStatus = null;
+
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function ensureDb() {
@@ -237,7 +239,9 @@ const upsertManyTx = () => ensureDb().transaction((products, opts = {}) => {
 
 function upsertProducts(products, opts = {}) {
   if (!isEnabled()) return 0;
-  return upsertManyTx()(products, opts);
+  const count = upsertManyTx()(products, opts);
+  cachedStatus = null;
+  return count;
 }
 
 function flattenCategoryTree(tree) {
@@ -282,7 +286,9 @@ const upsertCategoriesTx = () => ensureDb().transaction((tree) => {
 
 function upsertCategories(tree) {
   if (!isEnabled()) return 0;
-  return upsertCategoriesTx()(tree);
+  const count = upsertCategoriesTx()(tree);
+  cachedStatus = null;
+  return count;
 }
 
 function getState(key, fallback = null) {
@@ -361,7 +367,16 @@ function rowsToProducts(rows) {
   });
 }
 
-function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20 } = {}) {
+function estimateTotal({ offset, limit, rowsLength, exactTotal }) {
+  if (Number.isFinite(exactTotal)) return exactTotal;
+  if (rowsLength < limit) return offset + rowsLength;
+  // We no longer show result counts in the UI, so avoid expensive COUNT(*)
+  // scans on 500k+ row catalogs. This keeps pagination available without
+  // blocking Render's single Node process for exact totals.
+  return offset + rowsLength + (limit * 25);
+}
+
+function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20, includeTotal = false } = {}) {
   if (!isEnabled()) return null;
   const dbh = ensureDb();
   const limit = Math.max(1, Math.min(parseInt(size, 10) || 20, 100));
@@ -375,17 +390,9 @@ function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20 } =
   const q = ftsQuery(keyWord);
 
   let rows;
-  let total;
+  let total = null;
   if (q) {
     const baseArgs = [q, ...categoryArgs];
-    total = dbh.prepare(`
-      SELECT COUNT(*) AS count
-      FROM catalog_products_fts
-      JOIN catalog_products p ON p.pid = catalog_products_fts.pid
-      WHERE catalog_products_fts MATCH ?
-        AND p.active = 1
-        ${categorySql}
-    `).get(...baseArgs).count;
     rows = dbh.prepare(`
       SELECT p.*, bm25(catalog_products_fts) AS rank
       FROM catalog_products_fts
@@ -396,13 +403,17 @@ function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20 } =
       ORDER BY rank ASC, p.listed_num DESC, p.sell_price ASC
       LIMIT ? OFFSET ?
     `).all(...baseArgs, limit, offset);
+    if (includeTotal) {
+      total = dbh.prepare(`
+        SELECT COUNT(*) AS count
+        FROM catalog_products_fts
+        JOIN catalog_products p ON p.pid = catalog_products_fts.pid
+        WHERE catalog_products_fts MATCH ?
+          AND p.active = 1
+          ${categorySql}
+      `).get(...baseArgs).count;
+    }
   } else {
-    total = dbh.prepare(`
-      SELECT COUNT(*) AS count
-      FROM catalog_products p
-      WHERE p.active = 1
-        ${categorySql}
-    `).get(...categoryArgs).count;
     rows = dbh.prepare(`
       SELECT p.*
       FROM catalog_products p
@@ -411,9 +422,18 @@ function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20 } =
       ORDER BY p.listed_num DESC, p.sell_price ASC, p.updated_at DESC
       LIMIT ? OFFSET ?
     `).all(...categoryArgs, limit, offset);
+    if (includeTotal) {
+      total = dbh.prepare(`
+        SELECT COUNT(*) AS count
+        FROM catalog_products p
+        WHERE p.active = 1
+          ${categorySql}
+      `).get(...categoryArgs).count;
+    }
   }
 
   if (!rows.length) return null;
+  total = estimateTotal({ offset, limit, rowsLength: rows.length, exactTotal: total });
   return {
     products: rowsToProducts(rows),
     total,
@@ -424,6 +444,10 @@ function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20 } =
 
 function getStatus() {
   if (!isEnabled()) return { enabled: false };
+  const now = Date.now();
+  if (cachedStatus && now - cachedStatus.cachedAt < 30 * 1000) {
+    return { ...cachedStatus.value, job: { ...syncJob } };
+  }
   const dbh = ensureDb();
   let sizeBytes = 0;
   try {
@@ -431,7 +455,7 @@ function getStatus() {
   } catch {}
   const productCount = dbh.prepare('SELECT COUNT(*) AS count FROM catalog_products WHERE active = 1').get().count;
   const categoryCount = dbh.prepare('SELECT COUNT(*) AS count FROM catalog_categories').get().count;
-  return {
+  const value = {
     enabled: true,
     dbPath: DB_PATH,
     sizeBytes,
@@ -443,6 +467,30 @@ function getStatus() {
     lastSyncAt: getState('lastSyncAt', null),
     job: { ...syncJob },
   };
+  cachedStatus = { cachedAt: now, value };
+  return value;
+}
+
+function getLightStatus() {
+  if (!isEnabled()) return { enabled: false };
+  let sizeBytes = 0;
+  try {
+    if (fs.existsSync(DB_PATH)) sizeBytes = fs.statSync(DB_PATH).size;
+  } catch {}
+  return {
+    enabled: true,
+    dbPath: DB_PATH,
+    sizeBytes,
+    globalPage: parseInt(getState('globalPage', '1'), 10) || 1,
+    categoryIndex: parseInt(getState('categoryIndex', '0'), 10) || 0,
+    categoryPage: parseInt(getState('categoryPage', '1'), 10) || 1,
+    lastSyncAt: getState('lastSyncAt', null),
+    job: { ...syncJob },
+  };
+}
+
+function isSyncRunning() {
+  return !!syncJob.running;
 }
 
 function parseListV2Products(data) {
@@ -614,6 +662,8 @@ module.exports = {
   getCategoryTree,
   searchProducts,
   getStatus,
+  getLightStatus,
+  isSyncRunning,
   runCatalogSync,
   startSync,
   stopSync,

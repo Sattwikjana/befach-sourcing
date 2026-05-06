@@ -1204,7 +1204,7 @@ let currentBackfillAbort = null;
 let priceBackfillQueue = [];
 let priceBackfillRunning = 0;
 let priceBackfillSeen = new Set();
-const PRICE_BACKFILL_CONCURRENCY = 4;
+const PRICE_BACKFILL_CONCURRENCY = 2;
 
 function cancelBackfill() {
   if (currentBackfillAbort) {
