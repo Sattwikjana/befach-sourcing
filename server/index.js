@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.13';
+const APP_VERSION = '8.15';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -1044,9 +1044,11 @@ const LIVE_ONLY_SEARCH_TIMEOUT_MS = parseInt(process.env.LIVE_ONLY_SEARCH_TIMEOU
 const MY_PRODUCTS_PIN_WAIT_MS = parseInt(process.env.MY_PRODUCTS_PIN_WAIT_MS || '200', 10);
 const CATALOG_WAIT_FOR_LIVE_MS = parseInt(process.env.CATALOG_WAIT_FOR_LIVE_MS || '0', 10);
 const CATALOG_BACKGROUND_LIVE_REFRESH = process.env.CATALOG_BACKGROUND_LIVE_REFRESH !== 'false';
+const CATALOG_CACHE_LIVE_WRITES = process.env.CATALOG_CACHE_LIVE_WRITES !== 'false';
 const SEARCH_AI_WAIT_MS = parseInt(process.env.SEARCH_AI_WAIT_MS || '1000', 10);
 
 function cacheLiveProducts(liveMeta, categoryId) {
+  if (!CATALOG_CACHE_LIVE_WRITES) return;
   if (!liveMeta?.products?.length) return;
   setImmediate(() => {
     try {
@@ -1093,15 +1095,17 @@ async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size
   // short chance to contribute live results, then return the catalog either
   // way. The live request keeps filling SQLite for the next visit.
   if (hasCatalog) {
+    const currentPage = parseInt(page, 10) || 1;
+    const shouldTryLive = currentPage === 1 && !catalog.isSyncRunning();
     let livePromise = null;
-    if (CATALOG_BACKGROUND_LIVE_REFRESH && !catalog.isSyncRunning()) {
+    if (shouldTryLive && CATALOG_BACKGROUND_LIVE_REFRESH) {
       livePromise = fetchLive('low').catch(err => {
         console.warn('[products] background live refresh failed:', err.message);
         return null;
       });
     }
 
-    if (CATALOG_WAIT_FOR_LIVE_MS > 0 && !catalog.isSyncRunning()) {
+    if (shouldTryLive && CATALOG_WAIT_FOR_LIVE_MS > 0) {
       livePromise = livePromise || fetchLive('high')
         .catch(err => {
           console.warn('[products] live merge failed:', err.message);
@@ -3179,12 +3183,16 @@ app.listen(PORT, () => {
   // Fire-and-forget so the server starts accepting requests immediately.
   // After the home page is hot, keep filling the cache with deeper pages
   // so first-click on any category returns warm shipping data faster.
-  const extendedWarmPages = Math.max(0, parseInt(process.env.WARM_EXTENDED_CATALOG_PAGES || '0', 10));
-  prewarm()
-    .then(() => {
-      if (extendedWarmPages > 0) return warmExtendedCatalog(extendedWarmPages);
-      return null;
-    })
-    .catch(() => {});
+  if (process.env.PREWARM_ENABLED !== 'false') {
+    const extendedWarmPages = Math.max(0, parseInt(process.env.WARM_EXTENDED_CATALOG_PAGES || '0', 10));
+    prewarm()
+      .then(() => {
+        if (extendedWarmPages > 0) return warmExtendedCatalog(extendedWarmPages);
+        return null;
+      })
+      .catch(() => {});
+  } else {
+    console.log('[prewarm] disabled');
+  }
   scheduleCatalogSync();
 });

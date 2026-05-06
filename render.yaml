@@ -90,6 +90,8 @@ services:
       - key: CATALOG_ENABLED
         value: "true"
       - key: CATALOG_AUTO_SYNC
+        value: "false"
+      - key: CATALOG_SYNC_DISABLED
         value: "true"
       - key: CATALOG_SYNC_TARGET
         value: "25000"       # daily incremental crawl; the web service must stay responsive
@@ -106,11 +108,17 @@ services:
       - key: WARM_EXTENDED_CATALOG_PAGES
         value: "0"
       - key: CATALOG_WAIT_FOR_LIVE_MS
-        value: "0"
+        value: "600"
       - key: CATALOG_BACKGROUND_LIVE_REFRESH
         value: "false"
+      - key: CATALOG_CACHE_LIVE_WRITES
+        value: "false"
+      - key: CATALOG_MAX_INFERRED_CATEGORY_IDS
+        value: "12"
       - key: MY_PRODUCTS_PIN_WAIT_MS
         value: "200"
+      - key: PREWARM_ENABLED
+        value: "false"
     disk:
       name: befach-data
       mountPath: /opt/render/project/src/server/data

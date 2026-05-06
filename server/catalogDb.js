@@ -27,6 +27,10 @@ let cachedStatus = null;
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+function syncDisabled() {
+  return process.env.CATALOG_SYNC_DISABLED === 'true';
+}
+
 function ensureDb() {
   if (!ENABLED) return null;
   if (db) return db;
@@ -382,9 +386,14 @@ function inferCategoryIdsFromKeyword(keyWord) {
   // "School Bags", using only the deepest rows avoids pulling shoe products.
   const maxLevel = Math.max(...matches.map(row => row.level || 1));
   const bestMatches = matches.filter(row => (row.level || 1) === maxLevel);
+  const maxIds = Math.max(3, parseInt(process.env.CATALOG_MAX_INFERRED_CATEGORY_IDS || '12', 10));
   const out = new Set();
   for (const row of bestMatches.slice(0, 40)) {
-    for (const id of getDescendantCategoryIds(row.id)) out.add(id);
+    for (const id of getDescendantCategoryIds(row.id)) {
+      out.add(id);
+      if (out.size >= maxIds) break;
+    }
+    if (out.size >= maxIds) break;
   }
   return [...out];
 }
@@ -634,6 +643,21 @@ function syncErrorMessage(err) {
 
 async function runCatalogSync(cj, opts = {}) {
   if (!isEnabled()) return getStatus();
+  if (syncDisabled()) {
+    syncJob = {
+      ...syncJob,
+      running: false,
+      stopRequested: false,
+      error: null,
+      lastWarning: 'Catalog sync disabled',
+      calls: 0,
+      skipped: 0,
+      upserted: 0,
+      seen: 0,
+      phase: 'disabled',
+    };
+    return getStatus();
+  }
   const targetProducts = Math.max(1, parseInt(opts.targetProducts || process.env.CATALOG_SYNC_TARGET || 50000, 10));
   const maxCalls = Math.max(1, parseInt(opts.maxCalls || process.env.CATALOG_SYNC_MAX_CALLS || 600, 10));
   const pageSize = Math.max(20, Math.min(parseInt(opts.pageSize || process.env.CATALOG_SYNC_PAGE_SIZE || 200, 10), 200));
@@ -700,6 +724,7 @@ async function runCatalogSync(cj, opts = {}) {
 }
 
 function startSync(cj, opts = {}) {
+  if (syncDisabled()) return { started: false, disabled: true, job: { ...syncJob } };
   if (syncJob.running) return { started: false, job: { ...syncJob } };
   runCatalogSync(cj, opts).catch(err => {
     console.error('[catalog] sync failed:', err.message);
