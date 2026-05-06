@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.12';
+const APP_VERSION = '8.13';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
