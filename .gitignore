@@ -29,6 +29,11 @@ Thumbs.db
 dist/
 coverage/
 *.tsbuildinfo
+mobile/.expo/
+mobile/android/
+mobile/ios/
+mobile/dist/
+mobile/build/
 
 # Server runtime data — lives on the persistent disk in production.
 # Contains user accounts, orders, sessions, shipping cache.

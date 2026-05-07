@@ -1,0 +1,306 @@
+import Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  SafeAreaView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { WebView, WebViewNavigation } from 'react-native-webview';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const DEFAULT_SITE_URL = 'https://www.globalshopper.in';
+const SITE_URL = String(Constants.expoConfig?.extra?.siteUrl || DEFAULT_SITE_URL).replace(/\/+$/, '');
+const HOME_URL = `${SITE_URL}/`;
+
+const APP_USER_AGENT = 'GlobalShopperAndroid/0.1.0';
+
+function toAppUrl(url: string | null | undefined) {
+  if (!url) return HOME_URL;
+  if (url.startsWith('globalshopper://')) {
+    const parsed = Linking.parse(url);
+    const path = parsed.path ? `/${String(parsed.path).replace(/^\/+/, '')}` : '/';
+    const query = Object.entries(parsed.queryParams || {})
+      .filter(([, value]) => value != null)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+      .join('&');
+    return `${SITE_URL}${path}${query ? `?${query}` : ''}`;
+  }
+  if (url.startsWith('/')) return `${SITE_URL}${url}`;
+  return url;
+}
+
+function isGlobalShopperUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === 'www.globalshopper.in' || parsed.hostname === 'globalshopper.in';
+  } catch {
+    return false;
+  }
+}
+
+export default function App() {
+  const webViewRef = useRef<WebView>(null);
+  const [currentUrl, setCurrentUrl] = useState(HOME_URL);
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const injectedJavaScript = useMemo(() => `
+    window.__GLOBAL_SHOPPER_APP__ = true;
+    document.documentElement.classList.add('global-shopper-native-app');
+    true;
+  `, []);
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      const nextUrl = toAppUrl(url);
+      setCurrentUrl(nextUrl);
+      webViewRef.current?.injectJavaScript(`window.location.href = ${JSON.stringify(nextUrl)}; true;`);
+    });
+    Linking.getInitialURL().then(url => {
+      if (url) setCurrentUrl(toAppUrl(url));
+    }).catch(() => {});
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (canGoBack) {
+        webViewRef.current?.goBack();
+        return true;
+      }
+      if (currentUrl !== HOME_URL) {
+        setCurrentUrl(HOME_URL);
+        webViewRef.current?.injectJavaScript(`window.location.href = ${JSON.stringify(HOME_URL)}; true;`);
+        return true;
+      }
+      return false;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [canGoBack, currentUrl]);
+
+  const handleNavChange = useCallback((nav: WebViewNavigation) => {
+    setCurrentUrl(nav.url || HOME_URL);
+    setCanGoBack(nav.canGoBack);
+    if (nav.loading) setError(null);
+  }, []);
+
+  const handleShare = useCallback(async () => {
+    try {
+      await Share.share({
+        title: 'Global Shopper',
+        message: currentUrl || HOME_URL,
+        url: currentUrl || HOME_URL
+      });
+    } catch {}
+  }, [currentUrl]);
+
+  const handleRetry = useCallback(() => {
+    setError(null);
+    setLoading(true);
+    webViewRef.current?.reload();
+  }, []);
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" />
+      <View style={styles.appBar}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => canGoBack ? webViewRef.current?.goBack() : webViewRef.current?.injectJavaScript(`window.location.href = ${JSON.stringify(HOME_URL)}; true;`)}
+          accessibilityRole="button"
+          accessibilityLabel={canGoBack ? 'Go back' : 'Go home'}
+        >
+          <Text style={styles.iconButtonText}>{canGoBack ? '‹' : '⌂'}</Text>
+        </TouchableOpacity>
+        <View style={styles.appBarTitleWrap}>
+          <Text style={styles.appBarTitle}>Global Shopper</Text>
+          <Text style={styles.appBarSubtitle}>One World. Endless Choices.</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={handleShare}
+          accessibilityRole="button"
+          accessibilityLabel="Share current page"
+        >
+          <Text style={styles.iconButtonText}>↗</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.webViewWrap}>
+        <WebView
+          ref={webViewRef}
+          source={{ uri: currentUrl }}
+          style={styles.webView}
+          applicationNameForUserAgent={APP_USER_AGENT}
+          sharedCookiesEnabled
+          thirdPartyCookiesEnabled
+          javaScriptEnabled
+          domStorageEnabled
+          allowsBackForwardNavigationGestures
+          mediaPlaybackRequiresUserAction={false}
+          injectedJavaScriptBeforeContentLoaded={injectedJavaScript}
+          pullToRefreshEnabled
+          onNavigationStateChange={handleNavChange}
+          onLoadStart={() => {
+            setLoading(true);
+            setError(null);
+          }}
+          onLoadEnd={() => {
+            setLoading(false);
+            SplashScreen.hideAsync().catch(() => {});
+          }}
+          onError={event => {
+            setLoading(false);
+            setError(event.nativeEvent.description || 'Could not load Global Shopper.');
+          }}
+          onShouldStartLoadWithRequest={request => {
+            const url = request.url || '';
+            if (!url || url === 'about:blank') return true;
+            if (isGlobalShopperUrl(url)) return true;
+            if (/^(mailto:|tel:|upi:|intent:|whatsapp:)/i.test(url)) {
+              Linking.openURL(url).catch(() => Alert.alert('Cannot open link', url));
+              return false;
+            }
+            Linking.openURL(url).catch(() => Alert.alert('Cannot open link', url));
+            return false;
+          }}
+        />
+
+        {loading && (
+          <View style={styles.loadingOverlay} pointerEvents="none">
+            <ActivityIndicator size="large" color="#2563EB" />
+          </View>
+        )}
+
+        {error && (
+          <View style={styles.errorPanel}>
+            <Text style={styles.errorTitle}>Could not load Global Shopper</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF'
+  },
+  appBar: {
+    height: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E1E7F0',
+    backgroundColor: '#FFFFFF'
+  },
+  iconButton: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC'
+  },
+  iconButtonText: {
+    color: '#111827',
+    fontSize: 25,
+    fontWeight: '800',
+    marginTop: -2
+  },
+  appBarTitleWrap: {
+    flex: 1,
+    alignItems: 'center'
+  },
+  appBarTitle: {
+    color: '#111827',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.3
+  },
+  appBarSubtitle: {
+    marginTop: -1,
+    color: '#A35D00',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase'
+  },
+  webViewWrap: {
+    flex: 1,
+    backgroundColor: '#F4F6FB'
+  },
+  webView: {
+    flex: 1,
+    backgroundColor: '#F4F6FB'
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)'
+  },
+  errorPanel: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    top: '32%',
+    padding: 18,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E1E7F0',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8
+  },
+  errorTitle: {
+    color: '#111827',
+    fontSize: 17,
+    fontWeight: '900',
+    textAlign: 'center'
+  },
+  errorText: {
+    color: '#707682',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 19
+  },
+  retryButton: {
+    alignSelf: 'center',
+    marginTop: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#111827'
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '900'
+  }
+});

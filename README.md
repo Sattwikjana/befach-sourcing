@@ -70,6 +70,7 @@ For production, swap the `scrapers/alibaba.js` implementation for a paid scrapin
 │   ├── js/app.js            # Search + SSE rendering + image proxy routing
 │   ├── img/befach_logo.png  # Brand logo
 │   └── data/platforms.json  # Cross-platform launcher registry (Excel-derived)
+├── mobile/                  # React Native Android/iOS app shell
 └── server/
     ├── index.js             # Express app, SSE search endpoint, image proxy
     └── scrapers/
