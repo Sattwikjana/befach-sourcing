@@ -541,7 +541,7 @@ function getSitemapProducts({ page = 1, size = 45000 } = {}) {
     SELECT pid, name, image, updated_at
     FROM catalog_products
     WHERE active = 1
-    ORDER BY updated_at DESC, pid ASC
+    ORDER BY pid ASC
     LIMIT ? OFFSET ?
   `).all(limit, offset);
 }
