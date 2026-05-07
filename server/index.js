@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.25';
+const APP_VERSION = '8.26';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 
@@ -64,6 +64,17 @@ app.use(express.json({
   verify: (req, res, buf) => { req.rawBody = buf; },
 }));
 app.use(auth.attachUser);
+app.use((req, res, next) => {
+  if (!['GET', 'HEAD'].includes(req.method) || req.path === '/' || req.path.startsWith('/api/')) return next();
+  const [pathPart, queryPart = ''] = req.originalUrl.split('?');
+  if (!pathPart.endsWith('/')) return next();
+  const cleanPath = pathPart.replace(/\/+$/, '') || '/';
+  return res.redirect(301, cleanPath + (queryPart ? `?${queryPart}` : ''));
+});
+app.use('/api', (req, res, next) => {
+  res.set('X-Robots-Tag', 'noindex, nofollow');
+  next();
+});
 app.get('/index.html', (req, res) => res.redirect(301, '/'));
 // Static assets — long browser cache for images/fonts. CSS/JS use
 // no-cache + ETag so updates are picked up immediately (browser still
@@ -881,6 +892,20 @@ const INDEX_HTML_PATH = path.join(__dirname, '../public/index.html');
 const DEFAULT_META_DESCRIPTION = 'Global Shopper curates premium products from artisans and ateliers in 200+ countries, delivered to your doorstep in India in 10-15 days.';
 const DEFAULT_META_IMAGE = `${SITE_URL}/img/globalshopper.png`;
 const SITEMAP_PRODUCT_CHUNK_SIZE = 45000;
+const FAQ_SEO_ITEMS = [
+  {
+    question: 'How long does Global Shopper delivery take in India?',
+    answer: 'Most Global Shopper orders are delivered to India in 10-15 days after checkout and supplier processing.',
+  },
+  {
+    question: 'Is shipping included in the product price?',
+    answer: 'Yes. Global Shopper product pages show customer-facing prices with shipping included wherever the product is available for India delivery.',
+  },
+  {
+    question: 'Can I track my Global Shopper order?',
+    answer: 'Yes. Customers can use the Track page to follow order progress after checkout.',
+  },
+];
 
 let indexHtmlCache = null;
 
@@ -1023,6 +1048,14 @@ function defaultSeo(req) {
     image: DEFAULT_META_IMAGE,
     type: 'website',
     robots: 'index,follow',
+    fallback: {
+      heading: 'Global Shopper - One World. Endless Choices.',
+      description: DEFAULT_META_DESCRIPTION,
+      links: [
+        { href: `${SITE_URL}/faq`, label: 'Shipping and returns' },
+        { href: SITE_URL, label: 'Start shopping' },
+      ],
+    },
     schemas: baseSchemas(canonical),
   };
 }
@@ -1081,6 +1114,15 @@ function getRouteSeo(req) {
       image,
       type: 'product',
       robots: 'index,follow',
+      fallback: {
+        heading: name,
+        description,
+        image,
+        links: [
+          { href: canonical, label: 'View product' },
+          { href: SITE_URL, label: 'Continue shopping' },
+        ],
+      },
       schemas: [
         breadcrumbSchema([
           { name: 'Home', url: SITE_URL },
@@ -1104,6 +1146,14 @@ function getRouteSeo(req) {
       image: DEFAULT_META_IMAGE,
       type: 'website',
       robots: 'index,follow',
+      fallback: {
+        heading: `${name} Online`,
+        description,
+        links: [
+          { href: canonical, label: `Shop ${name}` },
+          { href: SITE_URL, label: 'Continue shopping' },
+        ],
+      },
       schemas: [
         breadcrumbSchema([
           { name: 'Home', url: SITE_URL },
@@ -1130,7 +1180,26 @@ function getRouteSeo(req) {
       image: DEFAULT_META_IMAGE,
       type: 'website',
       robots: 'index,follow',
-      schemas: [breadcrumbSchema([{ name: 'Home', url: SITE_URL }, { name: 'FAQ', url: canonical }])],
+      fallback: {
+        heading: 'Shipping & Returns FAQ',
+        description: 'Answers about Global Shopper delivery timelines, returns, refunds, order tracking, and secure checkout for customers in India.',
+        links: [{ href: SITE_URL, label: 'Continue shopping' }],
+      },
+      schemas: [
+        breadcrumbSchema([{ name: 'Home', url: SITE_URL }, { name: 'FAQ', url: canonical }]),
+        {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: FAQ_SEO_ITEMS.map(item => ({
+            '@type': 'Question',
+            name: item.question,
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: item.answer,
+            },
+          })),
+        },
+      ],
     };
   }
 
@@ -1191,6 +1260,29 @@ function buildSeoTags(seo) {
   ].join('\n');
 }
 
+function buildSeoFallback(seo) {
+  const fallback = seo.fallback;
+  if (!fallback) return '';
+
+  const image = fallback.image
+    ? `<img src="${htmlEscape(fallback.image)}" alt="${htmlEscape(fallback.heading || SITE_NAME)}" style="max-width:420px;width:100%;height:auto;border-radius:8px;margin:20px 0;" />`
+    : '';
+  const links = (fallback.links || [])
+    .map(link => `<a href="${htmlEscape(link.href)}" style="display:inline-block;margin:8px 12px 0 0;color:#0f172a;font-weight:700;">${htmlEscape(link.label)}</a>`)
+    .join('');
+
+  return [
+    '<noscript>',
+    '  <main style="max-width:1120px;margin:32px auto;padding:0 20px;font-family:Arial,sans-serif;color:#111827;line-height:1.55;">',
+    `    <h1 style="font-size:32px;line-height:1.15;margin:0 0 12px;">${htmlEscape(fallback.heading || seo.title || SITE_NAME)}</h1>`,
+    `    <p style="max-width:720px;font-size:17px;color:#4b5563;margin:0 0 8px;">${htmlEscape(fallback.description || seo.description || DEFAULT_META_DESCRIPTION)}</p>`,
+    image ? `    ${image}` : '',
+    links ? `    <p style="margin:8px 0 0;">${links}</p>` : '',
+    '  </main>',
+    '</noscript>',
+  ].filter(Boolean).join('\n');
+}
+
 function renderSeoHtml(req) {
   const seo = getRouteSeo(req);
   const title = htmlEscape(seo.title || 'Global Shopper');
@@ -1198,7 +1290,11 @@ function renderSeoHtml(req) {
   let html = readIndexHtml()
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`)
     .replace(/<meta\s+name=["']description["']\s+content=["'][^"']*["']\s*\/?>/i, `<meta name="description" content="${description}" />`);
-  return html.replace(/<\/head>/i, `${buildSeoTags(seo)}\n</head>`);
+  html = html.replace(/<\/head>/i, `${buildSeoTags(seo)}\n</head>`);
+  const fallback = buildSeoFallback(seo);
+  return fallback
+    ? html.replace(/<body([^>]*)>/i, `<body$1>\n${fallback}`)
+    : html;
 }
 
 function flattenSeoCategoriesFromTree(tree) {
@@ -1227,15 +1323,21 @@ function getSeoCategoryRows() {
   return flattenSeoCategoriesFromTree(catalog.getCategoryTree()).filter(row => row.id && row.name);
 }
 
-function xmlUrlset(urls) {
+function xmlUrlset(urls, opts = {}) {
   const entries = urls.map(url => {
     const parts = [`    <loc>${xmlEscape(url.loc)}</loc>`];
     if (url.lastmod) parts.push(`    <lastmod>${xmlEscape(url.lastmod)}</lastmod>`);
     if (url.changefreq) parts.push(`    <changefreq>${xmlEscape(url.changefreq)}</changefreq>`);
     if (url.priority) parts.push(`    <priority>${xmlEscape(url.priority)}</priority>`);
+    if (opts.images && url.image) {
+      const imageParts = [`      <image:loc>${xmlEscape(url.image)}</image:loc>`];
+      if (url.imageTitle) imageParts.push(`      <image:title>${xmlEscape(url.imageTitle)}</image:title>`);
+      parts.push(`    <image:image>\n${imageParts.join('\n')}\n    </image:image>`);
+    }
     return `  <url>\n${parts.join('\n')}\n  </url>`;
   }).join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>\n`;
+  const imageNamespace = opts.images ? ' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"' : '';
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"${imageNamespace}>\n${entries}\n</urlset>\n`;
 }
 
 function xmlSitemapIndex(items) {
@@ -1310,13 +1412,18 @@ app.get('/sitemaps/products-:page.xml', (req, res) => {
     : [];
   const urls = products
     .filter(product => product.pid)
-    .map(product => ({
-      loc: `${SITE_URL}/product/${encodeUrlPart(product.pid)}`,
-      lastmod: safeDate(product.updated_at),
-      changefreq: 'weekly',
-      priority: '0.6',
-    }));
-  sendXml(res, xmlUrlset(urls));
+    .map(product => {
+      const image = product.image ? parseSeoImage(product.image) : '';
+      return {
+        loc: `${SITE_URL}/product/${encodeUrlPart(product.pid)}`,
+        lastmod: safeDate(product.updated_at),
+        changefreq: 'weekly',
+        priority: '0.6',
+        image: image && image !== DEFAULT_META_IMAGE ? image : '',
+        imageTitle: product.name || '',
+      };
+    });
+  sendXml(res, xmlUrlset(urls, { images: true }));
 });
 
 // Parse a CJ listV2 response into our normalised meta shape.

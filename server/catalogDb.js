@@ -538,7 +538,7 @@ function getSitemapProducts({ page = 1, size = 45000 } = {}) {
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
   const offset = (currentPage - 1) * limit;
   return ensureDb().prepare(`
-    SELECT pid, updated_at
+    SELECT pid, name, image, updated_at
     FROM catalog_products
     WHERE active = 1
     ORDER BY updated_at DESC, pid ASC
