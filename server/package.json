@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "catalog:sync": "node scripts/syncCatalog.js"
+    "catalog:sync": "node scripts/syncCatalog.js",
+    "seo:sitemaps": "node scripts/generateProductSitemaps.js"
   },
   "dependencies": {
     "axios": "^1.6.7",

@@ -25,12 +25,34 @@ npm start
 # → http://localhost:3001
 ```
 
+## SEO operations
+
+The storefront renders crawler-friendly metadata server-side for home,
+category, product, FAQ, and legal pages. Product sitemap XML is generated
+offline from the SQLite catalog and then served as static files, so search
+engine crawlers do not trigger large database reads during shopper traffic.
+
+Generate or refresh product sitemaps after a catalog sync:
+
+```bash
+cd server
+npm run seo:sitemaps
+```
+
+On Render, run the same command from the service shell or a one-off job.
+It writes `data/sitemaps/manifest.json` plus `products-N.xml` chunks onto
+the persistent disk. `/sitemap.xml` automatically includes those chunks
+when the manifest exists.
+
 ### Environment
 
 | Var | Default | Purpose |
 |---|---|---|
 | `PORT` | `3001` | Server port |
 | `ALIBABA_VISIBLE` | unset (headless) | Set to `1` to launch Chrome visibly so a human can solve the Alibaba CAPTCHA once. Cookies persist in `~/.befach-sourcing-chrome` for future headless runs. |
+| `SITE_URL` | `https://www.globalshopper.in` | Canonical public URL used in SEO tags and sitemaps |
+| `PRODUCT_SITEMAPS_ENABLED` | `true` | Serves generated product sitemap files when a manifest exists |
+| `SITEMAP_PRODUCT_CHUNK_SIZE` | `5000` | Number of product URLs per generated product sitemap file |
 
 ## Production caveat
 

@@ -38,6 +38,12 @@ services:
         value: INR
       - key: STORE_NAME
         value: Global Shopper
+      - key: SITE_URL
+        value: https://www.globalshopper.in
+      - key: PRODUCT_SITEMAPS_ENABLED
+        value: "true"
+      - key: SITEMAP_PRODUCT_CHUNK_SIZE
+        value: "5000"
       - key: DEFAULT_SHIP_FROM
         value: CN
       - key: DEFAULT_SHIP_TO

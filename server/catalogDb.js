@@ -69,6 +69,8 @@ function ensureDb() {
       ON catalog_products(listed_num DESC, sell_price ASC);
     CREATE INDEX IF NOT EXISTS idx_catalog_products_active_trending
       ON catalog_products(active, listed_num DESC, sell_price ASC);
+    CREATE INDEX IF NOT EXISTS idx_catalog_products_active_pid
+      ON catalog_products(active, pid);
     CREATE INDEX IF NOT EXISTS idx_catalog_products_updated
       ON catalog_products(updated_at);
     CREATE INDEX IF NOT EXISTS idx_catalog_products_sku
@@ -546,6 +548,29 @@ function getSitemapProducts({ page = 1, size = 45000 } = {}) {
   `).all(limit, offset);
 }
 
+function getSitemapProductsAfterPid({ afterPid = '', size = 5000 } = {}) {
+  if (!isEnabled()) return [];
+  const limit = Math.max(1, Math.min(parseInt(size, 10) || 5000, 10000));
+  const cursor = String(afterPid || '');
+  if (cursor) {
+    return ensureDb().prepare(`
+      SELECT pid, name, image, updated_at
+      FROM catalog_products
+      WHERE active = 1
+        AND pid > ?
+      ORDER BY pid ASC
+      LIMIT ?
+    `).all(cursor, limit);
+  }
+  return ensureDb().prepare(`
+    SELECT pid, name, image, updated_at
+    FROM catalog_products
+    WHERE active = 1
+    ORDER BY pid ASC
+    LIMIT ?
+  `).all(limit);
+}
+
 function getStatus() {
   if (!isEnabled()) return { enabled: false };
   const now = Date.now();
@@ -783,6 +808,7 @@ module.exports = {
   getCategoryRows,
   getProductById,
   getSitemapProducts,
+  getSitemapProductsAfterPid,
   searchProducts,
   getStatus,
   getLightStatus,

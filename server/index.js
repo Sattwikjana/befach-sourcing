@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.29';
+const APP_VERSION = '8.30';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 
@@ -891,8 +891,9 @@ function computeOfferPricing(pid, displayUsd) {
 const INDEX_HTML_PATH = path.join(__dirname, '../public/index.html');
 const DEFAULT_META_DESCRIPTION = 'Global Shopper curates premium products from artisans and ateliers in 200+ countries, delivered to your doorstep in India in 10-15 days.';
 const DEFAULT_META_IMAGE = `${SITE_URL}/img/globalshopper.png`;
-const SITEMAP_PRODUCT_CHUNK_SIZE = Math.max(1000, Math.min(parseInt(process.env.SITEMAP_PRODUCT_CHUNK_SIZE || '5000', 10), 10000));
-const PRODUCT_SITEMAPS_ENABLED = process.env.PRODUCT_SITEMAPS_ENABLED === 'true';
+const PRODUCT_SITEMAPS_ENABLED = process.env.PRODUCT_SITEMAPS_ENABLED !== 'false';
+const PRODUCT_SITEMAP_DIR = process.env.PRODUCT_SITEMAP_DIR || path.join(__dirname, 'data', 'sitemaps');
+const PRODUCT_SITEMAP_MANIFEST_PATH = path.join(PRODUCT_SITEMAP_DIR, 'manifest.json');
 const FAQ_SEO_ITEMS = [
   {
     question: 'How long does Global Shopper delivery take in India?',
@@ -909,6 +910,7 @@ const FAQ_SEO_ITEMS = [
 ];
 
 let indexHtmlCache = null;
+let productSitemapManifestCache = null;
 
 function readIndexHtml() {
   if (!indexHtmlCache) {
@@ -954,9 +956,9 @@ function safeDecodeUrlPart(value) {
   try { return decodeURIComponent(value); } catch { return String(value || ''); }
 }
 
-function safeDate(value) {
-  const date = value ? new Date(value) : new Date();
-  if (Number.isNaN(date.getTime())) return new Date().toISOString();
+function safeLastmod(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return null;
   return date.toISOString();
 }
 
@@ -1246,17 +1248,23 @@ function buildSeoTags(seo) {
   );
   return [
     `  <link rel="canonical" href="${canonical}" />`,
+    `  <link rel="alternate" hreflang="en-IN" href="${canonical}" />`,
+    `  <link rel="alternate" hreflang="x-default" href="${canonical}" />`,
     `  <meta name="robots" content="${robots}" />`,
+    `  <meta name="theme-color" content="#0f172a" />`,
     `  <meta property="og:site_name" content="${htmlEscape(SITE_NAME)}" />`,
+    `  <meta property="og:locale" content="en_IN" />`,
     `  <meta property="og:type" content="${type}" />`,
     `  <meta property="og:title" content="${title}" />`,
     `  <meta property="og:description" content="${description}" />`,
     `  <meta property="og:url" content="${canonical}" />`,
     `  <meta property="og:image" content="${image}" />`,
+    `  <meta property="og:image:alt" content="${title}" />`,
     `  <meta name="twitter:card" content="summary_large_image" />`,
     `  <meta name="twitter:title" content="${title}" />`,
     `  <meta name="twitter:description" content="${description}" />`,
     `  <meta name="twitter:image" content="${image}" />`,
+    `  <meta name="twitter:image:alt" content="${title}" />`,
     ...schemas,
   ].join('\n');
 }
@@ -1354,6 +1362,60 @@ function sendXml(res, body, maxAgeSeconds = 3600) {
   res.send(body);
 }
 
+function readProductSitemapManifest() {
+  if (!PRODUCT_SITEMAPS_ENABLED) return null;
+  try {
+    const stat = fs.statSync(PRODUCT_SITEMAP_MANIFEST_PATH);
+    if (productSitemapManifestCache && productSitemapManifestCache.mtimeMs === stat.mtimeMs) {
+      return productSitemapManifestCache.value;
+    }
+
+    const parsed = JSON.parse(fs.readFileSync(PRODUCT_SITEMAP_MANIFEST_PATH, 'utf8'));
+    const files = Array.isArray(parsed.files)
+      ? parsed.files
+          .filter(file => file && /^products-\d+\.xml$/.test(String(file.name || '')))
+          .filter(file => {
+            try {
+              return fs.statSync(path.join(PRODUCT_SITEMAP_DIR, String(file.name))).isFile();
+            } catch {
+              return false;
+            }
+          })
+          .map(file => ({
+            name: String(file.name),
+            count: Math.max(0, parseInt(file.count, 10) || 0),
+            lastmod: safeLastmod(file.lastmod) || safeLastmod(parsed.generatedAt) || new Date().toISOString(),
+          }))
+      : [];
+    const value = {
+      generatedAt: safeLastmod(parsed.generatedAt) || new Date().toISOString(),
+      productCount: Math.max(0, parseInt(parsed.productCount, 10) || 0),
+      files,
+      fileNames: new Set(files.map(file => file.name)),
+    };
+    productSitemapManifestCache = { mtimeMs: stat.mtimeMs, value };
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function productSitemapPathForPage(page) {
+  const currentPage = Math.max(1, parseInt(page, 10) || 1);
+  const fileName = `products-${currentPage}.xml`;
+  const manifest = readProductSitemapManifest();
+  if (!manifest || !manifest.fileNames.has(fileName)) return null;
+  const filePath = path.join(PRODUCT_SITEMAP_DIR, fileName);
+  const relative = path.relative(PRODUCT_SITEMAP_DIR, filePath);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return null;
+  try {
+    if (!fs.statSync(filePath).isFile()) return null;
+  } catch {
+    return null;
+  }
+  return filePath;
+}
+
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain').send([
     'User-agent: *',
@@ -1375,16 +1437,14 @@ app.get('/robots.txt', (req, res) => {
 });
 
 app.get('/sitemap.xml', (req, res) => {
-  const status = catalog.getStatus();
-  const productCount = PRODUCT_SITEMAPS_ENABLED && status.enabled ? (status.products || 0) : 0;
-  const productChunks = Math.ceil(productCount / SITEMAP_PRODUCT_CHUNK_SIZE);
   const lastmod = new Date().toISOString();
+  const productManifest = readProductSitemapManifest();
   const items = [
     { loc: `${SITE_URL}/sitemaps/pages.xml`, lastmod },
     { loc: `${SITE_URL}/sitemaps/categories.xml`, lastmod },
   ];
-  for (let page = 1; page <= productChunks; page++) {
-    items.push({ loc: `${SITE_URL}/sitemaps/products-${page}.xml`, lastmod });
+  for (const file of productManifest?.files || []) {
+    items.push({ loc: `${SITE_URL}/sitemaps/${file.name}`, lastmod: file.lastmod || productManifest.generatedAt || lastmod });
   }
   sendXml(res, xmlSitemapIndex(items));
 });
@@ -1399,7 +1459,7 @@ app.get('/sitemaps/pages.xml', (req, res) => {
 
 app.get('/sitemaps/categories.xml', (req, res) => {
   const urls = getSeoCategoryRows().map(row => ({
-    loc: `${SITE_URL}/category/${encodeUrlPart(row.id)}?name=${encodeUrlPart(row.name)}`,
+    loc: `${SITE_URL}/category/${encodeUrlPart(row.id)}`,
     changefreq: row.level >= 3 ? 'weekly' : 'daily',
     priority: row.level >= 3 ? '0.6' : '0.8',
   }));
@@ -1407,27 +1467,32 @@ app.get('/sitemaps/categories.xml', (req, res) => {
 });
 
 app.get('/sitemaps/products-:page.xml', (req, res) => {
-  if (!PRODUCT_SITEMAPS_ENABLED) {
-    return sendXml(res, xmlUrlset([]), 60);
-  }
-  const page = Math.max(1, parseInt(req.params.page, 10) || 1);
-  const products = catalog.getSitemapProducts
-    ? catalog.getSitemapProducts({ page, size: SITEMAP_PRODUCT_CHUNK_SIZE })
-    : [];
-  const urls = products
-    .filter(product => product.pid)
-    .map(product => {
-      const image = product.image ? parseSeoImage(product.image) : '';
-      return {
-        loc: `${SITE_URL}/product/${encodeUrlPart(product.pid)}`,
-        lastmod: safeDate(product.updated_at),
-        changefreq: 'weekly',
-        priority: '0.6',
-        image: image && image !== DEFAULT_META_IMAGE ? image : '',
-        imageTitle: product.name || '',
-      };
-    });
-  sendXml(res, xmlUrlset(urls, { images: true }));
+  const filePath = productSitemapPathForPage(req.params.page);
+  if (!filePath) return sendXml(res, xmlUrlset([], { images: true }), 60);
+  res.set('Content-Type', 'application/xml; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=21600');
+  res.sendFile(filePath);
+});
+
+app.get('/llms.txt', (req, res) => {
+  res.type('text/plain').set('Cache-Control', 'public, max-age=21600').send([
+    '# Global Shopper',
+    '',
+    'Global Shopper is an India-facing cross-border ecommerce store with the tagline "One World. Endless Choices."',
+    '',
+    `Website: ${SITE_URL}`,
+    `Sitemap: ${SITE_URL}/sitemap.xml`,
+    '',
+    'Important public routes:',
+    `- Home: ${SITE_URL}/`,
+    `- Categories: ${SITE_URL}/category/{categoryId}`,
+    `- Products: ${SITE_URL}/product/{productId}`,
+    `- FAQ: ${SITE_URL}/faq`,
+    `- Legal: ${SITE_URL}/legal`,
+    '',
+    'Private or utility routes such as /api, /cart, /checkout, /account, /orders, /login, /register, and /admin should not be indexed.',
+    '',
+  ].join('\n'));
 });
 
 // Parse a CJ listV2 response into our normalised meta shape.
