@@ -509,6 +509,43 @@ function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20, in
   };
 }
 
+function getCategoryRows() {
+  if (!isEnabled()) return [];
+  return prepared.allCategories.all().map(row => ({
+    id: row.id,
+    parentId: row.parent_id || '',
+    level: row.level || 1,
+    name: row.name || '',
+  }));
+}
+
+function getProductById(pid) {
+  const id = String(pid || '').trim();
+  if (!id || !isEnabled()) return null;
+  const row = ensureDb().prepare(`
+    SELECT *
+    FROM catalog_products
+    WHERE pid = ?
+      AND active = 1
+    LIMIT 1
+  `).get(id);
+  return row ? rowsToProducts([row])[0] : null;
+}
+
+function getSitemapProducts({ page = 1, size = 45000 } = {}) {
+  if (!isEnabled()) return [];
+  const limit = Math.max(1, Math.min(parseInt(size, 10) || 45000, 50000));
+  const currentPage = Math.max(1, parseInt(page, 10) || 1);
+  const offset = (currentPage - 1) * limit;
+  return ensureDb().prepare(`
+    SELECT pid, updated_at
+    FROM catalog_products
+    WHERE active = 1
+    ORDER BY updated_at DESC, pid ASC
+    LIMIT ? OFFSET ?
+  `).all(limit, offset);
+}
+
 function getStatus() {
   if (!isEnabled()) return { enabled: false };
   const now = Date.now();
@@ -743,6 +780,9 @@ module.exports = {
   upsertProducts,
   upsertCategories,
   getCategoryTree,
+  getCategoryRows,
+  getProductById,
+  getSitemapProducts,
   searchProducts,
   getStatus,
   getLightStatus,

@@ -30,7 +30,9 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.24';
+const APP_VERSION = '8.25';
+const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
+const SITE_NAME = 'Global Shopper';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -62,11 +64,13 @@ app.use(express.json({
   verify: (req, res, buf) => { req.rawBody = buf; },
 }));
 app.use(auth.attachUser);
+app.get('/index.html', (req, res) => res.redirect(301, '/'));
 // Static assets — long browser cache for images/fonts. CSS/JS use
 // no-cache + ETag so updates are picked up immediately (browser still
 // gets a 304 Not Modified when nothing changed). Switch to a longer
 // max-age once the codebase is stable for production.
 app.use(express.static(path.join(__dirname, '../public'), {
+  index: false,
   etag: true,
   lastModified: true,
   setHeaders: (res, filePath) => {
@@ -869,6 +873,451 @@ function computeOfferPricing(pid, displayUsd) {
     discountPercent: actualDiscount,
   };
 }
+
+// ── SEO / crawl surface ──────────────────────────────────────────
+// These routes are intentionally backed by the local catalog only. They
+// must stay fast and must not spend CJ API calls when Google crawls.
+const INDEX_HTML_PATH = path.join(__dirname, '../public/index.html');
+const DEFAULT_META_DESCRIPTION = 'Global Shopper curates premium products from artisans and ateliers in 200+ countries, delivered to your doorstep in India in 10-15 days.';
+const DEFAULT_META_IMAGE = `${SITE_URL}/img/globalshopper.png`;
+const SITEMAP_PRODUCT_CHUNK_SIZE = 45000;
+
+let indexHtmlCache = null;
+
+function readIndexHtml() {
+  if (!indexHtmlCache) {
+    indexHtmlCache = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
+  }
+  return indexHtmlCache;
+}
+
+function htmlEscape(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[ch]));
+}
+
+function xmlEscape(value) {
+  return htmlEscape(value);
+}
+
+function truncateText(value, max = 155) {
+  const clean = String(value || '').replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  return clean.slice(0, max - 1).replace(/\s+\S*$/, '') + '...';
+}
+
+function absoluteUrl(pathOrUrl = '/') {
+  const raw = String(pathOrUrl || '/');
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  return `${SITE_URL}${withSlash}`;
+}
+
+function encodeUrlPart(value) {
+  return encodeURIComponent(String(value || '')).replace(/[!'()*]/g, ch =>
+    `%${ch.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+}
+
+function safeDecodeUrlPart(value) {
+  try { return decodeURIComponent(value); } catch { return String(value || ''); }
+}
+
+function safeDate(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return new Date().toISOString();
+  return date.toISOString();
+}
+
+function parseSeoImage(value) {
+  let image = value;
+  if (Array.isArray(image)) image = image[0];
+  if (typeof image === 'string' && image.trim().startsWith('[')) {
+    try {
+      const parsed = JSON.parse(image);
+      if (Array.isArray(parsed) && parsed.length) image = parsed[0];
+    } catch {}
+  }
+  image = String(image || '').trim();
+  if (!image) return DEFAULT_META_IMAGE;
+  if (/^https?:\/\//i.test(image)) return image;
+  return absoluteUrl(image);
+}
+
+function productNameForSeo(product) {
+  return String(
+    product?.productNameEn ||
+    product?.productName ||
+    product?.nameEn ||
+    product?.name ||
+    ''
+  ).replace(/\s+/g, ' ').trim();
+}
+
+function productImageForSeo(product) {
+  return parseSeoImage(product?.productImage || product?.bigImage || product?.image || '');
+}
+
+function productPriceInrForSeo(product) {
+  const pid = product?.pid || product?.id || product?.productId || '';
+  if (!pid) return null;
+  const hit = peekShippingCache(pid);
+  if (hit && hit.available === false) return null;
+  // Do not publish fallback prices to crawlers. A Product rich result
+  // should only show a price after our exact all-in display price has
+  // been cached from CJ shipping, matching the product page.
+  const displayUsd = hit && hit.available ? parseFloat(hit.displayUsd || 0) : 0;
+  if (!displayUsd || displayUsd <= 0) return null;
+  const usdToInr = parseFloat(process.env.USD_TO_INR) || 85;
+  return Math.max(1, Math.round(displayUsd * usdToInr));
+}
+
+function breadcrumbSchema(items) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  };
+}
+
+function baseSchemas(canonical) {
+  return [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: DEFAULT_META_IMAGE,
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: SITE_NAME,
+      url: SITE_URL,
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: `${SITE_URL}/search?q={search_term_string}`,
+        'query-input': 'required name=search_term_string',
+      },
+    },
+    breadcrumbSchema([{ name: 'Home', url: canonical || SITE_URL }]),
+  ];
+}
+
+function defaultSeo(req) {
+  const canonical = absoluteUrl(req.path === '/' ? '/' : req.path);
+  return {
+    title: 'Global Shopper - One World. Endless Choices.',
+    description: DEFAULT_META_DESCRIPTION,
+    canonical,
+    image: DEFAULT_META_IMAGE,
+    type: 'website',
+    robots: 'index,follow',
+    schemas: baseSchemas(canonical),
+  };
+}
+
+function noindexSeo(req, title, description = DEFAULT_META_DESCRIPTION) {
+  const canonical = absoluteUrl(req.path === '/' ? '/' : req.path);
+  return {
+    title,
+    description,
+    canonical,
+    image: DEFAULT_META_IMAGE,
+    type: 'website',
+    robots: 'noindex,follow',
+    schemas: [breadcrumbSchema([{ name: 'Home', url: SITE_URL }, { name: title.replace(/\s+\|\s+Global Shopper$/i, ''), url: canonical }])],
+  };
+}
+
+function getRouteSeo(req) {
+  const pathname = req.path || '/';
+  const productMatch = pathname.match(/^\/product\/([^/?#]+)/i);
+  if (productMatch) {
+    const pid = safeDecodeUrlPart(productMatch[1]);
+    const product = catalog.getProductById ? catalog.getProductById(pid) : null;
+    if (!product || isBlocked(pid)) {
+      return noindexSeo(req, 'Product | Global Shopper', 'This Global Shopper product page is loading the latest catalog details.');
+    }
+
+    const name = productNameForSeo(product);
+    const canonical = absoluteUrl(`/product/${encodeUrlPart(pid)}`);
+    const image = productImageForSeo(product);
+    const description = truncateText(`Buy ${name} online in India with shipping included. Curated global products delivered in 10-15 days.`);
+    const priceInr = productPriceInrForSeo(product);
+    const productSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name,
+      image: [image],
+      description,
+      sku: product.productSku || product.sku || pid,
+      brand: { '@type': 'Brand', name: SITE_NAME },
+      url: canonical,
+    };
+    if (priceInr) {
+      productSchema.offers = {
+        '@type': 'Offer',
+        priceCurrency: 'INR',
+        price: String(priceInr),
+        availability: 'https://schema.org/InStock',
+        url: canonical,
+      };
+    }
+    return {
+      title: truncateText(`${name} | Global Shopper`, 65),
+      description,
+      canonical,
+      image,
+      type: 'product',
+      robots: 'index,follow',
+      schemas: [
+        breadcrumbSchema([
+          { name: 'Home', url: SITE_URL },
+          { name, url: canonical },
+        ]),
+        productSchema,
+      ],
+    };
+  }
+
+  const categoryMatch = pathname.match(/^\/category\/([^/?#]+)/i);
+  if (categoryMatch) {
+    const id = safeDecodeUrlPart(categoryMatch[1]);
+    const name = String(req.query.name || categoryNameForId(id) || 'Global Finds').replace(/\s+/g, ' ').trim();
+    const canonical = absoluteUrl(`/category/${encodeUrlPart(id)}`);
+    const description = truncateText(`Shop ${name} online in India at Global Shopper. Discover global products with shipping included and delivery in 10-15 days.`);
+    return {
+      title: truncateText(`${name} Online | Global Shopper`, 65),
+      description,
+      canonical,
+      image: DEFAULT_META_IMAGE,
+      type: 'website',
+      robots: 'index,follow',
+      schemas: [
+        breadcrumbSchema([
+          { name: 'Home', url: SITE_URL },
+          { name, url: canonical },
+        ]),
+        {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name,
+          description,
+          url: canonical,
+          isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: SITE_URL },
+        },
+      ],
+    };
+  }
+
+  if (pathname === '/faq') {
+    const canonical = absoluteUrl('/faq');
+    return {
+      title: 'Shipping & Returns FAQ | Global Shopper',
+      description: 'Answers about Global Shopper delivery timelines, returns, refunds, order tracking, and secure checkout for customers in India.',
+      canonical,
+      image: DEFAULT_META_IMAGE,
+      type: 'website',
+      robots: 'index,follow',
+      schemas: [breadcrumbSchema([{ name: 'Home', url: SITE_URL }, { name: 'FAQ', url: canonical }])],
+    };
+  }
+
+  if (pathname === '/legal') {
+    const canonical = absoluteUrl('/legal');
+    return {
+      title: 'Legal & Compliance | Global Shopper',
+      description: 'Global Shopper legal, compliance, policies, and operating entity information for customers in India.',
+      canonical,
+      image: DEFAULT_META_IMAGE,
+      type: 'website',
+      robots: 'index,follow',
+      schemas: [breadcrumbSchema([{ name: 'Home', url: SITE_URL }, { name: 'Legal & Compliance', url: canonical }])],
+    };
+  }
+
+  if (/^\/(search|cart|checkout|wishlist|orders|returns|account|profile|login|register|track|admin)\b/i.test(pathname)) {
+    const label = pathname.split('/')[1] || 'Page';
+    const title = `${label.charAt(0).toUpperCase()}${label.slice(1)} | Global Shopper`;
+    return noindexSeo(req, title);
+  }
+
+  if (pathname !== '/') {
+    return noindexSeo(req, 'Global Shopper - One World. Endless Choices.');
+  }
+
+  return defaultSeo(req);
+}
+
+function jsonLdMarkup(schema) {
+  return JSON.stringify(schema).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+}
+
+function buildSeoTags(seo) {
+  const title = htmlEscape(seo.title || 'Global Shopper');
+  const description = htmlEscape(truncateText(seo.description || DEFAULT_META_DESCRIPTION));
+  const canonical = htmlEscape(seo.canonical || SITE_URL);
+  const image = htmlEscape(seo.image || DEFAULT_META_IMAGE);
+  const robots = htmlEscape(seo.robots || 'index,follow');
+  const type = htmlEscape(seo.type || 'website');
+  const schemas = (seo.schemas || []).map(schema =>
+    `  <script type="application/ld+json">${jsonLdMarkup(schema)}</script>`
+  );
+  return [
+    `  <link rel="canonical" href="${canonical}" />`,
+    `  <meta name="robots" content="${robots}" />`,
+    `  <meta property="og:site_name" content="${htmlEscape(SITE_NAME)}" />`,
+    `  <meta property="og:type" content="${type}" />`,
+    `  <meta property="og:title" content="${title}" />`,
+    `  <meta property="og:description" content="${description}" />`,
+    `  <meta property="og:url" content="${canonical}" />`,
+    `  <meta property="og:image" content="${image}" />`,
+    `  <meta name="twitter:card" content="summary_large_image" />`,
+    `  <meta name="twitter:title" content="${title}" />`,
+    `  <meta name="twitter:description" content="${description}" />`,
+    `  <meta name="twitter:image" content="${image}" />`,
+    ...schemas,
+  ].join('\n');
+}
+
+function renderSeoHtml(req) {
+  const seo = getRouteSeo(req);
+  const title = htmlEscape(seo.title || 'Global Shopper');
+  const description = htmlEscape(truncateText(seo.description || DEFAULT_META_DESCRIPTION));
+  let html = readIndexHtml()
+    .replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`)
+    .replace(/<meta\s+name=["']description["']\s+content=["'][^"']*["']\s*\/?>/i, `<meta name="description" content="${description}" />`);
+  return html.replace(/<\/head>/i, `${buildSeoTags(seo)}\n</head>`);
+}
+
+function flattenSeoCategoriesFromTree(tree) {
+  const out = [];
+  for (const top of tree || []) {
+    const topId = top.categoryFirstId || top.id;
+    const topName = top.categoryFirstName || top.name;
+    if (topId && topName) out.push({ id: topId, name: topName, level: 1 });
+    for (const second of top.categoryFirstList || []) {
+      const secondId = second.categorySecondId || second.id;
+      const secondName = second.categorySecondName || second.name;
+      if (secondId && secondName) out.push({ id: secondId, name: secondName, level: 2 });
+      for (const third of second.categorySecondList || []) {
+        const thirdId = third.categoryId || third.id;
+        const thirdName = third.categoryName || third.name;
+        if (thirdId && thirdName) out.push({ id: thirdId, name: thirdName, level: 3 });
+      }
+    }
+  }
+  return out;
+}
+
+function getSeoCategoryRows() {
+  const dbRows = catalog.getCategoryRows ? catalog.getCategoryRows() : [];
+  if (dbRows.length) return dbRows.filter(row => row.id && row.name);
+  return flattenSeoCategoriesFromTree(catalog.getCategoryTree()).filter(row => row.id && row.name);
+}
+
+function xmlUrlset(urls) {
+  const entries = urls.map(url => {
+    const parts = [`    <loc>${xmlEscape(url.loc)}</loc>`];
+    if (url.lastmod) parts.push(`    <lastmod>${xmlEscape(url.lastmod)}</lastmod>`);
+    if (url.changefreq) parts.push(`    <changefreq>${xmlEscape(url.changefreq)}</changefreq>`);
+    if (url.priority) parts.push(`    <priority>${xmlEscape(url.priority)}</priority>`);
+    return `  <url>\n${parts.join('\n')}\n  </url>`;
+  }).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>\n`;
+}
+
+function xmlSitemapIndex(items) {
+  const entries = items.map(item =>
+    `  <sitemap>\n    <loc>${xmlEscape(item.loc)}</loc>\n    <lastmod>${xmlEscape(item.lastmod || new Date().toISOString())}</lastmod>\n  </sitemap>`
+  ).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</sitemapindex>\n`;
+}
+
+function sendXml(res, body, maxAgeSeconds = 3600) {
+  res.set('Content-Type', 'application/xml; charset=utf-8');
+  res.set('Cache-Control', `public, max-age=${maxAgeSeconds}`);
+  res.send(body);
+}
+
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send([
+    'User-agent: *',
+    'Allow: /',
+    'Disallow: /admin',
+    'Disallow: /api/',
+    'Disallow: /cart',
+    'Disallow: /checkout',
+    'Disallow: /account',
+    'Disallow: /orders',
+    'Disallow: /returns',
+    'Disallow: /login',
+    'Disallow: /register',
+    'Disallow: /search',
+    '',
+    `Sitemap: ${SITE_URL}/sitemap.xml`,
+    '',
+  ].join('\n'));
+});
+
+app.get('/sitemap.xml', (req, res) => {
+  const status = catalog.getStatus();
+  const productCount = status.enabled ? (status.products || 0) : 0;
+  const productChunks = Math.ceil(productCount / SITEMAP_PRODUCT_CHUNK_SIZE);
+  const lastmod = new Date().toISOString();
+  const items = [
+    { loc: `${SITE_URL}/sitemaps/pages.xml`, lastmod },
+    { loc: `${SITE_URL}/sitemaps/categories.xml`, lastmod },
+  ];
+  for (let page = 1; page <= productChunks; page++) {
+    items.push({ loc: `${SITE_URL}/sitemaps/products-${page}.xml`, lastmod });
+  }
+  sendXml(res, xmlSitemapIndex(items));
+});
+
+app.get('/sitemaps/pages.xml', (req, res) => {
+  sendXml(res, xmlUrlset([
+    { loc: `${SITE_URL}/`, changefreq: 'daily', priority: '1.0' },
+    { loc: `${SITE_URL}/faq`, changefreq: 'monthly', priority: '0.5' },
+    { loc: `${SITE_URL}/legal`, changefreq: 'monthly', priority: '0.4' },
+  ]), 6 * 60 * 60);
+});
+
+app.get('/sitemaps/categories.xml', (req, res) => {
+  const urls = getSeoCategoryRows().map(row => ({
+    loc: `${SITE_URL}/category/${encodeUrlPart(row.id)}?name=${encodeUrlPart(row.name)}`,
+    changefreq: row.level >= 3 ? 'weekly' : 'daily',
+    priority: row.level >= 3 ? '0.6' : '0.8',
+  }));
+  sendXml(res, xmlUrlset(urls), 6 * 60 * 60);
+});
+
+app.get('/sitemaps/products-:page.xml', (req, res) => {
+  const page = Math.max(1, parseInt(req.params.page, 10) || 1);
+  const products = catalog.getSitemapProducts
+    ? catalog.getSitemapProducts({ page, size: SITEMAP_PRODUCT_CHUNK_SIZE })
+    : [];
+  const urls = products
+    .filter(product => product.pid)
+    .map(product => ({
+      loc: `${SITE_URL}/product/${encodeUrlPart(product.pid)}`,
+      lastmod: safeDate(product.updated_at),
+      changefreq: 'weekly',
+      priority: '0.6',
+    }));
+  sendXml(res, xmlUrlset(urls));
+});
 
 // Parse a CJ listV2 response into our normalised meta shape.
 function parseListV2(data, pageSize) {
@@ -3170,7 +3619,9 @@ app.get('/api/img', async (req, res) => {
 //  SPA FALLBACK
 // ══════════════════════════════════════════════════════════════════
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.set('Cache-Control', 'no-cache');
+  res.send(renderSeoHtml(req));
 });
 
 // ══════════════════════════════════════════════════════════════════
