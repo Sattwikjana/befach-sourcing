@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.28';
+const APP_VERSION = '8.29';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 
@@ -892,6 +892,7 @@ const INDEX_HTML_PATH = path.join(__dirname, '../public/index.html');
 const DEFAULT_META_DESCRIPTION = 'Global Shopper curates premium products from artisans and ateliers in 200+ countries, delivered to your doorstep in India in 10-15 days.';
 const DEFAULT_META_IMAGE = `${SITE_URL}/img/globalshopper.png`;
 const SITEMAP_PRODUCT_CHUNK_SIZE = Math.max(1000, Math.min(parseInt(process.env.SITEMAP_PRODUCT_CHUNK_SIZE || '5000', 10), 10000));
+const PRODUCT_SITEMAPS_ENABLED = process.env.PRODUCT_SITEMAPS_ENABLED === 'true';
 const FAQ_SEO_ITEMS = [
   {
     question: 'How long does Global Shopper delivery take in India?',
@@ -1375,7 +1376,7 @@ app.get('/robots.txt', (req, res) => {
 
 app.get('/sitemap.xml', (req, res) => {
   const status = catalog.getStatus();
-  const productCount = status.enabled ? (status.products || 0) : 0;
+  const productCount = PRODUCT_SITEMAPS_ENABLED && status.enabled ? (status.products || 0) : 0;
   const productChunks = Math.ceil(productCount / SITEMAP_PRODUCT_CHUNK_SIZE);
   const lastmod = new Date().toISOString();
   const items = [
@@ -1406,6 +1407,9 @@ app.get('/sitemaps/categories.xml', (req, res) => {
 });
 
 app.get('/sitemaps/products-:page.xml', (req, res) => {
+  if (!PRODUCT_SITEMAPS_ENABLED) {
+    return sendXml(res, xmlUrlset([]), 60);
+  }
   const page = Math.max(1, parseInt(req.params.page, 10) || 1);
   const products = catalog.getSitemapProducts
     ? catalog.getSitemapProducts({ page, size: SITEMAP_PRODUCT_CHUNK_SIZE })
