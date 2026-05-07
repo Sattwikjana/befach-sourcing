@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.30';
+const APP_VERSION = '8.31';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 
