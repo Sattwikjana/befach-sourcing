@@ -56,7 +56,10 @@
       ]
     },
     "extra": {
-      "siteUrl": "https://www.globalshopper.in"
+      "siteUrl": "https://www.globalshopper.in",
+      "eas": {
+        "projectId": "9b559855-8a99-4d52-8127-4f5d8a112bc8"
+      }
     }
   }
 }
