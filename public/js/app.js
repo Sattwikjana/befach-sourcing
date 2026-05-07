@@ -1198,7 +1198,6 @@ function productCard(p, idx) {
   const pid = p.pid || p.id || p.productId || '';
   const name = p.productNameEn || p.nameEn || p.productName || 'Untitled';
   const image = parseProductImage(p);
-  const listed = p.listedNum || p.listedShopNum || 0;
   const serverAccurate = p.shippingAccurate === true;
   const aboveFold = typeof idx === 'number' && idx < 8;
 
@@ -1240,7 +1239,6 @@ function productCard(p, idx) {
           fetchpriority="${aboveFold ? 'high' : 'low'}"
           decoding="async"
           onerror="this.onerror=null;this.src='/img/globalshopper.png'" />
-        ${listed > 50 ? '<span class="product-card-badge">🔥 Popular</span>' : ''}
         <button type="button"
                 class="product-card-wish ${inWishlist ? 'on' : ''}"
                 data-wish-pid="${esc(pid)}"
