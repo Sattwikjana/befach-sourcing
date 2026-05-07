@@ -4,11 +4,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   BackHandler,
   SafeAreaView,
-  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -52,7 +50,6 @@ export default function App() {
   const webViewRef = useRef<WebView>(null);
   const [currentUrl, setCurrentUrl] = useState(HOME_URL);
   const [canGoBack, setCanGoBack] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const injectedJavaScript = useMemo(() => `
@@ -90,54 +87,27 @@ export default function App() {
     return () => subscription.remove();
   }, [canGoBack, currentUrl]);
 
+  useEffect(() => {
+    const fallback = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 2500);
+    return () => clearTimeout(fallback);
+  }, []);
+
   const handleNavChange = useCallback((nav: WebViewNavigation) => {
     setCurrentUrl(nav.url || HOME_URL);
     setCanGoBack(nav.canGoBack);
     if (nav.loading) setError(null);
   }, []);
 
-  const handleShare = useCallback(async () => {
-    try {
-      await Share.share({
-        title: 'Global Shopper',
-        message: currentUrl || HOME_URL,
-        url: currentUrl || HOME_URL
-      });
-    } catch {}
-  }, [currentUrl]);
-
   const handleRetry = useCallback(() => {
     setError(null);
-    setLoading(true);
     webViewRef.current?.reload();
   }, []);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      <View style={styles.appBar}>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => canGoBack ? webViewRef.current?.goBack() : webViewRef.current?.injectJavaScript(`window.location.href = ${JSON.stringify(HOME_URL)}; true;`)}
-          accessibilityRole="button"
-          accessibilityLabel={canGoBack ? 'Go back' : 'Go home'}
-        >
-          <Text style={styles.iconButtonText}>{canGoBack ? '‹' : '⌂'}</Text>
-        </TouchableOpacity>
-        <View style={styles.appBarTitleWrap}>
-          <Text style={styles.appBarTitle}>Global Shopper</Text>
-          <Text style={styles.appBarSubtitle}>One World. Endless Choices.</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={handleShare}
-          accessibilityRole="button"
-          accessibilityLabel="Share current page"
-        >
-          <Text style={styles.iconButtonText}>↗</Text>
-        </TouchableOpacity>
-      </View>
-
       <View style={styles.webViewWrap}>
         <WebView
           ref={webViewRef}
@@ -154,15 +124,18 @@ export default function App() {
           pullToRefreshEnabled
           onNavigationStateChange={handleNavChange}
           onLoadStart={() => {
-            setLoading(true);
             setError(null);
           }}
+          onLoadProgress={event => {
+            if ((event.nativeEvent.progress || 0) > 0.35) {
+              SplashScreen.hideAsync().catch(() => {});
+            }
+          }}
           onLoadEnd={() => {
-            setLoading(false);
             SplashScreen.hideAsync().catch(() => {});
           }}
           onError={event => {
-            setLoading(false);
+            SplashScreen.hideAsync().catch(() => {});
             setError(event.nativeEvent.description || 'Could not load Global Shopper.');
           }}
           onShouldStartLoadWithRequest={request => {
@@ -177,12 +150,6 @@ export default function App() {
             return false;
           }}
         />
-
-        {loading && (
-          <View style={styles.loadingOverlay} pointerEvents="none">
-            <ActivityIndicator size="large" color="#2563EB" />
-          </View>
-        )}
 
         {error && (
           <View style={styles.errorPanel}>
@@ -203,47 +170,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF'
   },
-  appBar: {
-    height: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E1E7F0',
-    backgroundColor: '#FFFFFF'
-  },
-  iconButton: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC'
-  },
-  iconButtonText: {
-    color: '#111827',
-    fontSize: 25,
-    fontWeight: '800',
-    marginTop: -2
-  },
-  appBarTitleWrap: {
-    flex: 1,
-    alignItems: 'center'
-  },
-  appBarTitle: {
-    color: '#111827',
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 0.3
-  },
-  appBarSubtitle: {
-    marginTop: -1,
-    color: '#A35D00',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase'
-  },
   webViewWrap: {
     flex: 1,
     backgroundColor: '#F4F6FB'
@@ -251,16 +177,6 @@ const styles = StyleSheet.create({
   webView: {
     flex: 1,
     backgroundColor: '#F4F6FB'
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.3)'
   },
   errorPanel: {
     position: 'absolute',
