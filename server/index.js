@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.26';
+const APP_VERSION = '8.27';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 
@@ -891,7 +891,7 @@ function computeOfferPricing(pid, displayUsd) {
 const INDEX_HTML_PATH = path.join(__dirname, '../public/index.html');
 const DEFAULT_META_DESCRIPTION = 'Global Shopper curates premium products from artisans and ateliers in 200+ countries, delivered to your doorstep in India in 10-15 days.';
 const DEFAULT_META_IMAGE = `${SITE_URL}/img/globalshopper.png`;
-const SITEMAP_PRODUCT_CHUNK_SIZE = 45000;
+const SITEMAP_PRODUCT_CHUNK_SIZE = Math.max(1000, Math.min(parseInt(process.env.SITEMAP_PRODUCT_CHUNK_SIZE || '5000', 10), 10000));
 const FAQ_SEO_ITEMS = [
   {
     question: 'How long does Global Shopper delivery take in India?',
