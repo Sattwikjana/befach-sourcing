@@ -981,14 +981,126 @@ const CAT_ICONS = {
   Furniture: '🪑', Office: '🖨️', Outdoor: '⛺', Food: '🍕', Game: '🎮',
   Book: '📚', Bed: '🛏️', Bath: '🛁', Travel: '🧳',
 };
-function catIcon(name) {
-  const img = catImage(name);
-  if (img) return `<img src="${img}" alt="" class="cat-img" loading="lazy"/>`;
-  if (!name) return '📦';
-  for (const [k, v] of Object.entries(CAT_ICONS)) {
-    if (name.toLowerCase().includes(k.toLowerCase())) return v;
+const CAT_ART_PALETTES = [
+  ['#EFF6FF', '#2563EB', '#0F172A'],
+  ['#FFF7ED', '#F97316', '#7C2D12'],
+  ['#FDF2F8', '#DB2777', '#831843'],
+  ['#ECFDF5', '#059669', '#064E3B'],
+  ['#F5F3FF', '#7C3AED', '#2E1065'],
+  ['#FEFCE8', '#CA8A04', '#713F12'],
+  ['#F0FDFA', '#0D9488', '#134E4A'],
+  ['#EEF2FF', '#4F46E5', '#1E1B4B'],
+];
+const CAT_ART_SYMBOLS = [
+  [/women|dress|skirt|top|blouse|legging|wedding|fashion|clothing/i, '👗'],
+  [/men|shirt|jacket|suit|trouser|hoodie|outerwear|bottom/i, '👔'],
+  [/phone|mobile|tablet|case|charger|cable/i, '📱'],
+  [/computer|laptop|office|keyboard|mouse|printer/i, '💻'],
+  [/electronic|gadget|projector|camera|smart|audio|headphone|speaker/i, '🎧'],
+  [/watch|jewel|necklace|ring|bracelet|earring/i, '⌚'],
+  [/beauty|health|makeup|hair|skin|nail|fragrance/i, '💄'],
+  [/home|garden|kitchen|furniture|decor|bath|bed|storage/i, '🏠'],
+  [/bag|shoe|sneaker|boot|wallet|luggage|travel/i, '👜'],
+  [/toy|kid|baby|children|school/i, '🧸'],
+  [/pet|dog|cat|animal/i, '🐾'],
+  [/sport|outdoor|fitness|camp|cycling|yoga/i, '⚽'],
+  [/auto|car|motor|vehicle|bike/i, '🚗'],
+  [/tool|hardware|light|improvement|repair/i, '🔧'],
+];
+function categorySymbol(name) {
+  const label = name || '';
+  for (const [re, symbol] of CAT_ART_SYMBOLS) {
+    if (re.test(label)) return symbol;
   }
-  return '📦';
+  for (const [k, v] of Object.entries(CAT_ICONS)) {
+    if (label.toLowerCase().includes(k.toLowerCase())) return v;
+  }
+  return '✦';
+}
+function hashString(s) {
+  let h = 0;
+  const text = String(s || 'global shopper');
+  for (let i = 0; i < text.length; i++) h = ((h << 5) - h + text.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function svgEsc(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+function compactCategoryLabel(name) {
+  const words = String(name || 'Shop')
+    .replace(/&/g, ' ')
+    .replace(/[^\w\s'-]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.slice(0, 2).join(' ') || 'Shop';
+}
+function categoryGeneratedArt(name) {
+  const h = hashString(name);
+  const [light, accent, dark] = CAT_ART_PALETTES[h % CAT_ART_PALETTES.length];
+  const symbol = categorySymbol(name);
+  const label = compactCategoryLabel(name);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+      <defs>
+        <linearGradient id="g" x1="16" y1="10" x2="146" y2="152" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="${light}"/>
+          <stop offset="0.62" stop-color="#FFFFFF"/>
+          <stop offset="1" stop-color="${light}"/>
+        </linearGradient>
+        <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="${dark}" flood-opacity=".18"/>
+        </filter>
+      </defs>
+      <rect width="160" height="160" rx="34" fill="url(#g)"/>
+      <circle cx="122" cy="36" r="30" fill="${accent}" opacity=".15"/>
+      <circle cx="30" cy="132" r="42" fill="${accent}" opacity=".10"/>
+      <path d="M24 42c29-22 59-24 90-7 14 8 25 8 34 1" fill="none" stroke="${accent}" stroke-opacity=".18" stroke-width="10" stroke-linecap="round"/>
+      <circle cx="80" cy="76" r="45" fill="#fff" filter="url(#s)"/>
+      <text x="80" y="91" text-anchor="middle" font-size="58" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">${svgEsc(symbol)}</text>
+      <text x="80" y="134" text-anchor="middle" font-size="15" font-weight="800" letter-spacing=".3" fill="${dark}" font-family="Inter, Arial, sans-serif">${svgEsc(label)}</text>
+    </svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+function categoryVisualSrc(name, preferPhoto = false) {
+  const photo = preferPhoto ? catImage(name) : null;
+  return photo || categoryGeneratedArt(name);
+}
+function catIcon(name) {
+  return `<img src="${categoryVisualSrc(name)}" alt="" class="cat-img" loading="lazy"/>`;
+}
+
+const HOME_CATEGORY_SHORTCUTS = [
+  { id: 'mobileWomenCat', label: 'Women', match: /^women.?s\s+clothing/i, fallback: '/search?q=women dress', artName: "Women's Clothing" },
+  { id: 'mobileMenCat', label: 'Men', match: /^men.?s\s+clothing/i, fallback: '/search?q=men shirt', artName: "Men's Clothing" },
+  { id: 'mobileGadgetsCat', label: 'Gadgets', match: /electronic/i, fallback: '/search?q=smart watch', artName: 'Electronics Gadgets' },
+  { id: 'mobileAudioCat', label: 'Audio', match: /phone|electronic/i, fallback: '/search?q=headphones', artName: 'Audio Headphones' },
+  { id: 'mobileWatchesCat', label: 'Watches', match: /jewel|watch/i, fallback: '/search?q=watch', artName: 'Watches' },
+  { id: 'mobileBeautyCat', label: 'Beauty', match: /health|beauty/i, fallback: '/search?q=makeup organizer', artName: 'Beauty Tools' },
+  { id: 'mobileBagsCat', label: 'Bags', match: /bag|shoe/i, fallback: '/search?q=handbag', artName: 'Bags Shoes' },
+  { id: 'mobileHomeCat', label: 'Home', match: /^home|garden|furniture/i, fallback: '/search?q=kitchen tools', artName: 'Home Garden' },
+  { id: 'mobileKidsCat', label: 'Kids', match: /toy|kid|bab/i, fallback: '/search?q=kids toy', artName: 'Kids Toys' },
+  { id: 'mobileSportsCat', label: 'Sports', match: /sport|outdoor/i, fallback: '/search?q=sports', artName: 'Sports Outdoors' },
+  { id: 'mobilePetsCat', label: 'Pets', match: /pet/i, fallback: '/search?q=pet supplies', artName: 'Pet Supplies' },
+  { id: 'mobileAllCat', label: 'All', match: null, fallback: '/category', artName: 'All Categories' },
+];
+function findTopCategory(match) {
+  if (!match) return null;
+  return (state.categories || []).find(c => match.test(c.categoryFirstName || '')) || null;
+}
+function renderMobileCategoryShortcuts() {
+  return HOME_CATEGORY_SHORTCUTS.map(item => {
+    const cat = findTopCategory(item.match);
+    const href = cat ? categoryHref(cat) : item.fallback;
+    const artName = cat ? (cat.categoryFirstName || item.artName) : item.artName;
+    return `<a id="${item.id}" href="${href}">
+      <img src="${categoryVisualSrc(artName)}" alt="" width="70" height="70" loading="lazy" />
+      <span>${esc(item.label)}</span>
+    </a>`;
+  }).join('');
 }
 
 // Build a hash link for a CJ category at any nesting level. Uses CJ's
@@ -1467,19 +1579,8 @@ async function renderHome() {
           </div>
         </section>
 
-        <section class="mobile-shop-strip" aria-label="Featured departments">
-          <a id="mobileWomenCat" href="/search?q=women dress"><img src="/img/cat-women-clothing.png" alt="" width="58" height="58" /><span>Women</span></a>
-          <a id="mobileMenCat" href="/search?q=men shirt"><img src="/img/cat-men-clothing.png" alt="" width="58" height="58" /><span>Men</span></a>
-          <a id="mobileElectronicsCat" href="/search?q=smart watch"><img src="/img/cat-electronics.png" alt="" width="58" height="58" /><span>Gadgets</span></a>
-          <a id="mobileAudioCat" href="/search?q=headphones"><img src="/img/cat-phones-accessories.png" alt="" width="58" height="58" /><span>Audio</span></a>
-          <a id="mobileJewelryCat" href="/search?q=watch"><img src="/img/cat-jewelry-watches.png" alt="" width="58" height="58" loading="lazy" /><span>Watches</span></a>
-          <a id="mobileBeautyCat" href="/search?q=makeup organizer"><img src="/img/cat-health-beauty.png" alt="" width="58" height="58" loading="lazy" /><span>Beauty</span></a>
-          <a id="mobileBagsCat" href="/search?q=handbag"><img src="/img/cat-bags-shoes.png" alt="" width="58" height="58" loading="lazy" /><span>Bags</span></a>
-          <a id="mobileHomeCat" href="/search?q=kitchen tools"><img src="/img/cat-home-garden.png" alt="" width="58" height="58" loading="lazy" /><span>Home</span></a>
-          <a id="mobilePetsCat" href="/search?q=pet supplies"><img src="/img/cat-pet-supplies.png" alt="" width="58" height="58" loading="lazy" /><span>Pets</span></a>
-          <a id="mobileKidsCat" href="/search?q=kids toy"><img src="/img/cat-toys-kids.png" alt="" width="58" height="58" loading="lazy" /><span>Kids</span></a>
-          <a id="mobileSportsCat" href="/search?q=sports"><img src="/img/cat-sports-outdoors.png" alt="" width="58" height="58" loading="lazy" /><span>Sports</span></a>
-          <a href="/category"><img src="/img/cat-computers-office.png" alt="" width="58" height="58" loading="lazy" /><span>All</span></a>
+        <section class="mobile-shop-strip" id="mobileShopStrip" aria-label="Featured departments">
+          ${renderMobileCategoryShortcuts()}
         </section>
 
         <!-- TRUST BADGES -->
@@ -1650,7 +1751,11 @@ async function renderHome() {
   });
   document.getElementById('heroPhotoSearchBtn')?.addEventListener('click', openPhotoSearchPicker);
 
-  loadCategories().then(() => renderHomeSidebar());
+  loadCategories().then(() => {
+    renderHomeSidebar();
+    const mobileStrip = document.getElementById('mobileShopStrip');
+    if (mobileStrip) mobileStrip.innerHTML = renderMobileCategoryShortcuts();
+  });
   loadHomeProducts();
 }
 
@@ -1915,21 +2020,8 @@ async function loadHomeProducts() {
   setHref('promoMenCta',   menCat);
   setHref('promoWomenCta', womenCat);
 
-  const setMobileHref = (id, re) => {
-    const cat = findCat(re);
-    const el = document.getElementById(id);
-    if (cat && el) el.href = categoryHref(cat);
-  };
-  setMobileHref('mobileWomenCat', /^women.?s\s+clothing/i);
-  setMobileHref('mobileMenCat', /^men.?s\s+clothing/i);
-  setMobileHref('mobileElectronicsCat', /electronic/i);
-  setMobileHref('mobileJewelryCat', /jewel|watch/i);
-  setMobileHref('mobileBeautyCat', /health|beauty/i);
-  setMobileHref('mobileBagsCat', /bag|shoe/i);
-  setMobileHref('mobileHomeCat', /^home|garden|furniture/i);
-  setMobileHref('mobilePetsCat', /pet/i);
-  setMobileHref('mobileKidsCat', /toy|kid|bab/i);
-  setMobileHref('mobileSportsCat', /sport|outdoor/i);
+  const mobileStrip = document.getElementById('mobileShopStrip');
+  if (mobileStrip) mobileStrip.innerHTML = renderMobileCategoryShortcuts();
 
   // Pick a child of the top-level women/men category so each daily load
   // surfaces a different slice (Dresses one day, Tops the next, etc.)
@@ -2052,18 +2144,18 @@ async function renderAllCategories() {
       <a href="${catHref}" class="cat-block-head">
         <span class="cat-block-icon">${catIcon(name)}</span>
         <span class="cat-block-name">${esc(name)}</span>
+        <span class="cat-block-action">Shop all</span>
       </a>
       <div class="cat-block-groups">
         ${subs.map(s => {
           const subName = s.categorySecondName || '';
           const thirds = s.categorySecondList || [];
           const subHref = categoryHref(s);
-          return `<div class="cat-block-group">
-            <a class="cat-block-group-head" href="${subHref}">${esc(subName)}</a>
-            ${thirds.length ? `<div class="cat-block-group-items">
-              ${thirds.map(t => `<a href="${categoryHref(t)}">${esc(t.categoryName || '')}</a>`).join('')}
-            </div>` : ''}
-          </div>`;
+          return `<a class="cat-sub-card" href="${subHref}">
+            <span class="cat-sub-card-img">${catIcon(subName)}</span>
+            <span class="cat-sub-card-name">${esc(subName)}</span>
+            ${thirds.length ? `<span class="cat-sub-card-meta">${thirds.length} options</span>` : ''}
+          </a>`;
         }).join('')}
       </div>
     </div>`;
@@ -2114,10 +2206,13 @@ async function renderSearch(query, page = 1, opts = {}) {
     title = 'Browse products';
   }
   const childChips = (opts.categoryChildren || []).length ? `
-    <nav class="subcategory-strip" aria-label="Subcategories">
+    <nav class="subcategory-strip subcategory-visual-strip" aria-label="Subcategories">
       ${opts.categoryChildren.map(c => {
         const cname = c.categoryName || c.categorySecondName || c.categoryFirstName || '';
-        return `<a class="subcat-chip" href="${categoryHref(c)}">${esc(cname)}</a>`;
+        return `<a class="subcat-chip subcat-visual-card" href="${categoryHref(c)}">
+          <span class="subcat-visual-img">${catIcon(cname)}</span>
+          <span class="subcat-visual-name">${esc(cname)}</span>
+        </a>`;
       }).join('')}
     </nav>
   ` : '';

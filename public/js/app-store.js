@@ -1206,8 +1206,39 @@ function renderRegister() {
   };
 }
 
+async function signOutCurrentUser() {
+  try { await authPost('/api/auth/logout', {}); } catch {}
+  state.user = null;
+  updateAuthSlot();
+  showToast('Signed out');
+  navigate('/');
+}
+
+function renderGuestAccount() {
+  app.innerHTML = `
+    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">Account</span></div>
+    <section class="account-hub account-guest-hub">
+      <div class="account-guest-card">
+        <div class="account-avatar account-avatar-guest">G</div>
+        <h1>Welcome to Global Shopper</h1>
+        <p class="muted">Sign in to track orders, save your wishlist, manage returns and keep your cart synced across devices.</p>
+        <div class="account-guest-actions">
+          <a class="btn btn-primary btn-lg" href="/login">Sign in</a>
+          <a class="btn btn-ghost btn-lg" href="/register">Create account</a>
+        </div>
+      </div>
+      <div class="account-action-grid">
+        <a href="/login" class="account-action-card"><span>My profile</span><small>Sign in required</small></a>
+        <a href="/login" class="account-action-card"><span>My orders</span><small>Track purchases</small></a>
+        <a href="/login" class="account-action-card"><span>Returns &amp; refunds</span><small>Request support</small></a>
+        <a href="/wishlist" class="account-action-card"><span>Wishlist</span><small>Saved on this device</small></a>
+      </div>
+    </section>
+  `;
+}
+
 async function renderAccount() {
-  if (!state.user) return navigate('/login');
+  if (!state.user) return renderGuestAccount();
 
   app.innerHTML = `
     <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">My Account</span></div>
@@ -1216,7 +1247,13 @@ async function renderAccount() {
         <div class="account-avatar">${esc((state.user.name || 'U').slice(0, 1).toUpperCase())}</div>
         <div class="account-name">${esc(state.user.name)}</div>
         <div class="account-email muted small">${esc(state.user.email)}</div>
-        <button class="btn btn-ghost btn-full" id="logoutBtn">Sign out</button>
+        <nav class="account-menu-list" aria-label="Account options">
+          <a href="/account" class="account-menu-link active">My profile</a>
+          <a href="/orders" class="account-menu-link">My orders</a>
+          <a href="/returns" class="account-menu-link">Returns &amp; refunds</a>
+          <a href="/wishlist" class="account-menu-link">Wishlist</a>
+        </nav>
+        <button class="btn btn-ghost btn-full account-signout-btn" id="logoutBtn">Sign out</button>
       </aside>
       <div class="account-main">
         <section class="card">
@@ -1238,13 +1275,7 @@ async function renderAccount() {
     </div>
   `;
 
-  document.getElementById('logoutBtn').onclick = async () => {
-    try { await authPost('/api/auth/logout', {}); } catch {}
-    state.user = null;
-    updateAuthSlot();
-    showToast('Signed out');
-    navigate('/');
-  };
+  document.getElementById('logoutBtn').onclick = signOutCurrentUser;
 
   document.getElementById('profileForm').onsubmit = async (e) => {
     e.preventDefault();
