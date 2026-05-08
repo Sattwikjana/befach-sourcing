@@ -940,16 +940,43 @@ if (headerSearchInput) {
 // Top-level CJ categories get a real product photo. Match by ALL keywords
 // being present (case-insensitive substring) — first rule wins, so list
 // the more-specific rules above the catch-alls.
-const CATEGORY_IMAGE_VERSION = '20260508e';
+const CATEGORY_IMAGE_VERSION = '20260508f';
 const CAT_IMAGE_RULES = [
-  [['couple', 'parent'],       '/img/subcat-women-couple-parent-child.png'],
-  [['parent', 'child'],        '/img/subcat-women-couple-parent-child.png'],
-  [['tops', 'sets'],           '/img/subcat-women-tops-sets.png'],
-  [['bottom'],                 '/img/subcat-women-bottoms.png'],
-  [['outerwear'],              '/img/subcat-women-outerwear-jackets.png'],
-  [['jacket'],                 '/img/subcat-women-outerwear-jackets.png'],
-  [['wedding'],                '/img/subcat-women-weddings-events.png'],
-  [['event'],                  '/img/subcat-women-weddings-events.png'],
+  [['mobile', 'phone', 'accessor'], '/img/subcat-phones-accessories.png'],
+  [['phone', 'case'],               '/img/subcat-phones-cases.png'],
+  [['mobile', 'case'],              '/img/subcat-phones-cases.png'],
+  [['phone', 'part'],               '/img/subcat-phones-parts.png'],
+  [['mobile', 'part'],              '/img/subcat-phones-parts.png'],
+  [['mobile', 'phone'],             '/img/subcat-phones-mobile-phones.png'],
+  [['accessor', 'part'],            '/img/subcat-electronics-accessories-parts.png'],
+  [['portable', 'audio'],           '/img/subcat-electronics-portable-audio-video.png'],
+  [['portable', 'video'],           '/img/subcat-electronics-portable-audio-video.png'],
+  [['home', 'audio'],               '/img/subcat-electronics-home-audio-video.png'],
+  [['home', 'video'],               '/img/subcat-electronics-home-audio-video.png'],
+  [['smart', 'electronic'],         '/img/subcat-electronics-smart-electronics.png'],
+  [['camera', 'photo'],             '/img/subcat-electronics-camera-photo.png'],
+  [['video', 'game'],               '/img/subcat-electronics-video-games.png'],
+  [['men', 'underwear'],            '/img/subcat-men-underwear-sleepwear.png'],
+  [['men', 'sleepwear'],            '/img/subcat-men-underwear-sleepwear.png'],
+  [['men', 'outerwear'],            '/img/subcat-men-outerwear-jackets.png'],
+  [['men', 'jacket'],               '/img/subcat-men-outerwear-jackets.png'],
+  [['men', 'accessor'],             '/img/subcat-men-accessories.png'],
+  [['men', 'bottom'],               '/img/subcat-men-bottoms.png'],
+  [['men', 'pants'],                '/img/subcat-men-bottoms.png'],
+  [['men', 'top'],                  '/img/subcat-men-tops-tees.png'],
+  [['men', 'tee'],                  '/img/subcat-men-tops-tees.png'],
+  [['men', 'shirt'],                '/img/subcat-men-tops-tees.png'],
+  [['men', 'hat'],                  '/img/subcat-men-hats-caps.png'],
+  [['men', 'cap'],                  '/img/subcat-men-hats-caps.png'],
+  [['women', 'couple', 'parent'],   '/img/subcat-women-couple-parent-child.png'],
+  [['women', 'parent', 'child'],    '/img/subcat-women-couple-parent-child.png'],
+  [['women', 'tops', 'sets'],       '/img/subcat-women-tops-sets.png'],
+  [['women', 'bottom'],             '/img/subcat-women-bottoms.png'],
+  [['women', 'outerwear'],          '/img/subcat-women-outerwear-jackets.png'],
+  [['women', 'jacket'],             '/img/subcat-women-outerwear-jackets.png'],
+  [['women', 'wedding'],            '/img/subcat-women-weddings-events.png'],
+  [['women', 'event'],              '/img/subcat-women-weddings-events.png'],
+  [['women', 'accessor'],           '/img/subcat-women-accessories.png'],
   [['home', 'improvement'],     '/img/cat-home-improvement.png'],
   [['audio'],                   '/img/cat-electronics.png'],
   [['gadget'],                  '/img/cat-electronics.png'],
@@ -975,15 +1002,29 @@ const CAT_IMAGE_RULES = [
   [['auto'],                    '/img/cat-automobiles.png'],
   [['motorcycle'],              '/img/cat-automobiles.png'],
   [['phone'],                   '/img/cat-phones-accessories.png'],
-  [['accessor'],                '/img/subcat-women-accessories.png'],
   [['computer'],                '/img/cat-computers-office.png'],
   [['office'],                  '/img/cat-computers-office.png'],
 ];
-function catImage(name) {
+function categoryKeywordMatches(lower, keyword) {
+  if (keyword === 'men') return /\b(men|mens|men['’]s|man)\b/.test(lower);
+  if (keyword === 'women') return /\b(women|womens|women['’]s|woman)\b/.test(lower);
+  return lower.includes(keyword);
+}
+function allCategoryKeywordsMatch(lower, keywords) {
+  return keywords.every(k => categoryKeywordMatches(lower, k));
+}
+function catImage(name, contextName = '') {
   if (!name) return null;
-  const lower = name.toLowerCase();
+  const lower = (name || '').toLowerCase();
+  const contextLower = (contextName || '').toLowerCase();
   for (const [keywords, src] of CAT_IMAGE_RULES) {
-    if (keywords.every(k => lower.includes(k))) return `${src}?v=${CATEGORY_IMAGE_VERSION}`;
+    const gender = keywords.includes('men') ? 'men' : (keywords.includes('women') ? 'women' : null);
+    if (gender && keywords.length > 1) {
+      if (!categoryKeywordMatches(contextLower, gender)) continue;
+      if (allCategoryKeywordsMatch(lower, keywords.filter(k => k !== gender))) return `${src}?v=${CATEGORY_IMAGE_VERSION}`;
+    } else if (allCategoryKeywordsMatch(lower, keywords)) {
+      return `${src}?v=${CATEGORY_IMAGE_VERSION}`;
+    }
   }
   return null;
 }
@@ -1038,12 +1079,12 @@ function categoryGeneratedArt(name) {
     </svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
-function categoryVisualSrc(name) {
-  const photo = catImage(name);
+function categoryVisualSrc(name, contextName = '') {
+  const photo = catImage(name, contextName);
   return photo || categoryGeneratedArt(name);
 }
-function catIcon(name) {
-  return `<img src="${categoryVisualSrc(name)}" alt="" class="cat-img" loading="lazy"/>`;
+function catIcon(name, contextName = '') {
+  return `<img src="${categoryVisualSrc(name, contextName)}" alt="" class="cat-img" loading="lazy"/>`;
 }
 
 const HOME_CATEGORY_SHORTCUTS = [
@@ -1541,11 +1582,11 @@ async function renderHome() {
             </div>
             <div class="home-hero-art" aria-hidden="true">
               <div class="hero-showcase-card hero-showcase-main">
-                <img src="/img/cat-women-clothing.png?v=20260508e" alt="" />
+                <img src="/img/cat-women-clothing.png?v=20260508f" alt="" />
                 <span>Statement fashion</span>
               </div>
               <div class="hero-showcase-card hero-showcase-side">
-                <img src="/img/cat-electronics.png?v=20260508e" alt="" />
+                <img src="/img/cat-electronics.png?v=20260508f" alt="" />
                 <span>Smart tech</span>
               </div>
               <div class="hero-showcase-badge">Global Shopper</div>
@@ -1580,7 +1621,7 @@ async function renderHome() {
         <!-- PROMO BANNERS -->
         <section class="promo-blocks">
           <a href="/search?q=women dress" class="promo-big" id="promoWomenCta">
-            <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508e')"></div>
+            <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508f')"></div>
             <div class="promo-big-copy">
               <span class="promo-eyebrow">Fashion edit</span>
               <h2>Top fashionable picks</h2>
@@ -1590,7 +1631,7 @@ async function renderHome() {
           </a>
           <div class="promo-stack">
             <a href="/search?q=mini projector" class="promo-small promo-tech">
-              <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png?v=20260508e')"></div>
+              <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png?v=20260508f')"></div>
               <div class="promo-small-copy">
                 <span class="promo-eyebrow">Hard to find</span>
                 <h3>Rare tech gadgets</h3>
@@ -1599,7 +1640,7 @@ async function renderHome() {
               </div>
             </a>
             <a href="/search?q=men shirt" class="promo-small promo-men" id="promoMenCta">
-              <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508e')"></div>
+              <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508f')"></div>
               <div class="promo-small-copy">
                 <span class="promo-eyebrow">Men's style</span>
                 <h3>Global streetwear</h3>
@@ -1637,7 +1678,7 @@ async function renderHome() {
         <!-- MEN'S FASHION -->
         <section class="fashion-section home-product-rail">
           <div class="fashion-banner fashion-banner-men">
-            <div class="fashion-banner-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508e')"></div>
+            <div class="fashion-banner-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508f')"></div>
             <div class="fashion-banner-copy">
               <span class="fashion-eyebrow">Men's collection</span>
               <h2>Sharp everyday style</h2>
@@ -1675,7 +1716,7 @@ async function renderHome() {
         <!-- WOMEN'S FASHION -->
         <section class="fashion-section home-product-rail">
           <div class="fashion-banner fashion-banner-women">
-            <div class="fashion-banner-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508e')"></div>
+            <div class="fashion-banner-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508f')"></div>
             <div class="fashion-banner-copy">
               <span class="fashion-eyebrow">Women's collection</span>
               <h2>Statement-ready fashion</h2>
@@ -2126,7 +2167,7 @@ async function renderAllCategories() {
           const thirds = s.categorySecondList || [];
           const subHref = categoryHref(s);
           return `<a class="cat-sub-card" href="${subHref}">
-            <span class="cat-sub-card-img">${catIcon(subName)}</span>
+            <span class="cat-sub-card-img">${catIcon(subName, name)}</span>
             <span class="cat-sub-card-name">${esc(subName)}</span>
             ${thirds.length ? `<span class="cat-sub-card-meta">${thirds.length} options</span>` : ''}
           </a>`;
@@ -2184,7 +2225,7 @@ async function renderSearch(query, page = 1, opts = {}) {
       ${opts.categoryChildren.map(c => {
         const cname = c.categoryName || c.categorySecondName || c.categoryFirstName || '';
         return `<a class="subcat-chip subcat-visual-card" href="${categoryHref(c)}">
-          <span class="subcat-visual-img">${catIcon(cname)}</span>
+          <span class="subcat-visual-img">${catIcon(cname, opts.categoryName || '')}</span>
           <span class="subcat-visual-name">${esc(cname)}</span>
         </a>`;
       }).join('')}
