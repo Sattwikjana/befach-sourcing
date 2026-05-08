@@ -942,6 +942,10 @@ if (headerSearchInput) {
 // the more-specific rules above the catch-alls.
 const CAT_IMAGE_RULES = [
   [['home', 'improvement'],     '/img/cat-home-improvement.png'],
+  [['audio'],                   '/img/cat-electronics.png'],
+  [['gadget'],                  '/img/cat-electronics.png'],
+  [['smart'],                   '/img/cat-electronics.png'],
+  [['all', 'categories'],       '/img/cat-computers-office.png'],
   [['home'],                    '/img/cat-home-garden.png'],
   [['health'],                  '/img/cat-health-beauty.png'],
   [['beauty'],                  '/img/cat-health-beauty.png'],
@@ -973,14 +977,6 @@ function catImage(name) {
   }
   return null;
 }
-const CAT_ICONS = {
-  Computer: '💻', Phone: '📱', Electronic: '🔌', Home: '🏠', Garden: '🌿',
-  Toy: '🧸', Sport: '⚽', Beauty: '💄', Health: '💊', Cloth: '👕',
-  Women: '👗', Men: '👔', Jewel: '💍', Watch: '⌚', Bag: '👜', Shoe: '👟',
-  Baby: '👶', Pet: '🐾', Car: '🚗', Tool: '🔧', Light: '💡', Kitchen: '🍳',
-  Furniture: '🪑', Office: '🖨️', Outdoor: '⛺', Food: '🍕', Game: '🎮',
-  Book: '📚', Bed: '🛏️', Bath: '🛁', Travel: '🧳',
-};
 const CAT_ART_PALETTES = [
   ['#EFF6FF', '#2563EB', '#0F172A'],
   ['#FFF7ED', '#F97316', '#7C2D12'],
@@ -991,58 +987,16 @@ const CAT_ART_PALETTES = [
   ['#F0FDFA', '#0D9488', '#134E4A'],
   ['#EEF2FF', '#4F46E5', '#1E1B4B'],
 ];
-const CAT_ART_SYMBOLS = [
-  [/women|dress|skirt|top|blouse|legging|wedding|fashion|clothing/i, '👗'],
-  [/men|shirt|jacket|suit|trouser|hoodie|outerwear|bottom/i, '👔'],
-  [/phone|mobile|tablet|case|charger|cable/i, '📱'],
-  [/computer|laptop|office|keyboard|mouse|printer/i, '💻'],
-  [/electronic|gadget|projector|camera|smart|audio|headphone|speaker/i, '🎧'],
-  [/watch|jewel|necklace|ring|bracelet|earring/i, '⌚'],
-  [/beauty|health|makeup|hair|skin|nail|fragrance/i, '💄'],
-  [/home|garden|kitchen|furniture|decor|bath|bed|storage/i, '🏠'],
-  [/bag|shoe|sneaker|boot|wallet|luggage|travel/i, '👜'],
-  [/toy|kid|baby|children|school/i, '🧸'],
-  [/pet|dog|cat|animal/i, '🐾'],
-  [/sport|outdoor|fitness|camp|cycling|yoga/i, '⚽'],
-  [/auto|car|motor|vehicle|bike/i, '🚗'],
-  [/tool|hardware|light|improvement|repair/i, '🔧'],
-];
-function categorySymbol(name) {
-  const label = name || '';
-  for (const [re, symbol] of CAT_ART_SYMBOLS) {
-    if (re.test(label)) return symbol;
-  }
-  for (const [k, v] of Object.entries(CAT_ICONS)) {
-    if (label.toLowerCase().includes(k.toLowerCase())) return v;
-  }
-  return '✦';
-}
 function hashString(s) {
   let h = 0;
   const text = String(s || 'global shopper');
   for (let i = 0; i < text.length; i++) h = ((h << 5) - h + text.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
-function svgEsc(s) {
-  return String(s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-function compactCategoryLabel(name) {
-  const words = String(name || 'Shop')
-    .replace(/&/g, ' ')
-    .replace(/[^\w\s'-]/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  return words.slice(0, 2).join(' ') || 'Shop';
-}
 function categoryGeneratedArt(name) {
   const h = hashString(name);
   const [light, accent, dark] = CAT_ART_PALETTES[h % CAT_ART_PALETTES.length];
-  const symbol = categorySymbol(name);
-  const label = compactCategoryLabel(name);
+  const rotate = (h % 9) - 4;
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
       <defs>
@@ -1054,19 +1008,28 @@ function categoryGeneratedArt(name) {
         <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
           <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="${dark}" flood-opacity=".18"/>
         </filter>
+        <linearGradient id="p" x1="36" y1="34" x2="124" y2="130" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#FFFFFF"/>
+          <stop offset="1" stop-color="${light}"/>
+        </linearGradient>
       </defs>
       <rect width="160" height="160" rx="34" fill="url(#g)"/>
-      <circle cx="122" cy="36" r="30" fill="${accent}" opacity=".15"/>
-      <circle cx="30" cy="132" r="42" fill="${accent}" opacity=".10"/>
-      <path d="M24 42c29-22 59-24 90-7 14 8 25 8 34 1" fill="none" stroke="${accent}" stroke-opacity=".18" stroke-width="10" stroke-linecap="round"/>
-      <circle cx="80" cy="76" r="45" fill="#fff" filter="url(#s)"/>
-      <text x="80" y="91" text-anchor="middle" font-size="58" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">${svgEsc(symbol)}</text>
-      <text x="80" y="134" text-anchor="middle" font-size="15" font-weight="800" letter-spacing=".3" fill="${dark}" font-family="Inter, Arial, sans-serif">${svgEsc(label)}</text>
+      <circle cx="122" cy="34" r="34" fill="${accent}" opacity=".16"/>
+      <circle cx="28" cy="132" r="44" fill="${accent}" opacity=".10"/>
+      <path d="M21 45c30-22 60-25 91-8 16 9 27 8 38-1" fill="none" stroke="${accent}" stroke-opacity=".18" stroke-width="10" stroke-linecap="round"/>
+      <g transform="rotate(${rotate} 80 82)" filter="url(#s)">
+        <rect x="40" y="44" width="82" height="78" rx="21" fill="url(#p)" stroke="#FFFFFF" stroke-width="3"/>
+        <rect x="55" y="58" width="48" height="8" rx="4" fill="${accent}" opacity=".22"/>
+        <rect x="55" y="74" width="64" height="34" rx="13" fill="${accent}" opacity=".16"/>
+        <circle cx="112" cy="52" r="14" fill="#fff"/>
+        <circle cx="112" cy="52" r="7" fill="${accent}" opacity=".42"/>
+      </g>
+      <path d="M51 122h58" stroke="${dark}" stroke-opacity=".10" stroke-width="7" stroke-linecap="round"/>
     </svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
-function categoryVisualSrc(name, preferPhoto = false) {
-  const photo = preferPhoto ? catImage(name) : null;
+function categoryVisualSrc(name) {
+  const photo = catImage(name);
   return photo || categoryGeneratedArt(name);
 }
 function catIcon(name) {
