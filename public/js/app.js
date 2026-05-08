@@ -940,8 +940,39 @@ if (headerSearchInput) {
 // Top-level CJ categories get a real product photo. Match by ALL keywords
 // being present (case-insensitive substring) — first rule wins, so list
 // the more-specific rules above the catch-alls.
-const CATEGORY_IMAGE_VERSION = '20260508f';
+const CATEGORY_IMAGE_VERSION = '20260508g';
 const CAT_IMAGE_RULES = [
+  [['engagement', 'ring'],       '/img/subcat-jewelry-rings.png', ['jewelr']],
+  [['ring'],                     '/img/subcat-jewelry-rings.png', ['jewelr']],
+  [['fashion', 'jewelr'],        '/img/subcat-jewelry-fashion-jewelry.png', ['jewelr']],
+  [['earring'],                  '/img/subcat-jewelry-fashion-jewelry.png', ['jewelr']],
+  [['necklace'],                 '/img/subcat-jewelry-fine-jewelry.png', ['jewelr']],
+  [['pendant'],                  '/img/subcat-jewelry-fine-jewelry.png', ['jewelr']],
+  [['bracelet'],                 '/img/subcat-jewelry-fine-jewelry.png', ['jewelr']],
+  [['fine', 'jewelr'],           '/img/subcat-jewelry-fine-jewelry.png', ['jewelr']],
+  [['jewelry', 'set'],           '/img/subcat-jewelry-fine-jewelry.png', ['jewelr']],
+  [['men', 'watch'],             '/img/subcat-jewelry-men-watches.png', ['jewelr']],
+  [['women', 'watch'],           '/img/subcat-jewelry-women-watches.png', ['jewelr']],
+  [['watch'],                    '/img/subcat-jewelry-women-watches.png', ['jewelr']],
+  [['nail'],                     '/img/subcat-health-nail-art-tools.png', ['health']],
+  [['health', 'care'],           '/img/subcat-health-health-care.png', ['health']],
+  [['supplement'],               '/img/subcat-health-health-care.png', ['health']],
+  [['vitamin'],                  '/img/subcat-health-health-care.png', ['health']],
+  [['hair', 'accessor'],         '/img/subcat-health-hair-accessories.png', ['health']],
+  [['hair', 'clip'],             '/img/subcat-health-hair-accessories.png', ['health']],
+  [['braid'],                    '/img/subcat-health-braiding-hair.png', ['health']],
+  [['synthetic', 'hair'],        '/img/subcat-health-braiding-hair.png', ['health']],
+  [['skin'],                     '/img/subcat-health-skin-care.png', ['health']],
+  [['facial'],                   '/img/subcat-health-skin-care.png', ['health']],
+  [['bundle'],                   '/img/subcat-health-hair-bundles.png', ['health']],
+  [['human', 'hair'],            '/img/subcat-health-hair-bundles.png', ['health']],
+  [['hair', 'extension'],        '/img/subcat-health-hair-bundles.png', ['health']],
+  [['makeup'],                   '/img/subcat-health-makeup.png', ['health']],
+  [['cosmetic'],                 '/img/subcat-health-makeup.png', ['health']],
+  [['wig'],                      '/img/subcat-health-wigs.png', ['health']],
+  [['beauty', 'tool'],           '/img/subcat-health-beauty-tools.png', ['health']],
+  [['tool'],                     '/img/subcat-health-beauty-tools.png', ['health']],
+  [['hair'],                     '/img/subcat-health-hair-accessories.png', ['health']],
   [['mobile', 'phone', 'accessor'], '/img/subcat-phones-accessories.png'],
   [['phone', 'case'],               '/img/subcat-phones-cases.png'],
   [['mobile', 'case'],              '/img/subcat-phones-cases.png'],
@@ -1017,10 +1048,11 @@ function catImage(name, contextName = '') {
   if (!name) return null;
   const lower = (name || '').toLowerCase();
   const contextLower = (contextName || '').toLowerCase();
-  for (const [keywords, src] of CAT_IMAGE_RULES) {
+  for (const [keywords, src, contextKeywords = []] of CAT_IMAGE_RULES) {
+    if (contextKeywords.length && !allCategoryKeywordsMatch(contextLower, contextKeywords)) continue;
     const gender = keywords.includes('men') ? 'men' : (keywords.includes('women') ? 'women' : null);
     if (gender && keywords.length > 1) {
-      if (!categoryKeywordMatches(contextLower, gender)) continue;
+      if (!categoryKeywordMatches(contextLower, gender) && !categoryKeywordMatches(lower, gender)) continue;
       if (allCategoryKeywordsMatch(lower, keywords.filter(k => k !== gender))) return `${src}?v=${CATEGORY_IMAGE_VERSION}`;
     } else if (allCategoryKeywordsMatch(lower, keywords)) {
       return `${src}?v=${CATEGORY_IMAGE_VERSION}`;
@@ -1582,11 +1614,11 @@ async function renderHome() {
             </div>
             <div class="home-hero-art" aria-hidden="true">
               <div class="hero-showcase-card hero-showcase-main">
-                <img src="/img/cat-women-clothing.png?v=20260508f" alt="" />
+                <img src="/img/cat-women-clothing.png?v=20260508g" alt="" />
                 <span>Statement fashion</span>
               </div>
               <div class="hero-showcase-card hero-showcase-side">
-                <img src="/img/cat-electronics.png?v=20260508f" alt="" />
+                <img src="/img/cat-electronics.png?v=20260508g" alt="" />
                 <span>Smart tech</span>
               </div>
               <div class="hero-showcase-badge">Global Shopper</div>
@@ -1621,7 +1653,7 @@ async function renderHome() {
         <!-- PROMO BANNERS -->
         <section class="promo-blocks">
           <a href="/search?q=women dress" class="promo-big" id="promoWomenCta">
-            <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508f')"></div>
+            <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508g')"></div>
             <div class="promo-big-copy">
               <span class="promo-eyebrow">Fashion edit</span>
               <h2>Top fashionable picks</h2>
@@ -1631,7 +1663,7 @@ async function renderHome() {
           </a>
           <div class="promo-stack">
             <a href="/search?q=mini projector" class="promo-small promo-tech">
-              <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png?v=20260508f')"></div>
+              <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png?v=20260508g')"></div>
               <div class="promo-small-copy">
                 <span class="promo-eyebrow">Hard to find</span>
                 <h3>Rare tech gadgets</h3>
@@ -1640,7 +1672,7 @@ async function renderHome() {
               </div>
             </a>
             <a href="/search?q=men shirt" class="promo-small promo-men" id="promoMenCta">
-              <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508f')"></div>
+              <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508g')"></div>
               <div class="promo-small-copy">
                 <span class="promo-eyebrow">Men's style</span>
                 <h3>Global streetwear</h3>
@@ -1678,7 +1710,7 @@ async function renderHome() {
         <!-- MEN'S FASHION -->
         <section class="fashion-section home-product-rail">
           <div class="fashion-banner fashion-banner-men">
-            <div class="fashion-banner-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508f')"></div>
+            <div class="fashion-banner-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508g')"></div>
             <div class="fashion-banner-copy">
               <span class="fashion-eyebrow">Men's collection</span>
               <h2>Sharp everyday style</h2>
@@ -1716,7 +1748,7 @@ async function renderHome() {
         <!-- WOMEN'S FASHION -->
         <section class="fashion-section home-product-rail">
           <div class="fashion-banner fashion-banner-women">
-            <div class="fashion-banner-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508f')"></div>
+            <div class="fashion-banner-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508g')"></div>
             <div class="fashion-banner-copy">
               <span class="fashion-eyebrow">Women's collection</span>
               <h2>Statement-ready fashion</h2>
