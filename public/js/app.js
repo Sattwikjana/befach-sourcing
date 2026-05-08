@@ -1037,18 +1037,18 @@ function catIcon(name) {
 }
 
 const HOME_CATEGORY_SHORTCUTS = [
-  { id: 'mobileWomenCat', label: 'Women', match: /^women.?s\s+clothing/i, fallback: '/search?q=women dress', artName: "Women's Clothing" },
-  { id: 'mobileMenCat', label: 'Men', match: /^men.?s\s+clothing/i, fallback: '/search?q=men shirt', artName: "Men's Clothing" },
-  { id: 'mobileGadgetsCat', label: 'Gadgets', match: /electronic/i, fallback: '/search?q=smart watch', artName: 'Electronics Gadgets' },
-  { id: 'mobileAudioCat', label: 'Audio', match: /phone|electronic/i, fallback: '/search?q=headphones', artName: 'Audio Headphones' },
-  { id: 'mobileWatchesCat', label: 'Watches', match: /jewel|watch/i, fallback: '/search?q=watch', artName: 'Watches' },
-  { id: 'mobileBeautyCat', label: 'Beauty', match: /health|beauty/i, fallback: '/search?q=makeup organizer', artName: 'Beauty Tools' },
-  { id: 'mobileBagsCat', label: 'Bags', match: /bag|shoe/i, fallback: '/search?q=handbag', artName: 'Bags Shoes' },
-  { id: 'mobileHomeCat', label: 'Home', match: /^home|garden|furniture/i, fallback: '/search?q=kitchen tools', artName: 'Home Garden' },
-  { id: 'mobileKidsCat', label: 'Kids', match: /toy|kid|bab/i, fallback: '/search?q=kids toy', artName: 'Kids Toys' },
-  { id: 'mobileSportsCat', label: 'Sports', match: /sport|outdoor/i, fallback: '/search?q=sports', artName: 'Sports Outdoors' },
-  { id: 'mobilePetsCat', label: 'Pets', match: /pet/i, fallback: '/search?q=pet supplies', artName: 'Pet Supplies' },
-  { id: 'mobileAllCat', label: 'All', match: null, fallback: '/category', artName: 'All Categories' },
+  { id: 'mobileWomenCat', label: "Women's Clothing", match: /^women.?s\s+clothing/i, fallback: '/search?q=women dress', artName: "Women's Clothing" },
+  { id: 'mobileMenCat', label: "Men's Clothing", match: /^men.?s\s+clothing/i, fallback: '/search?q=men shirt', artName: "Men's Clothing" },
+  { id: 'mobileGadgetsCat', label: 'Consumer Electronics', match: /consumer.*electronic|electronic/i, fallback: '/search?q=smart watch', artName: 'Consumer Electronics' },
+  { id: 'mobileAudioCat', label: 'Phones & Accessories', match: /phone/i, fallback: '/search?q=headphones', artName: 'Phones & Accessories' },
+  { id: 'mobileWatchesCat', label: 'Jewelry & Watches', match: /jewel|watch/i, fallback: '/search?q=watch', artName: 'Jewelry & Watches' },
+  { id: 'mobileBeautyCat', label: 'Health, Beauty & Hair', match: /health|beauty/i, fallback: '/search?q=makeup organizer', artName: 'Health, Beauty & Hair' },
+  { id: 'mobileBagsCat', label: 'Bags & Shoes', match: /bag|shoe/i, fallback: '/search?q=handbag', artName: 'Bags & Shoes' },
+  { id: 'mobileHomeCat', label: 'Home, Garden & Furniture', match: /^home|garden|furniture/i, fallback: '/search?q=kitchen tools', artName: 'Home, Garden & Furniture' },
+  { id: 'mobileKidsCat', label: 'Toys, Kids & Babies', match: /toy|kid|bab/i, fallback: '/search?q=kids toy', artName: 'Toys, Kids & Babies' },
+  { id: 'mobileSportsCat', label: 'Sports & Outdoors', match: /sport|outdoor/i, fallback: '/search?q=sports', artName: 'Sports & Outdoors' },
+  { id: 'mobilePetsCat', label: 'Pet Supplies', match: /pet/i, fallback: '/search?q=pet supplies', artName: 'Pet Supplies' },
+  { id: 'mobileAllCat', label: 'All Categories', match: null, fallback: '/category', artName: 'All Categories' },
 ];
 function findTopCategory(match) {
   if (!match) return null;
@@ -1059,9 +1059,10 @@ function renderMobileCategoryShortcuts() {
     const cat = findTopCategory(item.match);
     const href = cat ? categoryHref(cat) : item.fallback;
     const artName = cat ? (cat.categoryFirstName || item.artName) : item.artName;
+    const label = cat ? (cat.categoryFirstName || item.label) : item.label;
     return `<a id="${item.id}" href="${href}">
       <img src="${categoryVisualSrc(artName)}" alt="" width="70" height="70" loading="lazy" />
-      <span>${esc(item.label)}</span>
+      <span>${esc(label)}</span>
     </a>`;
   }).join('');
 }

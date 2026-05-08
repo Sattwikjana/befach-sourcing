@@ -948,10 +948,8 @@ main {
   object-fit: cover;
 }
 .cat-sub-card-name {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  display: block;
+  overflow: visible;
   font-size: 13px;
   font-weight: 800;
   line-height: 1.2;
@@ -1616,10 +1614,8 @@ main {
   object-fit: cover;
 }
 .subcat-visual-name {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  display: block;
+  overflow: visible;
   font-size: 12px;
   font-weight: 800;
   line-height: 1.15;
@@ -3180,7 +3176,7 @@ body.page-home .header-nav { margin-left: auto; }
     box-shadow: none;
   }
   .subcat-visual-img { width: 56px; height: 56px; border-radius: 17px; }
-  .subcat-visual-name { font-size: 11px; -webkit-line-clamp: 2; }
+  .subcat-visual-name { font-size: 11px; }
   .banner-row { grid-template-columns: 1fr; gap: 12px; }
   .banner { padding: 28px 20px; min-height: 140px; }
   .banner h3 { font-size: 22px; }
@@ -4276,9 +4272,9 @@ body {
     align-items: start;
     gap: 7px;
     color: #172033;
-    font-size: 11.5px;
+    font-size: 10.8px;
     font-weight: 800;
-    line-height: 1.15;
+    line-height: 1.12;
     text-align: center;
   }
   .mobile-shop-strip a span {
@@ -4286,7 +4282,7 @@ body {
     align-items: flex-start;
     justify-content: center;
     width: 100%;
-    min-height: 30px;
+    min-height: 42px;
     overflow-wrap: anywhere;
   }
   .mobile-shop-strip img {
@@ -4458,7 +4454,7 @@ body {
   }
   .mobile-shop-strip a {
     grid-template-rows: 54px auto;
-    font-size: 11px;
+    font-size: 10px;
   }
   .mobile-shop-strip img {
     width: 54px;
