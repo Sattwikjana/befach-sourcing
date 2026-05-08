@@ -940,6 +940,7 @@ if (headerSearchInput) {
 // Top-level CJ categories get a real product photo. Match by ALL keywords
 // being present (case-insensitive substring) — first rule wins, so list
 // the more-specific rules above the catch-alls.
+const CATEGORY_IMAGE_VERSION = '20260508d';
 const CAT_IMAGE_RULES = [
   [['home', 'improvement'],     '/img/cat-home-improvement.png'],
   [['audio'],                   '/img/cat-electronics.png'],
@@ -973,7 +974,7 @@ function catImage(name) {
   if (!name) return null;
   const lower = name.toLowerCase();
   for (const [keywords, src] of CAT_IMAGE_RULES) {
-    if (keywords.every(k => lower.includes(k))) return src;
+    if (keywords.every(k => lower.includes(k))) return `${src}?v=${CATEGORY_IMAGE_VERSION}`;
   }
   return null;
 }
@@ -1531,11 +1532,11 @@ async function renderHome() {
             </div>
             <div class="home-hero-art" aria-hidden="true">
               <div class="hero-showcase-card hero-showcase-main">
-                <img src="/img/cat-women-clothing.png" alt="" />
+                <img src="/img/cat-women-clothing.png?v=20260508d" alt="" />
                 <span>Statement fashion</span>
               </div>
               <div class="hero-showcase-card hero-showcase-side">
-                <img src="/img/cat-electronics.png" alt="" />
+                <img src="/img/cat-electronics.png?v=20260508d" alt="" />
                 <span>Smart tech</span>
               </div>
               <div class="hero-showcase-badge">Global Shopper</div>
@@ -1570,7 +1571,7 @@ async function renderHome() {
         <!-- PROMO BANNERS -->
         <section class="promo-blocks">
           <a href="/search?q=women dress" class="promo-big" id="promoWomenCta">
-            <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
+            <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508d')"></div>
             <div class="promo-big-copy">
               <span class="promo-eyebrow">Fashion edit</span>
               <h2>Top fashionable picks</h2>
@@ -1580,7 +1581,7 @@ async function renderHome() {
           </a>
           <div class="promo-stack">
             <a href="/search?q=mini projector" class="promo-small promo-tech">
-              <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png')"></div>
+              <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png?v=20260508d')"></div>
               <div class="promo-small-copy">
                 <span class="promo-eyebrow">Hard to find</span>
                 <h3>Rare tech gadgets</h3>
@@ -1589,7 +1590,7 @@ async function renderHome() {
               </div>
             </a>
             <a href="/search?q=men shirt" class="promo-small promo-men" id="promoMenCta">
-              <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
+              <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508d')"></div>
               <div class="promo-small-copy">
                 <span class="promo-eyebrow">Men's style</span>
                 <h3>Global streetwear</h3>
@@ -1627,7 +1628,7 @@ async function renderHome() {
         <!-- MEN'S FASHION -->
         <section class="fashion-section home-product-rail">
           <div class="fashion-banner fashion-banner-men">
-            <div class="fashion-banner-bg" style="background-image:url('/img/cat-men-clothing.png')"></div>
+            <div class="fashion-banner-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508d')"></div>
             <div class="fashion-banner-copy">
               <span class="fashion-eyebrow">Men's collection</span>
               <h2>Sharp everyday style</h2>
@@ -1665,7 +1666,7 @@ async function renderHome() {
         <!-- WOMEN'S FASHION -->
         <section class="fashion-section home-product-rail">
           <div class="fashion-banner fashion-banner-women">
-            <div class="fashion-banner-bg" style="background-image:url('/img/cat-women-clothing.png')"></div>
+            <div class="fashion-banner-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508d')"></div>
             <div class="fashion-banner-copy">
               <span class="fashion-eyebrow">Women's collection</span>
               <h2>Statement-ready fashion</h2>
