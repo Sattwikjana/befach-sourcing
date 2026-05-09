@@ -4479,3 +4479,378 @@ body {
     flex-basis: 152px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Mobile app shell — Flipkart-style blue commerce header
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 860px) {
+  body {
+    background:
+      linear-gradient(180deg, #EAF2FF 0%, #F5F8FF 360px, var(--bg) 100%),
+      var(--bg);
+  }
+
+  .header {
+    background:
+      radial-gradient(circle at 14% 0%, rgba(255, 255, 255, 0.18), transparent 28%),
+      linear-gradient(180deg, #0B5FFF 0%, #0646D8 100%);
+    border-bottom: 0;
+    box-shadow: 0 12px 28px rgba(6, 70, 216, 0.24);
+    padding-top: max(8px, env(safe-area-inset-top, 0px));
+  }
+
+  html.global-shopper-native-app .header {
+    padding-top: 8px;
+  }
+
+  .header-inner {
+    max-width: none;
+    min-height: 120px;
+    padding: 8px 12px 12px;
+    gap: 8px;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .header-hamburger {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    padding: 0;
+    border-radius: 14px;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .header-hamburger:hover,
+  .header-hamburger:active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .brand {
+    width: max-content;
+    max-width: 84px;
+    min-height: 48px;
+    justify-self: start;
+    gap: 0;
+    padding: 4px 8px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
+  }
+
+  .brand-logo-img {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+  }
+
+  .brand-tagline-side {
+    display: none;
+  }
+
+  .header-nav {
+    justify-self: end;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .auth-slot {
+    min-width: 0;
+  }
+
+  .nav-account {
+    min-height: 44px;
+    max-width: 148px;
+    padding: 4px 10px 4px 4px !important;
+    background: rgba(255, 255, 255, 0.94);
+    color: #0B1220;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+  }
+
+  .nav-account:hover,
+  .nav-account:active {
+    background: #fff;
+    color: #0B1220;
+  }
+
+  .nav-account .nav-label {
+    display: inline-block;
+    max-width: 82px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nav-avatar {
+    width: 34px;
+    height: 34px;
+    background: #0B1220;
+    color: #fff;
+    font-size: 14px;
+  }
+
+  .cart-link {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    justify-content: center;
+    padding: 0;
+    border-radius: 14px;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .cart-link:hover,
+  .cart-link:active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .cart-link svg {
+    width: 23px;
+    height: 23px;
+  }
+
+  .cart-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    display: grid;
+    place-items: center;
+    background: #0B1220;
+    color: #fff;
+    border: 2px solid #0B5FFF;
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .header-search {
+    grid-column: 1 / -1;
+    order: 3;
+    height: 56px;
+    margin-top: 2px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 16px;
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.18);
+  }
+
+  .header-search:focus-within {
+    border-color: rgba(255, 255, 255, 0.96);
+    box-shadow:
+      0 0 0 3px rgba(255, 255, 255, 0.22),
+      0 12px 26px rgba(15, 23, 42, 0.18);
+  }
+
+  .header-search input {
+    min-width: 0;
+    padding: 0 16px;
+    font-size: 16px;
+    color: #0F172A;
+    background: #fff;
+  }
+
+  .header-search input::placeholder {
+    color: #7A8797;
+  }
+
+  .header-cat-btn {
+    display: none;
+  }
+
+  .header-photo-btn {
+    min-width: 54px;
+    padding: 0;
+    border-left: 1px solid #E2E8F0;
+    color: #475569;
+    background: #fff;
+  }
+
+  .header-photo-btn:hover,
+  .header-photo-btn:active {
+    color: #0B5FFF;
+    background: #EFF6FF;
+  }
+
+  .header-search-btn {
+    min-width: 58px;
+    padding: 0;
+    background: #0B5FFF;
+    color: #fff;
+  }
+
+  .header-search-btn:hover,
+  .header-search-btn:active {
+    background: #0646D8;
+  }
+
+  body.page-home main {
+    padding-top: 12px;
+  }
+
+  .home-hero-compact {
+    margin: 0 0 16px;
+    border-radius: 22px;
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 18px 38px rgba(6, 70, 216, 0.2);
+  }
+
+  .home-hero {
+    background:
+      linear-gradient(135deg, rgba(6, 20, 48, 0.98) 0%, rgba(17, 39, 93, 0.96) 42%, rgba(11, 95, 255, 0.9) 100%),
+      radial-gradient(circle at 88% 18%, rgba(255, 215, 106, 0.34), transparent 32%);
+  }
+
+  .home-hero-chips a {
+    min-height: 36px;
+    padding: 7px 13px;
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+
+  .home-hero-stats > div {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .mobile-shop-strip {
+    margin: 0 0 18px;
+    padding: 14px 10px 12px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(203, 213, 225, 0.62);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  }
+
+  .mobile-shop-strip a {
+    min-height: 104px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-shop-strip img {
+    width: 60px;
+    height: 60px;
+    border-radius: 20px;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+  }
+
+  .mobile-shop-strip a span {
+    color: #111827;
+    font-size: 10.5px;
+    font-weight: 900;
+    letter-spacing: 0;
+  }
+
+  .trust-item {
+    border-radius: 18px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  }
+
+  .trust-icon {
+    background: #EAF2FF;
+    border-color: #BFDBFE;
+    color: #0B5FFF;
+  }
+
+  .mobile-bottom-nav {
+    border-top: 1px solid rgba(203, 213, 225, 0.7);
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 30px rgba(15, 23, 42, 0.14);
+  }
+
+  .mbn-item {
+    min-height: 58px;
+    color: #6B7280;
+    font-size: 11px;
+  }
+
+  .mbn-item::before {
+    top: 3px;
+    width: 46px;
+    height: 34px;
+    border-radius: 18px;
+  }
+
+  body.page-home .mbn-item[data-page="home"],
+  body.page-category .mbn-item[data-page="category"],
+  body.page-search .mbn-item[data-page="category"],
+  body.page-wishlist .mbn-item[data-page="wishlist"],
+  body.page-cart .mbn-item[data-page="cart"],
+  body.page-account .mbn-item[data-page="account"],
+  body.page-login .mbn-item[data-page="account"],
+  body.page-register .mbn-item[data-page="account"],
+  body.page-orders .mbn-item[data-page="account"],
+  body.page-returns .mbn-item[data-page="account"] {
+    color: #0B5FFF;
+  }
+
+  body.page-home .mbn-item[data-page="home"]::before,
+  body.page-category .mbn-item[data-page="category"]::before,
+  body.page-search .mbn-item[data-page="category"]::before,
+  body.page-wishlist .mbn-item[data-page="wishlist"]::before,
+  body.page-cart .mbn-item[data-page="cart"]::before,
+  body.page-account .mbn-item[data-page="account"]::before,
+  body.page-login .mbn-item[data-page="account"]::before,
+  body.page-register .mbn-item[data-page="account"]::before,
+  body.page-orders .mbn-item[data-page="account"]::before,
+  body.page-returns .mbn-item[data-page="account"]::before {
+    background: #DBEAFE;
+  }
+
+  .mbn-badge {
+    background: #FDBA00;
+    color: #111827;
+    border: 2px solid #fff;
+  }
+}
+
+@media (max-width: 380px) {
+  .header-inner {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .header-hamburger,
+  .cart-link {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+  }
+
+  .brand {
+    max-width: 68px;
+    min-height: 44px;
+    padding: 4px 7px;
+  }
+
+  .brand-logo-img {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .nav-account {
+    padding: 4px !important;
+  }
+
+  .nav-account .nav-label,
+  .nav-account-chev {
+    display: none !important;
+  }
+
+  .header-search {
+    height: 54px;
+  }
+}
