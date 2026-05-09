@@ -118,8 +118,8 @@ function renderDrawer() {
       <div class="drawer-cats" id="drawerCats" hidden>
         <span class="drawer-cats-loading muted">Loading…</span>
       </div>
-      <a href="/cart" class="drawer-link">Cart</a>
-      <a href="/wishlist" class="drawer-link">Wishlist</a>
+      <a href="${u ? '/cart' : '/login?redirect=%2Fcart'}" class="drawer-link">Cart</a>
+      <a href="${u ? '/wishlist' : '/login?redirect=%2Fwishlist'}" class="drawer-link">Wishlist</a>
       <a href="/track" class="drawer-link">Track order</a>
     </div>
 
@@ -285,6 +285,21 @@ function showToast(msg, duration = 2400) {
   clearTimeout(showToast._t);
   showToast._t = setTimeout(() => toast.classList.remove('show'), duration);
 }
+
+function currentReturnPath() {
+  const path = `${location.pathname || '/'}${location.search || ''}`;
+  return path && path !== '/login' && path !== '/register' ? path : '/';
+}
+
+function requireSignIn(action = 'continue', redirect = currentReturnPath()) {
+  const safeRedirect = (redirect && redirect.startsWith('/') && !redirect.startsWith('//'))
+    ? redirect
+    : '/';
+  showToast(`Please sign in to ${action}.`, 3200);
+  navigate(`/login?redirect=${encodeURIComponent(safeRedirect)}`);
+  return false;
+}
+window.requireSignIn = requireSignIn;
 
 function productSkeleton(count = 8) {
   return Array(count).fill(`
@@ -454,11 +469,10 @@ async function runPhotoSearch(file) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  CART (localStorage + server sync for signed-in users)
-//  Local optimistic update + fire-and-forget push to server keeps
-//  the UI snappy. On login we merge guest localStorage cart with
-//  the server cart so nothing the user added before signing in
-//  gets lost.
+//  CART (account-only)
+//  LocalStorage is just a signed-in cache for the current device; the
+//  server-side account cart is authoritative. Signed-out visitors are
+//  sent to login before anything can be added.
 // ══════════════════════════════════════════════════════════════
 const CART_KEY = 'befach_cart_v1';
 
@@ -475,6 +489,12 @@ function saveCart() {
   pushCartToServer();
   updateCartBadge();
 }
+function clearGuestCartStorage() {
+  state.cart = [];
+  try { localStorage.removeItem(CART_KEY); } catch {}
+  updateCartBadge();
+}
+window.clearGuestCartStorage = clearGuestCartStorage;
 // Push the current cart to the server. Debounced 300ms so a flurry
 // of quantity-stepper clicks doesn't fire ten requests.
 let _cartPushTimer = null;
@@ -492,8 +512,7 @@ function pushCartToServer() {
   }, 300);
 }
 // Called after auth state is established (loadCurrentUser). Pulls the
-// server cart and merges with whatever the user had locally — keeps
-// items added as a guest, takes max quantity on overlaps.
+// server cart and replaces the local cache to avoid cross-account leakage.
 async function syncCartFromServer() {
   if (!state.user) return;
   try {
@@ -501,22 +520,14 @@ async function syncCartFromServer() {
     if (!res.ok) return;
     const data = await res.json();
     const serverCart = Array.isArray(data.cart) ? data.cart : [];
-    const merged = [...state.cart];
-    for (const s of serverCart) {
-      const existing = merged.find(i => i.pid === s.pid && i.vid === s.vid);
-      if (!existing) merged.push(s);
-      else existing.quantity = Math.max(existing.quantity, s.quantity);
-    }
-    state.cart = merged;
+    state.cart = serverCart;
     try { localStorage.setItem(CART_KEY, JSON.stringify(state.cart)); } catch {}
     updateCartBadge();
-    // Push merged result back so any new local items reach the server
-    pushCartToServer();
   } catch {}
 }
 window.syncCartFromServer = syncCartFromServer;
 function updateCartBadge() {
-  const n = state.cart.reduce((s, i) => s + (i.quantity || 0), 0);
+  const n = state.user ? state.cart.reduce((s, i) => s + (i.quantity || 0), 0) : 0;
   if (cartCountEl) cartCountEl.textContent = n;
   // Mobile bottom-nav cart badge — hide entirely when 0 so empty
   // carts don't show a "0" pill.
@@ -527,6 +538,7 @@ function updateCartBadge() {
   }
 }
 function addToCart(item) {
+  if (!state.user) return requireSignIn('add items to your cart');
   // item: { pid, vid, quantity, productName, variantName, image, priceUsd }
   const existing = state.cart.find(i => i.pid === item.pid && i.vid === item.vid);
   if (existing) {
@@ -535,18 +547,22 @@ function addToCart(item) {
     state.cart.push({ ...item });
   }
   saveCart();
+  return true;
 }
 function updateCartQuantity(pid, vid, qty) {
+  if (!state.user) return requireSignIn('manage your cart', '/cart');
   const item = state.cart.find(i => i.pid === pid && i.vid === vid);
   if (!item) return;
   item.quantity = Math.max(1, parseInt(qty) || 1);
   saveCart();
 }
 function removeFromCart(pid, vid) {
+  if (!state.user) return requireSignIn('manage your cart', '/cart');
   state.cart = state.cart.filter(i => !(i.pid === pid && i.vid === vid));
   saveCart();
 }
 function clearCart() {
+  if (!state.user) return requireSignIn('manage your cart', '/cart');
   state.cart = [];
   saveCart();
 }
@@ -556,9 +572,9 @@ function cartSubtotalUsd() {
 updateCartBadge();
 
 // ══════════════════════════════════════════════════════════════
-//  WISHLIST (localStorage + server sync for signed-in users)
-//  Stores product IDs only — product details are fetched on demand
-//  when the user opens the wishlist page.
+//  WISHLIST (account-only)
+//  Stores product IDs only. The server-side account wishlist is
+//  authoritative; signed-out visitors are sent to login before saving.
 // ══════════════════════════════════════════════════════════════
 const WISHLIST_KEY = 'gcom_wishlist_v1';
 state_wishlistInit();
@@ -573,6 +589,12 @@ function saveWishlist() {
   try { localStorage.setItem(WISHLIST_KEY, JSON.stringify(state.wishlist)); } catch {}
   pushWishlistToServer();
 }
+function clearGuestWishlistStorage() {
+  state.wishlist = [];
+  try { localStorage.removeItem(WISHLIST_KEY); } catch {}
+  refreshWishlistButtons();
+}
+window.clearGuestWishlistStorage = clearGuestWishlistStorage;
 let _wishlistPushTimer = null;
 function pushWishlistToServer() {
   if (!state.user) return;
@@ -594,18 +616,16 @@ async function syncWishlistFromServer() {
     if (!res.ok) return;
     const data = await res.json();
     const serverList = Array.isArray(data.wishlist) ? data.wishlist : [];
-    // Union — keep everything the user had locally + everything on server
-    const merged = Array.from(new Set([...state.wishlist, ...serverList]));
-    state.wishlist = merged;
+    state.wishlist = Array.from(new Set(serverList));
     try { localStorage.setItem(WISHLIST_KEY, JSON.stringify(state.wishlist)); } catch {}
-    pushWishlistToServer();
     refreshWishlistButtons();
   } catch {}
 }
 window.syncWishlistFromServer = syncWishlistFromServer;
-function isInWishlist(pid) { return Array.isArray(state.wishlist) && state.wishlist.includes(pid); }
+function isInWishlist(pid) { return !!state.user && Array.isArray(state.wishlist) && state.wishlist.includes(pid); }
 function toggleWishlist(pid) {
   if (!pid) return false;
+  if (!state.user) return requireSignIn('save products to your wishlist');
   if (!Array.isArray(state.wishlist)) state.wishlist = [];
   const idx = state.wishlist.indexOf(pid);
   let added;
@@ -1476,6 +1496,7 @@ function productCard(p, idx) {
 window._cardWishToggle = function(btn) {
   const pid = btn?.getAttribute('data-wish-pid');
   if (!pid) return;
+  if (!state.user) return requireSignIn('save products to your wishlist');
   const added = toggleWishlist(pid);
   showToast(added ? '♥ Added to wishlist' : 'Removed from wishlist');
 };
@@ -1485,6 +1506,7 @@ window._cardWishToggle = function(btn) {
 window._pdWishToggle = function(btn) {
   const pid = btn?.getAttribute('data-wish-pid');
   if (!pid) return;
+  if (!state.user) return requireSignIn('save products to your wishlist');
   const added = toggleWishlist(pid);
   const label = btn.querySelector('.btn-wish-pd-label');
   if (label) label.textContent = added ? 'Saved' : 'Wishlist';
@@ -2707,7 +2729,7 @@ async function renderProduct(pid) {
   document.getElementById('pdAddCart').onclick = () => {
     if (!current.vid) return showToast('Please pick a variant');
     const qty = parseInt(qtyInput.value) || 1;
-    addToCart({
+    if (!addToCart({
       pid: current.pid,
       vid: current.vid,
       quantity: qty,
@@ -2715,7 +2737,7 @@ async function renderProduct(pid) {
       variantName: current.variantName,
       image: current.image,
       priceUsd: current.priceUsd.toString(),
-    });
+    })) return;
     showToast(`✅ Added ${qty} × ${current.name.slice(0, 30)} to cart`);
   };
 
@@ -2723,11 +2745,11 @@ async function renderProduct(pid) {
   document.getElementById('pdBuyNow').onclick = () => {
     if (!current.vid) return showToast('Please pick a variant');
     const qty = parseInt(qtyInput.value) || 1;
-    addToCart({
+    if (!addToCart({
       pid: current.pid, vid: current.vid, quantity: qty,
       productName: current.name, variantName: current.variantName,
       image: current.image, priceUsd: current.priceUsd.toString(),
-    });
+    })) return;
     navigate('/checkout');
   };
 
@@ -2743,11 +2765,11 @@ async function renderProduct(pid) {
     getDisabled: () => !current.vid || document.getElementById('pdAddCart')?.disabled,
     onClick: () => {
       const qty = parseInt(qtyInput.value) || 1;
-      addToCart({
+      if (!addToCart({
         pid: current.pid, vid: current.vid, quantity: qty,
         productName: current.name, variantName: current.variantName,
         image: current.image, priceUsd: current.priceUsd.toString(),
-      });
+      })) return;
       showToast(`✅ Added to cart`);
     },
     label: '🛒 Add to Cart',

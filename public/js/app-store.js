@@ -9,6 +9,7 @@
 //  CART PAGE
 // ══════════════════════════════════════════════════════════════
 function renderCart() {
+  if (!state.user) return requireSignIn('view your cart', '/cart');
   const items = state.cart;
 
   if (!items.length) {
@@ -133,6 +134,7 @@ function stripCountryCode(phone, ccode = 'IN') {
 }
 
 async function renderCheckout() {
+  if (!state.user) return requireSignIn('checkout', '/checkout');
   if (!state.cart.length) return renderCart();
 
   // Restore any previous address so customers don't re-type
@@ -978,11 +980,14 @@ async function loadCurrentUser() {
   } catch { state.user = null; }
   updateAuthSlot();
   // Once we know who's signed in, pull their server-side cart and
-  // wishlist down and merge with whatever they had as a guest. This
-  // is what makes "I added something then refreshed" actually work.
+  // wishlist down. Cart and wishlist are account-only, so signed-out
+  // visitors never keep a guest cart/wishlist on this device.
   if (state.user) {
     if (typeof window.syncCartFromServer === 'function')     window.syncCartFromServer();
     if (typeof window.syncWishlistFromServer === 'function') window.syncWishlistFromServer();
+  } else {
+    if (typeof window.clearGuestCartStorage === 'function')     window.clearGuestCartStorage();
+    if (typeof window.clearGuestWishlistStorage === 'function') window.clearGuestWishlistStorage();
   }
 }
 
@@ -1108,13 +1113,29 @@ async function authPatch(path, body) {
   return data;
 }
 
+function requestedAuthRedirect(fallback = '/account') {
+  const redirect = new URLSearchParams(location.search).get('redirect') || '';
+  if (
+    redirect.startsWith('/') &&
+    !redirect.startsWith('//') &&
+    !/^\/(login|register)\b/i.test(redirect)
+  ) return redirect;
+  return fallback;
+}
+
+function authLink(path) {
+  const redirect = requestedAuthRedirect('');
+  return redirect ? `${path}?redirect=${encodeURIComponent(redirect)}` : path;
+}
+
 function renderLogin() {
-  if (state.user) return navigate('/account');
+  if (state.user) return navigate(requestedAuthRedirect('/account'));
+  const registerHref = authLink('/register');
   app.innerHTML = `
     <div class="auth-page">
       <div class="auth-card">
         <h1>Sign in to Global Shopper</h1>
-        <p class="muted">New here? <a href="/register">Create an account</a></p>
+        <p class="muted">New here? <a href="${registerHref}">Create an account</a></p>
         <form id="loginForm" class="auth-form">
           <label>Email
             <input type="email" name="email" required autocomplete="email" autofocus />
@@ -1125,9 +1146,6 @@ function renderLogin() {
           <button class="btn btn-primary btn-lg btn-full" type="submit" id="loginBtn">Sign in</button>
           <div class="auth-error" id="loginError"></div>
         </form>
-        <p class="muted small" style="text-align:center">
-          Or <a href="/checkout">continue as guest</a> to checkout without an account
-        </p>
       </div>
     </div>
   `;
@@ -1142,11 +1160,11 @@ function renderLogin() {
       const { user } = await authPost('/api/auth/login', fd);
       state.user = user;
       updateAuthSlot();
-      // Pull server cart/wishlist and merge with the guest local state
+      // Pull the account cart/wishlist before returning to the requested page.
       if (typeof window.syncCartFromServer === 'function')     await window.syncCartFromServer();
       if (typeof window.syncWishlistFromServer === 'function') await window.syncWishlistFromServer();
       showToast(`Welcome back, ${user.name.split(' ')[0]}`);
-      navigate('/account');
+      navigate(requestedAuthRedirect('/account'));
     } catch (err) {
       errEl.textContent = err.message;
       btn.disabled = false; btn.textContent = 'Sign in';
@@ -1155,12 +1173,13 @@ function renderLogin() {
 }
 
 function renderRegister() {
-  if (state.user) return navigate('/account');
+  if (state.user) return navigate(requestedAuthRedirect('/account'));
+  const loginHref = authLink('/login');
   app.innerHTML = `
     <div class="auth-page">
       <div class="auth-card">
         <h1>Create your Global Shopper account</h1>
-        <p class="muted">Already have one? <a href="/login">Sign in</a></p>
+        <p class="muted">Already have one? <a href="${loginHref}">Sign in</a></p>
         <form id="registerForm" class="auth-form">
           <label>Full name
             <input type="text" name="name" required autocomplete="name" autofocus />
@@ -1192,13 +1211,11 @@ function renderRegister() {
       const { user } = await authPost('/api/auth/register', fd);
       state.user = user;
       updateAuthSlot();
-      // New account starts with empty server cart/wishlist; this
-      // pushes whatever the user accumulated as a guest up to the
-      // new account so they don't lose it on first login.
+      // New account starts with empty server cart/wishlist.
       if (typeof window.syncCartFromServer === 'function')     await window.syncCartFromServer();
       if (typeof window.syncWishlistFromServer === 'function') await window.syncWishlistFromServer();
       showToast(`Welcome, ${user.name.split(' ')[0]}!`);
-      navigate('/account');
+      navigate(requestedAuthRedirect('/account'));
     } catch (err) {
       errEl.textContent = err.message;
       btn.disabled = false; btn.textContent = 'Create account';
@@ -1209,6 +1226,8 @@ function renderRegister() {
 async function signOutCurrentUser() {
   try { await authPost('/api/auth/logout', {}); } catch {}
   state.user = null;
+  if (typeof window.clearGuestCartStorage === 'function')     window.clearGuestCartStorage();
+  if (typeof window.clearGuestWishlistStorage === 'function') window.clearGuestWishlistStorage();
   updateAuthSlot();
   showToast('Signed out');
   navigate('/');
@@ -1231,7 +1250,7 @@ function renderGuestAccount() {
         <a href="/login" class="account-action-card"><span>My profile</span><small>Sign in required</small></a>
         <a href="/login" class="account-action-card"><span>My orders</span><small>Track purchases</small></a>
         <a href="/login" class="account-action-card"><span>Returns &amp; refunds</span><small>Request support</small></a>
-        <a href="/wishlist" class="account-action-card"><span>Wishlist</span><small>Saved on this device</small></a>
+        <a href="/login?redirect=%2Fwishlist" class="account-action-card"><span>Wishlist</span><small>Sign in required</small></a>
       </div>
     </section>
   `;
@@ -1327,7 +1346,7 @@ async function renderAccount() {
 /* ═══════════════════════════════════════════════════════════════
    Standalone account-related pages reachable from the drawer:
      /orders   → just the orders table from /account, full-width
-     /wishlist → localStorage-backed favourites grid
+     /wishlist → account-backed favourites grid
      /returns  → mailto-driven return-request form
    Each gates on auth, redirects to /login if signed out.
    ═══════════════════════════════════════════════════════════════ */
@@ -1381,6 +1400,7 @@ async function renderOrders() {
    IDs and render. */
 
 async function renderWishlist() {
+  if (!state.user) return requireSignIn('view your wishlist', '/wishlist');
   const pids = Array.isArray(state.wishlist) ? state.wishlist : [];
   app.innerHTML = `
     <div class="breadcrumb">
@@ -1388,7 +1408,7 @@ async function renderWishlist() {
       <span class="current">Wishlist</span>
     </div>
     <h1 class="page-title">Wishlist</h1>
-    <p class="muted">Products you've saved for later. Stored on this device.</p>
+    <p class="muted">Products you've saved for later. Synced to your account.</p>
     <div class="products-grid" id="wishlistGrid">
       ${pids.length ? Array(pids.length).fill('<div class="product-card skeleton" style="height:280px"></div>').join('') : ''}
     </div>
