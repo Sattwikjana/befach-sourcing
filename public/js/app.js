@@ -66,6 +66,18 @@ const hamburgerBtn = document.getElementById('headerHamburger');
 const drawerEl = document.getElementById('drawer');
 const drawerBackdrop = document.getElementById('drawerBackdrop');
 const drawerClose = document.getElementById('drawerClose');
+const DEFAULT_PAGE_TITLE = 'Global Shopper - One World. Endless Choices.';
+
+function cleanDisplayName(name) {
+  return String(name || '')
+    .replace(/\s*&\s*/g, ' & ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function setPageTitle(title) {
+  document.title = title || DEFAULT_PAGE_TITLE;
+}
 
 function openDrawer() {
   // Make sure the drawer reflects the latest auth state every time
@@ -360,6 +372,180 @@ function fmtINRDecimal(usdAmount) {
   return '₹' + inr.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
 }
 
+function analyticsValueUsd(value) {
+  const n = parseFloat(value);
+  return Number.isFinite(n) ? Math.max(0, Number(n.toFixed(2))) : 0;
+}
+
+function analyticsValueInrFromUsd(value) {
+  return Math.round(analyticsValueUsd(value) * (state.config.usdToInr || 85));
+}
+
+function analyticsItemFromProduct(p, quantity = 1) {
+  const pid = p?.pid || p?.id || p?.productId || '';
+  const name = p?.productNameEn || p?.nameEn || p?.productName || p?.name || 'Product';
+  return {
+    item_id: String(pid),
+    item_name: String(name).slice(0, 120),
+    item_category: cleanDisplayName(p?.categoryName || p?.category || ''),
+    price: analyticsValueInrFromUsd(p?.sellPrice || p?.price || p?.displayUsd || 0),
+    quantity: Math.max(1, parseInt(quantity, 10) || 1)
+  };
+}
+
+function analyticsItemFromCart(item) {
+  return {
+    item_id: String(item.pid || ''),
+    item_variant: String(item.vid || ''),
+    item_name: String(item.productName || 'Product').slice(0, 120),
+    item_variant_name: String(item.variantName || '').slice(0, 80),
+    price: analyticsValueInrFromUsd(item.priceUsd || 0),
+    quantity: Math.max(1, parseInt(item.quantity, 10) || 1)
+  };
+}
+
+function marketingEventId(eventName) {
+  return `gs_${eventName}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function sendMetaCapiEvent(metaEvent, ecommerce, metaPayload, eventId) {
+  if (!metaEvent || !eventId) return;
+  const capiPayload = {
+    event_name: metaEvent,
+    event_id: eventId,
+    event_source_url: location.href,
+    value: metaPayload.value || 0,
+    currency: metaPayload.currency || 'INR',
+    content_ids: metaPayload.content_ids || [],
+    content_name: metaPayload.content_name || '',
+    content_type: metaPayload.content_type || 'product',
+    search_string: metaPayload.search_string || '',
+    num_items: metaPayload.num_items || 0,
+    transaction_id: ecommerce.transaction_id || '',
+    items: Array.isArray(ecommerce.items) ? ecommerce.items.slice(0, 20) : []
+  };
+
+  try {
+    const body = JSON.stringify(capiPayload);
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: 'application/json' });
+      navigator.sendBeacon('/api/marketing/meta-event', blob);
+      return;
+    }
+    fetch('/api/marketing/meta-event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      keepalive: true
+    }).catch(() => {});
+  } catch {}
+}
+
+function trackEcommerceEvent(eventName, payload = {}) {
+  try {
+    const eventId = payload.event_id || marketingEventId(eventName);
+    const ecommerce = { currency: 'INR', ...payload, event_id: eventId };
+    if (window.dataLayer && typeof window.dataLayer.push === 'function') {
+      window.dataLayer.push({ ecommerce: null });
+      window.dataLayer.push({ event: eventName, ecommerce });
+    }
+
+    if (typeof window.fbq === 'function') {
+      const items = Array.isArray(ecommerce.items) ? ecommerce.items : [];
+      const first = items[0] || {};
+      const valueInr = Number.isFinite(ecommerce.value) ? ecommerce.value : 0;
+      const metaMap = {
+        view_item: 'ViewContent',
+        add_to_cart: 'AddToCart',
+        begin_checkout: 'InitiateCheckout',
+        purchase: 'Purchase',
+        search: 'Search',
+        add_to_wishlist: 'AddToWishlist'
+      };
+      const metaEvent = metaMap[eventName];
+      if (metaEvent) {
+        const metaPayload = {
+          content_ids: items.map(item => item.item_id).filter(Boolean),
+          content_name: first.item_name || ecommerce.search_term || '',
+          content_type: 'product',
+          value: valueInr,
+          currency: 'INR',
+          search_string: ecommerce.search_term || undefined,
+          num_items: items.reduce((sum, item) => sum + (parseInt(item.quantity, 10) || 1), 0)
+        };
+        window.fbq('track', metaEvent, metaPayload, { eventID: eventId });
+        sendMetaCapiEvent(metaEvent, ecommerce, metaPayload, eventId);
+      }
+    }
+  } catch (err) {
+    console.warn('analytics event failed', eventName, err);
+  }
+}
+
+function cartValueInr() {
+  return Math.round(cartSubtotalUsd() * (state.config.usdToInr || 85));
+}
+
+function sanitizeHtml(html) {
+  const template = document.createElement('template');
+  template.innerHTML = String(html || '');
+  template.content.querySelectorAll('script,style,iframe,object,embed,link,meta,svg').forEach(node => node.remove());
+  template.content.querySelectorAll('*').forEach(node => {
+    [...node.attributes].forEach(attr => {
+      const name = attr.name.toLowerCase();
+      const value = attr.value || '';
+      if (name.startsWith('on') || name === 'style' || /^javascript:/i.test(value)) {
+        node.removeAttribute(attr.name);
+      }
+    });
+  });
+  return template.innerHTML;
+}
+
+let currentVitalsRoute = '';
+let routeCls = 0;
+let routeLcp = 0;
+
+function flushRouteVitals() {
+  if (!currentVitalsRoute || (!routeCls && !routeLcp)) return;
+  if (window.dataLayer && typeof window.dataLayer.push === 'function') {
+    window.dataLayer.push({
+      event: 'web_vitals',
+      page_path: currentVitalsRoute,
+      cls: Number(routeCls.toFixed(4)),
+      lcp_ms: Math.round(routeLcp || 0)
+    });
+  }
+}
+
+function resetRouteVitals() {
+  flushRouteVitals();
+  currentVitalsRoute = location.pathname + location.search;
+  routeCls = 0;
+  routeLcp = 0;
+}
+
+function initWebVitalsObservers() {
+  if (!('PerformanceObserver' in window) || initWebVitalsObservers.done) return;
+  initWebVitalsObservers.done = true;
+  try {
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) routeLcp = entry.startTime || routeLcp;
+    }).observe({ type: 'largest-contentful-paint', buffered: true });
+  } catch {}
+  try {
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) {
+        if (!entry.hadRecentInput) routeCls += entry.value || 0;
+      }
+    }).observe({ type: 'layout-shift', buffered: true });
+  } catch {}
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushRouteVitals();
+  });
+}
+initWebVitalsObservers();
+
 // ── Image URL handling ──
 // CJ's CDN (cf.cjdropshipping.com) has no hotlink protection, so we use
 // direct URLs — one fewer backend round-trip per card image. Fall back
@@ -582,6 +768,10 @@ function addToCart(item) {
     state.cart.push({ ...item });
   }
   saveCart();
+  trackEcommerceEvent('add_to_cart', {
+    value: Math.round(analyticsValueUsd(item.priceUsd || 0) * (state.config.usdToInr || 85) * (item.quantity || 1)),
+    items: [analyticsItemFromCart(item)]
+  });
   return true;
 }
 function updateCartQuantity(pid, vid, qty) {
@@ -668,6 +858,11 @@ function toggleWishlist(pid) {
   else            { state.wishlist.splice(idx, 1); added = false; }
   saveWishlist();
   refreshWishlistButtons();
+  if (added) {
+    trackEcommerceEvent('add_to_wishlist', {
+      items: [{ item_id: String(pid), quantity: 1 }]
+    });
+  }
   return added;
 }
 // Re-paint every wishlist heart icon on the page after a toggle so all
@@ -676,8 +871,10 @@ function toggleWishlist(pid) {
 function refreshWishlistButtons() {
   document.querySelectorAll('[data-wish-pid]').forEach(btn => {
     const pid = btn.getAttribute('data-wish-pid');
-    btn.classList.toggle('on', isInWishlist(pid));
-    btn.setAttribute('aria-pressed', isInWishlist(pid) ? 'true' : 'false');
+    const active = isInWishlist(pid);
+    btn.classList.toggle('on', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    btn.setAttribute('aria-label', active ? 'Remove from wishlist' : 'Add to wishlist');
   });
 }
 window.toggleWishlist = toggleWishlist;
@@ -752,6 +949,31 @@ function trackMarketingPageView() {
   }
 }
 
+function enhanceRenderedPage() {
+  document.querySelectorAll('.breadcrumb').forEach(nav => {
+    nav.setAttribute('aria-label', 'Breadcrumb');
+    nav.setAttribute('role', 'navigation');
+    nav.querySelectorAll('.current').forEach(el => el.setAttribute('aria-current', 'page'));
+    nav.querySelectorAll('span').forEach(el => {
+      if ((el.textContent || '').trim() === '›') el.setAttribute('aria-hidden', 'true');
+    });
+  });
+
+  document.querySelectorAll('button:not([aria-label])').forEach(btn => {
+    const text = (btn.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!text && btn.title) btn.setAttribute('aria-label', btn.title);
+    if (!text && btn.classList.contains('drawer-close')) btn.setAttribute('aria-label', 'Close menu');
+    if (!text && btn.classList.contains('pd-thumb')) btn.setAttribute('aria-label', 'View product image');
+    if (!text && btn.classList.contains('product-card-wish')) btn.setAttribute('aria-label', 'Save to wishlist');
+    if (!text && btn.classList.contains('header-photo-btn')) btn.setAttribute('aria-label', 'Search by photo');
+    if (!text && btn.classList.contains('header-search-btn')) btn.setAttribute('aria-label', 'Search');
+  });
+
+  document.querySelectorAll('img:not([alt])').forEach(img => {
+    img.setAttribute('alt', '');
+  });
+}
+
 // Programmatic navigation. Accepts a clean path like "/cart" or
 // "/search?q=foo" — never a "#/cart". Pushes a new history entry and
 // triggers the route handler manually since pushState doesn't fire a
@@ -774,7 +996,7 @@ window.navigate = function(href) {
 function handleRoute() {
   const { path, params } = getRoute();
   state.currentPage = path;
-  trackMarketingPageView();
+  resetRouteVitals();
 
   if (typeof cancelBackfill === 'function') cancelBackfill();
 
@@ -800,11 +1022,27 @@ function handleRoute() {
 
   window.scrollTo(0, 0);
 
-  if (path === '/' || path === '') return renderHome();
-  if (path === '/category') return renderAllCategories();
-  if (path.startsWith('/category/')) return renderCategory(path.slice('/category/'.length), parseInt(params.get('page')) || 1, params);
+  const finish = (rendered) => Promise.resolve(rendered)
+    .catch(err => {
+      console.error('route render failed', err);
+      app.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Something went wrong</h3><p class="muted">${esc(err.message || 'Please retry.')}</p><button class="btn btn-primary" onclick="location.reload()">Retry</button></div>`;
+    })
+    .finally(() => {
+      enhanceRenderedPage();
+      trackMarketingPageView();
+    });
+
+  if (path === '/' || path === '') {
+    setPageTitle(DEFAULT_PAGE_TITLE);
+    return finish(renderHome());
+  }
+  if (path === '/category') {
+    setPageTitle('All Categories | Global Shopper');
+    return finish(renderAllCategories());
+  }
+  if (path.startsWith('/category/')) return finish(renderCategory(path.slice('/category/'.length), parseInt(params.get('page')) || 1, params));
   if (path.startsWith('/search')) {
-    return renderSearch(
+    return finish(renderSearch(
       params.get('q') || '',
       parseInt(params.get('page')) || 1,
       {
@@ -812,24 +1050,28 @@ function handleRoute() {
         categoryName: params.get('catName') || '',
         photoKey: params.get('photo') || '',
       }
-    );
+    ));
   }
-  if (path.startsWith('/product/')) return renderProduct(path.slice('/product/'.length));
-  if (path === '/cart') return renderCart();
-  if (path === '/checkout') return renderCheckout();
-  if (path.startsWith('/order/')) return renderOrderDetail(path.slice('/order/'.length));
-  if (path === '/track') return renderTrack();
-  if (path === '/admin') return renderAdmin();
-  if (path === '/faq') return renderFaq();
-  if (path === '/privacy') return renderPrivacy();
-  if (path === '/legal') return renderLegal();
-  if (path === '/login') return renderLogin();
-  if (path === '/register') return renderRegister();
-  if (path === '/account') return renderAccount();
-  if (path === '/orders') return renderOrders();
-  if (path === '/wishlist') return renderWishlist();
-  if (path === '/returns') return renderReturns();
-  return renderHome();
+  if (path.startsWith('/product/')) {
+    setPageTitle('Product | Global Shopper');
+    return finish(renderProduct(path.slice('/product/'.length)));
+  }
+  if (path === '/cart') { setPageTitle('Cart | Global Shopper'); return finish(renderCart()); }
+  if (path === '/checkout') { setPageTitle('Checkout | Global Shopper'); return finish(renderCheckout()); }
+  if (path.startsWith('/order/')) { setPageTitle('Order Tracking | Global Shopper'); return finish(renderOrderDetail(path.slice('/order/'.length))); }
+  if (path === '/track') { setPageTitle('Track Order | Global Shopper'); return finish(renderTrack()); }
+  if (path === '/admin') { setPageTitle('Admin | Global Shopper'); return finish(renderAdmin()); }
+  if (path === '/faq') { setPageTitle('Shipping & Returns FAQ | Global Shopper'); return finish(renderFaq()); }
+  if (path === '/privacy') { setPageTitle('Privacy Policy | Global Shopper'); return finish(renderPrivacy()); }
+  if (path === '/legal') { setPageTitle('Legal & Compliance | Global Shopper'); return finish(renderLegal()); }
+  if (path === '/login') { setPageTitle('Login | Global Shopper'); return finish(renderLogin()); }
+  if (path === '/register') { setPageTitle('Create Account | Global Shopper'); return finish(renderRegister()); }
+  if (path === '/account') { setPageTitle('Account | Global Shopper'); return finish(renderAccount()); }
+  if (path === '/orders') { setPageTitle('My Orders | Global Shopper'); return finish(renderOrders()); }
+  if (path === '/wishlist') { setPageTitle('Wishlist | Global Shopper'); return finish(renderWishlist()); }
+  if (path === '/returns') { setPageTitle('Returns & Refunds | Global Shopper'); return finish(renderReturns()); }
+  setPageTitle(DEFAULT_PAGE_TITLE);
+  return finish(renderHome());
 }
 
 // popstate fires on back/forward buttons (and on hash changes for the
@@ -1216,7 +1458,7 @@ function categoryVisualSrc(name, contextName = '') {
   return photo || categoryGeneratedArt(name);
 }
 function catIcon(name, contextName = '') {
-  return `<img src="${categoryVisualSrc(name, contextName)}" alt="" class="cat-img" loading="lazy"/>`;
+  return `<img src="${categoryVisualSrc(name, contextName)}" alt="" class="cat-img" width="70" height="70" loading="lazy" decoding="async"/>`;
 }
 
 const HOME_CATEGORY_SHORTCUTS = [
@@ -1501,7 +1743,7 @@ function productCard(p, idx) {
         <button type="button"
                 class="product-card-wish ${inWishlist ? 'on' : ''}"
                 data-wish-pid="${esc(pid)}"
-                aria-label="Add to wishlist"
+                aria-label="${inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}"
                 aria-pressed="${inWishlist ? 'true' : 'false'}"
                 onclick="event.preventDefault(); event.stopPropagation(); window._cardWishToggle(this)">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1716,11 +1958,11 @@ async function renderHome() {
             </div>
             <div class="home-hero-art" aria-hidden="true">
               <div class="hero-showcase-card hero-showcase-main">
-                <img src="/img/cat-women-clothing.png?v=20260508h" alt="" />
+                <img src="/img/cat-women-clothing.png?v=20260508h" alt="" width="220" height="220" loading="eager" decoding="async" />
                 <span>Statement fashion</span>
               </div>
               <div class="hero-showcase-card hero-showcase-side">
-                <img src="/img/cat-electronics.png?v=20260508h" alt="" />
+                <img src="/img/cat-electronics.png?v=20260508h" alt="" width="180" height="180" loading="eager" decoding="async" />
                 <span>Smart tech</span>
               </div>
               <div class="hero-showcase-badge">Global Shopper</div>
@@ -2309,16 +2551,20 @@ async function renderSearch(query, page = 1, opts = {}) {
   // category scope is also applied. Pure category browse (no query) clears
   // the input so the user isn't fooled into thinking they typed the name.
   if (headerSearchInput) headerSearchInput.value = (opts.categoryName && !query) ? '' : query;
-  let title;
+  let rawTitle;
   if (query && opts.categoryName) {
-    title = `Results for "${esc(query)}" in ${esc(opts.categoryName)}`;
+    rawTitle = `Results for "${query}" in ${cleanDisplayName(opts.categoryName)}`;
   } else if (opts.categoryName) {
-    title = esc(opts.categoryName);
+    rawTitle = cleanDisplayName(opts.categoryName);
   } else if (query) {
-    title = `Results for "${esc(query)}"`;
+    rawTitle = `Results for "${query}"`;
   } else {
-    title = 'Browse products';
+    rawTitle = 'Browse products';
   }
+  const title = esc(rawTitle);
+  if (opts.categoryName && !query) setPageTitle(`${cleanDisplayName(opts.categoryName)} Online | Global Shopper`);
+  else if (query) setPageTitle(`Search results for ${query} | Global Shopper`);
+  else setPageTitle('Browse Products | Global Shopper');
   const childChips = (opts.categoryChildren || []).length ? `
     <nav class="subcategory-strip subcategory-visual-strip" aria-label="Subcategories">
       ${opts.categoryChildren.map(c => {
@@ -2421,6 +2667,13 @@ async function renderSearch(query, page = 1, opts = {}) {
       products.sort((a, b) => parseFloat(b.price || 0) - parseFloat(a.price || 0));
     }
 
+    if (query) {
+      trackEcommerceEvent('search', {
+        search_term: query,
+        items: products.slice(0, 12).map(p => analyticsItemFromProduct(p))
+      });
+    }
+
     const totalPages = res.totalPages || 1;
 
     // "Showing results for: blue cooling jacket under ₹2000" pill
@@ -2479,6 +2732,9 @@ async function renderSearch(query, page = 1, opts = {}) {
         html += `<a class="page-btn ${i === page ? 'active' : ''}" href="${mkLink(i)}">${i}</a>`;
       }
       html += `<a class="page-btn ${page >= totalPages ? 'disabled' : ''}" href="${mkLink(Math.min(totalPages, page + 1))}">Next ›</a>`;
+      if (page < totalPages) {
+        html += `<a class="load-more-btn" href="${mkLink(page + 1)}">Load more products</a>`;
+      }
       pag.innerHTML = html;
     }
   } catch (err) {
@@ -2524,12 +2780,13 @@ async function renderProduct(pid) {
   if (p.sellPrice) setCachedDisplayUsd(pid, p.sellPrice);
 
   const name = p.productNameEn || 'Product';
+  setPageTitle(`${name.slice(0, 90)} | Global Shopper`);
   const sku = p.productSku || '';
   const priceUsd = parseFloat(p.price || p.sellPrice || 0);
   const bigImg = p.bigImage || '';
   const category = p.categoryName || '';
   const weight = p.productWeight || '';
-  const desc = p.description || '';
+  const desc = sanitizeHtml(p.description || '');
   const variants = Array.isArray(p.variants) ? p.variants : [];
 
   // Parse image array
@@ -2573,8 +2830,8 @@ async function renderProduct(pid) {
         </div>
         <div class="pd-thumbs">
           ${images.slice(0, 8).map((src, i) => `
-            <button class="pd-thumb ${i === 0 ? 'active' : ''}" data-src="${esc(imgProxy(src))}">
-              <img src="${imgProxy(src)}" alt="thumb ${i + 1}" width="80" height="80"
+            <button class="pd-thumb ${i === 0 ? 'active' : ''}" data-src="${esc(imgProxy(src))}" aria-label="View ${esc(name)} image ${i + 1}">
+              <img src="${imgProxy(src)}" alt="${esc(name)} image ${i + 1}" width="80" height="80"
                    loading="lazy" decoding="async"
                    onerror="this.style.visibility='hidden'" />
             </button>
@@ -2603,9 +2860,9 @@ async function renderProduct(pid) {
         <div class="pd-qty-row">
           <label for="pdQty">Quantity</label>
           <div class="pd-qty">
-            <button type="button" id="pdQtyMinus">−</button>
-            <input type="number" id="pdQty" value="1" min="1" max="999" />
-            <button type="button" id="pdQtyPlus">+</button>
+            <button type="button" id="pdQtyMinus" aria-label="Decrease quantity">−</button>
+            <input type="number" id="pdQty" value="1" min="1" max="999" aria-label="Quantity" />
+            <button type="button" id="pdQtyPlus" aria-label="Increase quantity">+</button>
           </div>
           <div class="pd-stock" id="pdStock">Checking stock…</div>
         </div>
@@ -2616,7 +2873,7 @@ async function renderProduct(pid) {
           <button type="button"
                   class="btn-wish-pd ${isInWishlist(pid) ? 'on' : ''}"
                   data-wish-pid="${esc(pid)}"
-                  aria-label="Save to wishlist"
+                  aria-label="${isInWishlist(pid) ? 'Remove from wishlist' : 'Save to wishlist'}"
                   aria-pressed="${isInWishlist(pid) ? 'true' : 'false'}"
                   onclick="window._pdWishToggle(this)">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2641,6 +2898,17 @@ async function renderProduct(pid) {
       </section>
     ` : ''}
   `;
+
+  trackEcommerceEvent('view_item', {
+    value: Math.round((selectedPriceUsd || 0) * (state.config.usdToInr || 85)),
+    items: [analyticsItemFromProduct({
+      ...p,
+      pid,
+      productNameEn: name,
+      sellPrice: selectedPriceUsd,
+      categoryName: category
+    })]
+  });
 
   // ── Wire up interactivity ──
   let current = {
@@ -2940,14 +3208,14 @@ function renderVariantPicker(variants, selectedVariant) {
       if (useSwatch) {
         const img = imageByFirst[val] || '';
         return `
-          <button class="pd-swatch ${active}" data-attr-idx="${attrIdx}" data-attr-value="${esc(val)}" title="${esc(val)}">
-            <img src="${esc(imgProxy(img))}" alt="${esc(val)}" onerror="this.style.display='none'"/>
+          <button class="pd-swatch ${active}" data-attr-idx="${attrIdx}" data-attr-value="${esc(val)}" title="${esc(val)}" aria-label="Select ${esc(val)}">
+            <img src="${esc(imgProxy(img))}" alt="${esc(val)}" width="48" height="48" loading="lazy" decoding="async" onerror="this.style.display='none'"/>
             <span class="pd-swatch-check">✓</span>
           </button>
         `;
       }
       return `
-        <button class="pd-size-btn ${active}" data-attr-idx="${attrIdx}" data-attr-value="${esc(val)}">
+        <button class="pd-size-btn ${active}" data-attr-idx="${attrIdx}" data-attr-value="${esc(val)}" aria-label="Select ${esc(val)}">
           ${esc(val)}
         </button>
       `;

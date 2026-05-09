@@ -34,6 +34,9 @@ const APP_VERSION = '8.43';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
+const META_PIXEL_ID = process.env.META_PIXEL_ID || '2162836681180793';
+const META_CAPI_ACCESS_TOKEN = process.env.META_CAPI_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN || '';
+const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0';
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -72,9 +75,114 @@ app.use((req, res, next) => {
   const cleanPath = pathPart.replace(/\/+$/, '') || '/';
   return res.redirect(301, cleanPath + (queryPart ? `?${queryPart}` : ''));
 });
+app.use((req, res, next) => {
+  if (req.hostname && /^(?:www\.)?global\.befach\.com$/i.test(req.hostname)) {
+    return res.redirect(301, `${SITE_URL}${req.originalUrl}`);
+  }
+  next();
+});
+app.use((req, res, next) => {
+  if (!['GET', 'HEAD'].includes(req.method) || req.path.startsWith('/api/')) return next();
+  const [pathPart, rawQuery = ''] = req.originalUrl.split('?');
+  if (!rawQuery) return next();
+
+  let candidateQuery = rawQuery;
+  let changed = false;
+
+  try {
+    const decoded = decodeURIComponent(rawQuery.replace(/\+/g, '%20'));
+    const nested = decoded.match(/^https?:\/\/[^/?#]+\/?\?(.+)$/i);
+    if (nested) {
+      candidateQuery = nested[1];
+      changed = true;
+    }
+  } catch {}
+
+  const params = new URLSearchParams(candidateQuery);
+  const cleaned = new URLSearchParams();
+  const dropKeys = new Set(['fbclid', '_aem', 'brid', 'mc_cid', 'mc_eid']);
+
+  for (const [key, value] of params.entries()) {
+    const decodedKey = (() => {
+      try { return decodeURIComponent(key); } catch { return key; }
+    })();
+    if (/^https?:\/\//i.test(decodedKey) || dropKeys.has(key) || decodedKey.toLowerCase().startsWith('_aem')) {
+      changed = true;
+      continue;
+    }
+    if (cleaned.has(key)) {
+      changed = true;
+      if (key === 'utm_source' && /^ig$/i.test(value)) cleaned.set(key, value);
+      continue;
+    }
+    cleaned.set(key, value);
+  }
+
+  if (!changed) return next();
+  const cleanQuery = cleaned.toString();
+  return res.redirect(301, `${pathPart}${cleanQuery ? `?${cleanQuery}` : ''}`);
+});
 app.use('/api', (req, res, next) => {
   res.set('X-Robots-Tag', 'noindex, nofollow');
   next();
+});
+
+app.post('/api/marketing/meta-event', (req, res) => {
+  if (!META_CAPI_ACCESS_TOKEN || !META_PIXEL_ID) return res.status(204).end();
+
+  const body = req.body || {};
+  const eventName = String(body.event_name || '').trim();
+  const eventId = String(body.event_id || '').trim();
+  if (!eventName || !eventId) return res.status(400).json({ error: 'Missing event name or id' });
+
+  const allowed = new Set(['ViewContent', 'AddToCart', 'InitiateCheckout', 'Purchase', 'Search', 'AddToWishlist']);
+  if (!allowed.has(eventName)) return res.status(400).json({ error: 'Unsupported event' });
+
+  res.status(202).json({ accepted: true });
+
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const ip = String(req.headers['cf-connecting-ip'] || forwarded || req.ip || '').replace(/^::ffff:/, '');
+  const userData = {
+    client_ip_address: ip || undefined,
+    client_user_agent: req.get('user-agent') || undefined,
+    fbp: req.cookies?._fbp || undefined,
+    fbc: req.cookies?._fbc || undefined,
+  };
+  Object.keys(userData).forEach(key => userData[key] === undefined && delete userData[key]);
+
+  const customData = {
+    currency: body.currency || 'INR',
+    value: Number(body.value) || 0,
+    content_ids: Array.isArray(body.content_ids) ? body.content_ids.slice(0, 50).map(String) : [],
+    content_name: String(body.content_name || '').slice(0, 120),
+    content_type: body.content_type || 'product',
+    search_string: body.search_string || undefined,
+    num_items: Number(body.num_items) || undefined,
+    order_id: body.transaction_id || undefined,
+    contents: Array.isArray(body.items)
+      ? body.items.slice(0, 20).map(item => ({
+          id: String(item.item_id || ''),
+          quantity: Number(item.quantity) || 1,
+          item_price: Number(item.price) || undefined,
+        })).filter(item => item.id)
+      : undefined,
+  };
+  Object.keys(customData).forEach(key => customData[key] === undefined && delete customData[key]);
+
+  axios.post(`https://graph.facebook.com/${META_GRAPH_VERSION}/${META_PIXEL_ID}/events`, {
+    data: [{
+      event_name: eventName,
+      event_time: Math.floor(Date.now() / 1000),
+      event_id: eventId,
+      action_source: 'website',
+      event_source_url: String(body.event_source_url || SITE_URL),
+      user_data: userData,
+      custom_data: customData,
+    }],
+    access_token: META_CAPI_ACCESS_TOKEN,
+  }, { timeout: 1800 }).catch(err => {
+    console.warn('[Meta CAPI] send failed:', err.response?.data?.error?.message || err.message);
+  });
 });
 app.get('/index.html', (req, res) => res.redirect(301, '/'));
 // Static assets — long browser cache for images/fonts. CSS/JS use
@@ -994,6 +1102,13 @@ function truncateText(value, max = 155) {
   return clean.slice(0, max - 1).replace(/\s+\S*$/, '') + '...';
 }
 
+function cleanDisplayName(value) {
+  return String(value || '')
+    .replace(/\s*&\s*/g, ' & ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function absoluteUrl(pathOrUrl = '/') {
   const raw = String(pathOrUrl || '/');
   if (/^https?:\/\//i.test(raw)) return raw;
@@ -1194,7 +1309,7 @@ function getRouteSeo(req) {
   const categoryMatch = pathname.match(/^\/category\/([^/?#]+)/i);
   if (categoryMatch) {
     const id = safeDecodeUrlPart(categoryMatch[1]);
-    const name = String(req.query.name || categoryNameForId(id) || 'Global Finds').replace(/\s+/g, ' ').trim();
+    const name = cleanDisplayName(req.query.name || categoryNameForId(id) || 'Global Finds');
     const canonical = absoluteUrl(`/category/${encodeUrlPart(id)}`);
     const description = truncateText(`Shop ${name} online in India at Global Shopper. Discover global products with shipping included and delivery in 10-15 days.`);
     return {

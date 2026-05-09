@@ -3,34 +3,68 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Global Shopper — One World. Endless Choices.</title>
+  <title>Global Shopper - One World. Endless Choices.</title>
   <meta name="description" content="Global Shopper curates premium products from artisans and ateliers in 200+ countries — delivered to your doorstep in India in 10–15 days." />
-  <!-- Meta Pixel Code -->
+  <!-- Marketing queues: define dataLayer/fbq immediately, load heavy vendor
+       scripts after first paint so Instagram WebView users see content faster. -->
   <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({'gtm.start': new Date().getTime(), event: 'gtm.js'});
+    (function(w, d) {
+      function appendScript(src) {
+        var tag = d.createElement('script');
+        tag.async = true;
+        tag.src = src;
+        var first = d.getElementsByTagName('script')[0];
+        first.parentNode.insertBefore(tag, first);
+      }
+
+      !function(f,b,e,v,n,t,s) {
+        if (f.fbq) return;
+        n = f.fbq = function() {
+          n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+        };
+        if (!f._fbq) f._fbq = n;
+        n.push = n;
+        n.loaded = true;
+        n.version = '2.0';
+        n.queue = [];
+        f.__loadMetaPixel = function() {
+          if (f.__metaPixelLoaded) return;
+          f.__metaPixelLoaded = true;
+          t = b.createElement(e);
+          t.async = true;
+          t.src = v;
+          s = b.getElementsByTagName(e)[0];
+          s.parentNode.insertBefore(t, s);
+        };
+      }(w, d, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+
+      function loadMarketingTags() {
+        if (w.__marketingTagsLoaded) return;
+        w.__marketingTagsLoaded = true;
+        appendScript('https://www.googletagmanager.com/gtm.js?id=GTM-KS2DNJJN');
+        if (typeof w.__loadMetaPixel === 'function') w.__loadMetaPixel();
+      }
+
+      function scheduleMarketingTags() {
+        var run = function() { setTimeout(loadMarketingTags, 650); };
+        if ('requestIdleCallback' in w) w.requestIdleCallback(run, { timeout: 2500 });
+        else run();
+      }
+
+      if (d.readyState === 'complete') scheduleMarketingTags();
+      else w.addEventListener('load', scheduleMarketingTags, { once: true });
+    })(window, document);
+
     fbq('init', '2162836681180793');
     fbq('track', 'PageView');
   </script>
+  <!-- Meta Pixel Code -->
   <noscript><img height="1" width="1" style="display:none"
     src="https://www.facebook.com/tr?id=2162836681180793&ev=PageView&noscript=1"
     alt="" /></noscript>
   <!-- End Meta Pixel Code -->
-  <!-- Google Tag Manager -->
-  <script>
-    (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-KS2DNJJN');
-  </script>
-  <!-- End Google Tag Manager -->
   <!-- Vector favicon — sharper at any size than a PNG.
        Browsers that don't support SVG favicons (very old IE) fall back
        to the alternate PNG. -->
@@ -45,7 +79,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260509a" />
+  <link rel="stylesheet" href="/css/styles.css?v=20260509b" />
   <!-- Inline style as a safety net — guaranteed to load with no race
        conditions against the external CSS. -->
   <style>
@@ -98,7 +132,7 @@
         </svg>
       </button>
 
-      <a href="/" class="brand" aria-label="Global Shopper — One World. Endless Choices.">
+      <a href="/" class="brand" aria-label="Global Shopper - One World. Endless Choices.">
         <img src="/img/globalshopper.png?v=20260506b" alt="Global Shopper" class="brand-logo-img" />
         <span class="brand-tagline-side">
           <span class="brand-tagline-black">One World.</span>
@@ -267,8 +301,8 @@
   <!-- Razorpay Checkout — loaded async so it doesn't block the page;
        only used on the checkout page when the customer hits "Pay & Place order". -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
-  <script src="/js/app.js?v=20260509d"></script>
-  <script src="/js/app-store.js?v=20260509b"></script>
+  <script src="/js/app.js?v=20260509e"></script>
+  <script src="/js/app-store.js?v=20260509c"></script>
   <!-- Surface any uncaught JS error in the page so we can debug from
        the browser without DevTools. Goes to console.error and shows
        a discreet banner if anything blows up. -->

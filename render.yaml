@@ -95,6 +95,15 @@ services:
         value: "1.0"
       - key: SEARCH_AI_WAIT_MS
         value: "1000"
+      # Meta Conversions API — optional but recommended for stronger
+      # Meta ads attribution on iOS/Instagram WebView. The browser Pixel
+      # works without this; set the token in Render to enable server events.
+      - key: META_PIXEL_ID
+        value: "2162836681180793"
+      - key: META_CAPI_ACCESS_TOKEN
+        sync: false
+      - key: META_GRAPH_VERSION
+        value: "v21.0"
       # SQLite catalog — product summaries only; details/stock/shipping
       # still refresh live from CJ on click/checkout.
       - key: CATALOG_ENABLED

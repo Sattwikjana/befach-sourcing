@@ -8,8 +8,25 @@
 // ══════════════════════════════════════════════════════════════
 //  CART PAGE
 // ══════════════════════════════════════════════════════════════
+function renderAuthRequiredPage({ title = 'Sign in required', message = 'Please sign in to continue.', redirect = '/', primary = 'Sign in' } = {}) {
+  app.innerHTML = `
+    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">${esc(title)}</span></div>
+    <div class="empty-state">
+      <div class="empty-icon" aria-hidden="true">🔐</div>
+      <h3>${esc(title)}</h3>
+      <p class="muted">${esc(message)}</p>
+      <a class="btn btn-primary" href="/login?redirect=${encodeURIComponent(redirect)}">${esc(primary)}</a>
+      <a class="btn btn-ghost" href="/">Continue shopping</a>
+    </div>
+  `;
+}
+
 function renderCart() {
-  if (!state.user) return requireSignIn('view your cart', '/cart');
+  if (!state.user) return renderAuthRequiredPage({
+    title: 'Sign in to view your cart',
+    message: 'Your cart is saved to your Global Shopper account so it stays synced across devices.',
+    redirect: '/cart'
+  });
   const items = state.cart;
 
   if (!items.length) {
@@ -53,7 +70,7 @@ function renderCartItems() {
   container.innerHTML = state.cart.map((item, idx) => `
     <div class="cart-item fade-in" data-idx="${idx}">
       <a href="/product/${encodeURIComponent(item.pid)}" class="cart-item-img-wrap">
-        <img src="${imgProxy(item.image)}" alt="${esc(item.productName)}" onerror="this.src='/img/globalshopper.png'"/>
+        <img src="${imgProxy(item.image)}" alt="${esc(item.productName)}" width="96" height="96" loading="lazy" decoding="async" onerror="this.src='/img/globalshopper.png'"/>
       </a>
       <div class="cart-item-info">
         <a class="cart-item-title" href="/product/${encodeURIComponent(item.pid)}">${esc(item.productName)}</a>
@@ -61,12 +78,12 @@ function renderCartItems() {
         <div class="cart-item-price">${fmtINR(item.priceUsd)}</div>
       </div>
       <div class="cart-item-qty">
-        <button type="button" class="cart-qty-btn" onclick="cartAdjust('${esc(item.pid)}','${esc(item.vid)}',-1)">−</button>
-        <input type="number" min="1" value="${item.quantity}" onchange="cartSetQty('${esc(item.pid)}','${esc(item.vid)}', this.value)"/>
-        <button type="button" class="cart-qty-btn" onclick="cartAdjust('${esc(item.pid)}','${esc(item.vid)}',1)">+</button>
+        <button type="button" class="cart-qty-btn" aria-label="Decrease quantity for ${esc(item.productName)}" onclick="cartAdjust('${esc(item.pid)}','${esc(item.vid)}',-1)">−</button>
+        <input type="number" min="1" value="${item.quantity}" aria-label="Quantity for ${esc(item.productName)}" onchange="cartSetQty('${esc(item.pid)}','${esc(item.vid)}', this.value)"/>
+        <button type="button" class="cart-qty-btn" aria-label="Increase quantity for ${esc(item.productName)}" onclick="cartAdjust('${esc(item.pid)}','${esc(item.vid)}',1)">+</button>
       </div>
       <div class="cart-item-line">${fmtINR(parseFloat(item.priceUsd) * item.quantity)}</div>
-      <button class="cart-item-remove" title="Remove" onclick="cartRemove('${esc(item.pid)}','${esc(item.vid)}')">✕</button>
+      <button class="cart-item-remove" title="Remove" aria-label="Remove ${esc(item.productName)} from cart" onclick="cartRemove('${esc(item.pid)}','${esc(item.vid)}')">✕</button>
     </div>
   `).join('');
 }
@@ -134,7 +151,11 @@ function stripCountryCode(phone, ccode = 'IN') {
 }
 
 async function renderCheckout() {
-  if (!state.user) return requireSignIn('checkout', '/checkout');
+  if (!state.user) return renderAuthRequiredPage({
+    title: 'Sign in to checkout',
+    message: 'Please sign in before checkout so we can save your address, payment status and order tracking.',
+    redirect: '/checkout'
+  });
   if (!state.cart.length) return renderCart();
 
   // Restore any previous address so customers don't re-type
@@ -245,10 +266,15 @@ async function renderCheckout() {
     </div>
   `;
 
+  trackEcommerceEvent('begin_checkout', {
+    value: cartValueInr(),
+    items: state.cart.map(analyticsItemFromCart)
+  });
+
   // Render order summary items
   document.getElementById('checkoutItems').innerHTML = state.cart.map(item => `
     <div class="checkout-item">
-      <img src="${imgProxy(item.image)}" alt="" onerror="this.src='/img/globalshopper.png'"/>
+      <img src="${imgProxy(item.image)}" alt="${esc(item.productName)}" width="50" height="50" loading="lazy" decoding="async" onerror="this.src='/img/globalshopper.png'"/>
       <div class="checkout-item-info">
         <div class="checkout-item-title">${esc(item.productName.slice(0, 50))}${item.productName.length > 50 ? '…' : ''}</div>
         <div class="checkout-item-qty">Qty ${item.quantity}${item.variantName ? ' · ' + esc(item.variantName) : ''}</div>
@@ -429,6 +455,11 @@ async function renderCheckout() {
             razorpay_signature: rzResp.razorpay_signature,
           });
           if (res.success && res.order) {
+            trackEcommerceEvent('purchase', {
+              transaction_id: res.order.id,
+              value: cartValueInr(),
+              items: state.cart.map(analyticsItemFromCart)
+            });
             // Save address to user profile (best-effort)
             if (state.user) {
               authPatch('/api/auth/me', {
@@ -1479,7 +1510,11 @@ async function renderOrders() {
    IDs and render. */
 
 async function renderWishlist() {
-  if (!state.user) return requireSignIn('view your wishlist', '/wishlist');
+  if (!state.user) return renderAuthRequiredPage({
+    title: 'Sign in to view your wishlist',
+    message: 'Your wishlist is saved to your Global Shopper account so hearts stay synced across devices.',
+    redirect: '/wishlist'
+  });
   const pids = Array.isArray(state.wishlist) ? state.wishlist : [];
   app.innerHTML = `
     <div class="breadcrumb">
