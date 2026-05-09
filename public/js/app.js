@@ -1694,39 +1694,6 @@ async function renderHome() {
           </div>
         </section>
 
-        <!-- PROMO BANNERS -->
-        <section class="promo-blocks">
-          <a href="/search?q=women dress" class="promo-big" id="promoWomenCta">
-            <div class="promo-big-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508h')"></div>
-            <div class="promo-big-copy">
-              <span class="promo-eyebrow">Fashion edit</span>
-              <h2>Top fashionable picks</h2>
-              <p>Dresses, co-ords, bags and statement styles sourced globally.</p>
-              <span class="promo-cta">Shop fashion →</span>
-            </div>
-          </a>
-          <div class="promo-stack">
-            <a href="/search?q=mini projector" class="promo-small promo-tech">
-              <div class="promo-small-bg" style="background-image:url('/img/cat-electronics.png?v=20260508h')"></div>
-              <div class="promo-small-copy">
-                <span class="promo-eyebrow">Hard to find</span>
-                <h3>Rare tech gadgets</h3>
-                <p>Projectors, smart devices and clever tools.</p>
-                <span class="promo-cta">Shop →</span>
-              </div>
-            </a>
-            <a href="/search?q=men shirt" class="promo-small promo-men" id="promoMenCta">
-              <div class="promo-small-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508h')"></div>
-              <div class="promo-small-copy">
-                <span class="promo-eyebrow">Men's style</span>
-                <h3>Global streetwear</h3>
-                <p>Shirts, jackets and clean everyday fits.</p>
-                <span class="promo-cta">Shop →</span>
-              </div>
-            </a>
-          </div>
-        </section>
-
         <!-- FEATURED PRODUCTS -->
         <section class="section home-product-rail">
           <div class="section-head">
@@ -2098,8 +2065,8 @@ async function loadHomeProducts() {
   const womenCat = findCat(/^women.?s\s+clothing/i) || findCat(/^women/i);
   const menCat   = findCat(/^men.?s\s+clothing/i)   || findCat(/^men\b/i);
 
-  // Point the fashion banner "Shop Now" CTAs and the top promo banners at
-  // the actual Men's / Women's Clothing category page instead of a narrow
+  // Point the fashion banner "Shop Now" CTAs at the actual Men's /
+  // Women's Clothing category page instead of a narrow
   // keyword search like "men shirt" — the user expects the full category.
   const setHref = (id, cat) => {
     if (!cat) return;
@@ -2108,8 +2075,6 @@ async function loadHomeProducts() {
   };
   setHref('menShopCta',    menCat);
   setHref('womenShopCta',  womenCat);
-  setHref('promoMenCta',   menCat);
-  setHref('promoWomenCta', womenCat);
 
   const mobileStrip = document.getElementById('mobileShopStrip');
   if (mobileStrip) mobileStrip.innerHTML = renderMobileCategoryShortcuts();
