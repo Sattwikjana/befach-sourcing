@@ -30,9 +30,10 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.42';
+const APP_VERSION = '8.43';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
+const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
 
 // ── Razorpay client ──
 // Both keys live in env — never in code or git.
@@ -583,6 +584,60 @@ app.get('/api/live', (req, res) => {
     timestamp: new Date().toISOString(),
     version: APP_VERSION,
   });
+});
+
+let mobilePushTokens = [];
+try {
+  if (fs.existsSync(MOBILE_PUSH_TOKENS_FILE)) {
+    const parsed = JSON.parse(fs.readFileSync(MOBILE_PUSH_TOKENS_FILE, 'utf8'));
+    mobilePushTokens = Array.isArray(parsed) ? parsed : [];
+  }
+} catch (err) {
+  console.warn('[mobile push] failed to load tokens:', err.message);
+  mobilePushTokens = [];
+}
+
+function saveMobilePushTokens() {
+  try {
+    const dir = path.dirname(MOBILE_PUSH_TOKENS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(MOBILE_PUSH_TOKENS_FILE, JSON.stringify(mobilePushTokens, null, 2));
+  } catch (err) {
+    console.warn('[mobile push] failed to save token:', err.message);
+  }
+}
+
+app.post('/api/mobile/push-token', (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  if (!/^(Expo|Exponent)PushToken\[[A-Za-z0-9_\-=]+\]$/.test(token)) {
+    return res.status(400).json({ error: 'Invalid Expo push token' });
+  }
+
+  const platform = ['android', 'ios', 'web'].includes(req.body?.platform) ? req.body.platform : 'android';
+  const appVersion = String(req.body?.appVersion || '').slice(0, 32);
+  const userAgent = String(req.body?.userAgent || req.get('user-agent') || '').slice(0, 240);
+  const now = new Date().toISOString();
+  const existingIndex = mobilePushTokens.findIndex(item => item.token === token);
+  const previous = existingIndex >= 0 ? mobilePushTokens[existingIndex] : {};
+  const entry = {
+    token,
+    platform,
+    appVersion,
+    userAgent,
+    userId: req.user?.id || null,
+    createdAt: previous.createdAt || now,
+    updatedAt: now,
+  };
+
+  if (existingIndex >= 0) mobilePushTokens[existingIndex] = entry;
+  else mobilePushTokens.push(entry);
+
+  if (mobilePushTokens.length > 50000) {
+    mobilePushTokens = mobilePushTokens.slice(mobilePushTokens.length - 50000);
+  }
+
+  saveMobilePushTokens();
+  res.json({ success: true });
 });
 
 // ══════════════════════════════════════════════════════════════════
@@ -1219,6 +1274,19 @@ function getRouteSeo(req) {
     };
   }
 
+  if (pathname === '/privacy') {
+    const canonical = absoluteUrl('/privacy');
+    return {
+      title: 'Privacy Policy | Global Shopper',
+      description: 'Global Shopper privacy policy for website, Android app, payments, product search, orders, account data and notifications.',
+      canonical,
+      image: DEFAULT_META_IMAGE,
+      type: 'website',
+      robots: 'index,follow',
+      schemas: [breadcrumbSchema([{ name: 'Home', url: SITE_URL }, { name: 'Privacy Policy', url: canonical }])],
+    };
+  }
+
   if (/^\/(search|cart|checkout|wishlist|orders|returns|account|profile|login|register|track|admin)\b/i.test(pathname)) {
     const label = pathname.split('/')[1] || 'Page';
     const title = `${label.charAt(0).toUpperCase()}${label.slice(1)} | Global Shopper`;
@@ -1453,6 +1521,7 @@ app.get('/sitemaps/pages.xml', (req, res) => {
   sendXml(res, xmlUrlset([
     { loc: `${SITE_URL}/`, changefreq: 'daily', priority: '1.0' },
     { loc: `${SITE_URL}/faq`, changefreq: 'monthly', priority: '0.5' },
+    { loc: `${SITE_URL}/privacy`, changefreq: 'monthly', priority: '0.4' },
     { loc: `${SITE_URL}/legal`, changefreq: 'monthly', priority: '0.4' },
   ]), 6 * 60 * 60);
 });
@@ -1488,6 +1557,7 @@ app.get('/llms.txt', (req, res) => {
     `- Categories: ${SITE_URL}/category/{categoryId}`,
     `- Products: ${SITE_URL}/product/{productId}`,
     `- FAQ: ${SITE_URL}/faq`,
+    `- Privacy: ${SITE_URL}/privacy`,
     `- Legal: ${SITE_URL}/legal`,
     '',
     'Private or utility routes such as /api, /cart, /checkout, /account, /orders, /login, /register, and /admin should not be indexed.',

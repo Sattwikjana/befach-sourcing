@@ -139,11 +139,12 @@ function renderDrawer() {
       </div>
     `}
 
-    <div class="drawer-section">
-      <div class="drawer-section-label">Support</div>
-      <a href="/faq" class="drawer-link">Help &amp; FAQ</a>
-      <a href="/legal" class="drawer-link">Legal &amp; compliance</a>
-    </div>
+      <div class="drawer-section">
+        <div class="drawer-section-label">Support</div>
+        <a href="/faq" class="drawer-link">Help &amp; FAQ</a>
+        <a href="/privacy" class="drawer-link">Privacy policy</a>
+        <a href="/legal" class="drawer-link">Legal &amp; compliance</a>
+      </div>
   `;
 
   // Wire the categories accordion
@@ -258,7 +259,10 @@ document.getElementById('footerYear').textContent = new Date().getFullYear();
       <a href="mailto:${c.email}">${c.email}</a><br/>
       <a href="tel:${c.phone.replace(/\s+/g,'')}">${c.phone}</a>
     </p>
-    <p class="footer-line"><a href="/legal">Legal &amp; Compliance →</a></p>
+    <p class="footer-line">
+      <a href="/privacy">Privacy Policy →</a><br/>
+      <a href="/legal">Legal &amp; Compliance →</a>
+    </p>
   `;
 })();
 
@@ -300,6 +304,37 @@ function requireSignIn(action = 'continue', redirect = currentReturnPath()) {
   return false;
 }
 window.requireSignIn = requireSignIn;
+
+async function registerMobilePushToken(detail = {}) {
+  const token = (detail && typeof detail.token === 'string') ? detail.token.trim() : '';
+  const force = detail.force === true;
+  if (!token || (!force && (registerMobilePushToken._lastSentToken === token || registerMobilePushToken._inflightToken === token))) return;
+  registerMobilePushToken._inflightToken = token;
+  try {
+    const res = await fetch('/api/mobile/push-token', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        platform: detail.platform || 'android',
+        appVersion: detail.appVersion || '',
+        userAgent: navigator.userAgent || ''
+      })
+    });
+    if (res.ok) registerMobilePushToken._lastSentToken = token;
+  } catch (err) {
+    console.warn('push token registration failed', err);
+  } finally {
+    if (registerMobilePushToken._inflightToken === token) registerMobilePushToken._inflightToken = '';
+  }
+}
+
+window.registerMobilePushToken = registerMobilePushToken;
+window.addEventListener('globalshopper:push-token', event => registerMobilePushToken(event.detail || {}));
+if (window.__GLOBAL_SHOPPER_PUSH_TOKEN__) {
+  registerMobilePushToken({ token: window.__GLOBAL_SHOPPER_PUSH_TOKEN__, platform: 'android' });
+}
 
 function productSkeleton(count = 8) {
   return Array(count).fill(`
@@ -786,6 +821,7 @@ function handleRoute() {
   if (path === '/track') return renderTrack();
   if (path === '/admin') return renderAdmin();
   if (path === '/faq') return renderFaq();
+  if (path === '/privacy') return renderPrivacy();
   if (path === '/legal') return renderLegal();
   if (path === '/login') return renderLogin();
   if (path === '/register') return renderRegister();

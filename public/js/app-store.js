@@ -649,6 +649,73 @@ function renderLegal() {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  PRIVACY POLICY
+//  Required for Play Console listing and payment/analytics review.
+// ══════════════════════════════════════════════════════════════
+function renderPrivacy() {
+  const c = window.COMPANY_INFO || {};
+  const email = c.email || 'sales@befach.com';
+  const phone = c.phone || '+91 70570 53160';
+  app.innerHTML = `
+    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">Privacy Policy</span></div>
+    <h1 class="page-title">Privacy Policy</h1>
+
+    <div class="legal-page">
+      <section class="legal-section">
+        <h2>Who we are</h2>
+        <p>${esc(c.brandName || 'Global Shopper')} is operated by ${esc(c.legalName || 'BEFACH 4X PRIVATE LIMITED')}. This policy explains how we collect, use, store and share information when you use our website, Android app, customer account, checkout, search, wishlist, cart, order tracking and support services.</p>
+        <p class="muted">Effective date: May 9, 2026</p>
+      </section>
+
+      <section class="legal-section">
+        <h2>Information we collect</h2>
+        <p>We collect account and contact details such as name, email address, phone number and login information; shipping and order details such as delivery address, product choices, cart, wishlist, return requests and order status; payment status and transaction references from Razorpay; support messages you send us; and app/device information such as app version, platform, notification token, browser user agent, diagnostics and analytics events.</p>
+        <p>If you use photo search, the uploaded image may be processed to understand the product you are looking for. We use it only for search and support of that request.</p>
+      </section>
+
+      <section class="legal-section">
+        <h2>How we use information</h2>
+        <p>We use your information to create and secure your account, keep your cart and wishlist synced, process checkout, arrange international fulfilment, provide order tracking, send order notifications, respond to support requests, prevent fraud, improve product discovery and comply with tax, customs, legal and payment requirements.</p>
+      </section>
+
+      <section class="legal-section">
+        <h2>Payments and fulfilment partners</h2>
+        <p>Payments are processed by Razorpay. We do not store card, UPI or net-banking credentials. We may share only the information needed to complete your purchase with payment processors, CJ Dropshipping, suppliers, logistics providers, customs partners and customer-support tools.</p>
+      </section>
+
+      <section class="legal-section">
+        <h2>Analytics, advertising and notifications</h2>
+        <p>We use analytics and advertising tools such as Google Tag Manager and Meta Pixel to understand visits, improve campaigns and measure store performance. In the Android app we may collect an Expo push notification token so we can send order and account updates if you allow notifications.</p>
+      </section>
+
+      <section class="legal-section" id="delete">
+        <h2>Account and data deletion</h2>
+        <p>You can request account deletion or correction by emailing <a href="mailto:${esc(email)}">${esc(email)}</a>. We will delete or anonymise account data that is no longer needed, except records we must keep for tax, payment, fraud-prevention, order fulfilment, dispute or legal reasons.</p>
+      </section>
+
+      <section class="legal-section">
+        <h2>Security and retention</h2>
+        <p>We use reasonable technical and organisational safeguards to protect customer data. We retain information for as long as needed to provide the service, support orders and returns, meet legal obligations and protect the store from abuse.</p>
+      </section>
+
+      <section class="legal-section">
+        <h2>Children</h2>
+        <p>Our services are not intended for children under 13. If you believe a child has provided personal data, contact us and we will take appropriate action.</p>
+      </section>
+
+      <section class="legal-section">
+        <h2>Contact</h2>
+        <p>
+          Email: <a href="mailto:${esc(email)}">${esc(email)}</a><br/>
+          Phone: <a href="tel:${esc(phone.replace(/\s+/g, ''))}">${esc(phone)}</a><br/>
+          Registered office: ${esc(c.registeredAddress || '')}
+        </p>
+      </section>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════
 //  FAQ / SHIPPING & RETURNS
 // ══════════════════════════════════════════════════════════════
 function renderFaq() {
@@ -968,6 +1035,15 @@ window.adminSaveMarkup = async function() {
 
 // Current user is fetched on boot via /api/auth/me. The session cookie is
 // httpOnly so the browser sends it automatically; no localStorage token.
+function refreshMobilePushTokenRegistration() {
+  if (!window.__GLOBAL_SHOPPER_PUSH_TOKEN__ || typeof window.registerMobilePushToken !== 'function') return;
+  window.registerMobilePushToken({
+    token: window.__GLOBAL_SHOPPER_PUSH_TOKEN__,
+    platform: 'android',
+    force: true
+  });
+}
+
 async function loadCurrentUser() {
   try {
     const res = await fetch('/api/auth/me', { credentials: 'include' });
@@ -979,6 +1055,7 @@ async function loadCurrentUser() {
     }
   } catch { state.user = null; }
   updateAuthSlot();
+  if (state.user) refreshMobilePushTokenRegistration();
   // Once we know who's signed in, pull their server-side cart and
   // wishlist down. Cart and wishlist are account-only, so signed-out
   // visitors never keep a guest cart/wishlist on this device.
@@ -1160,6 +1237,7 @@ function renderLogin() {
       const { user } = await authPost('/api/auth/login', fd);
       state.user = user;
       updateAuthSlot();
+      refreshMobilePushTokenRegistration();
       // Pull the account cart/wishlist before returning to the requested page.
       if (typeof window.syncCartFromServer === 'function')     await window.syncCartFromServer();
       if (typeof window.syncWishlistFromServer === 'function') await window.syncWishlistFromServer();
@@ -1211,6 +1289,7 @@ function renderRegister() {
       const { user } = await authPost('/api/auth/register', fd);
       state.user = user;
       updateAuthSlot();
+      refreshMobilePushTokenRegistration();
       // New account starts with empty server cart/wishlist.
       if (typeof window.syncCartFromServer === 'function')     await window.syncCartFromServer();
       if (typeof window.syncWishlistFromServer === 'function') await window.syncWishlistFromServer();
@@ -1503,6 +1582,7 @@ window.renderOrderDetail = renderOrderDetail;
 window.renderTrack = renderTrack;
 window.renderAdmin = renderAdmin;
 window.renderFaq = renderFaq;
+window.renderPrivacy = renderPrivacy;
 window.renderLegal = renderLegal;
 window.renderLogin = renderLogin;
 window.renderRegister = renderRegister;

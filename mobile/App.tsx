@@ -1,10 +1,13 @@
 import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import * as Linking from 'expo-linking';
+import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   BackHandler,
+  Platform,
   StatusBar as NativeStatusBar,
   StyleSheet,
   Text,
@@ -20,7 +23,17 @@ const DEFAULT_SITE_URL = 'https://www.globalshopper.in';
 const SITE_URL = String(Constants.expoConfig?.extra?.siteUrl || DEFAULT_SITE_URL).replace(/\/+$/, '');
 const HOME_URL = `${SITE_URL}/`;
 
-const APP_USER_AGENT = 'GlobalShopperAndroid/0.1.1';
+const APP_VERSION = '0.1.2';
+const APP_USER_AGENT = `GlobalShopperAndroid/${APP_VERSION}`;
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false
+  })
+});
 
 function toAppUrl(url: string | null | undefined) {
   if (!url) return HOME_URL;
@@ -46,17 +59,61 @@ function isGlobalShopperUrl(url: string) {
   }
 }
 
+async function registerForPushNotificationsAsync() {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('orders', {
+      name: 'Order updates',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#0B5FFF'
+    });
+  }
+
+  if (!Device.isDevice) return null;
+
+  const existing = await Notifications.getPermissionsAsync();
+  let finalStatus = existing.status;
+
+  if (existing.status !== 'granted') {
+    const requested = await Notifications.requestPermissionsAsync();
+    finalStatus = requested.status;
+  }
+
+  if (finalStatus !== 'granted') return null;
+
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+  if (!projectId) return null;
+
+  const token = await Notifications.getExpoPushTokenAsync({ projectId });
+  return token.data;
+}
+
 export default function App() {
   const webViewRef = useRef<WebView>(null);
   const [currentUrl, setCurrentUrl] = useState(HOME_URL);
   const [canGoBack, setCanGoBack] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pushToken, setPushToken] = useState<string | null>(null);
 
   const injectedJavaScript = useMemo(() => `
     window.__GLOBAL_SHOPPER_APP__ = true;
     document.documentElement.classList.add('global-shopper-native-app');
     true;
   `, []);
+
+  const injectPushToken = useCallback((token = pushToken) => {
+    if (!token) return;
+    const detail = {
+      token,
+      platform: Platform.OS,
+      appVersion: APP_VERSION
+    };
+    webViewRef.current?.injectJavaScript(`
+      window.__GLOBAL_SHOPPER_PUSH_TOKEN__ = ${JSON.stringify(token)};
+      window.dispatchEvent(new CustomEvent('globalshopper:push-token', { detail: ${JSON.stringify(detail)} }));
+      true;
+    `);
+  }, [pushToken]);
 
   useEffect(() => {
     const subscription = Linking.addEventListener('url', ({ url }) => {
@@ -69,6 +126,35 @@ export default function App() {
     }).catch(() => {});
     return () => subscription.remove();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    registerForPushNotificationsAsync()
+      .then(token => {
+        if (!cancelled && token) setPushToken(token);
+      })
+      .catch(() => {});
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data || {};
+      const target = typeof data.url === 'string'
+        ? data.url
+        : (typeof data.path === 'string' ? data.path : '');
+      if (!target) return;
+      const nextUrl = toAppUrl(target);
+      setCurrentUrl(nextUrl);
+      webViewRef.current?.injectJavaScript(`window.location.href = ${JSON.stringify(nextUrl)}; true;`);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    injectPushToken();
+  }, [injectPushToken]);
 
   useEffect(() => {
     const onBackPress = () => {
@@ -134,6 +220,7 @@ export default function App() {
             }}
             onLoadEnd={() => {
               SplashScreen.hideAsync().catch(() => {});
+              injectPushToken();
             }}
             onError={event => {
               SplashScreen.hideAsync().catch(() => {});

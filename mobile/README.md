@@ -9,7 +9,7 @@ This first version is a native shell around `https://www.globalshopper.in`, whic
 - The website already has the full ecommerce flow.
 - Product/category/pricing/order changes continue to come from the existing backend.
 - Play Store delivery is faster than rebuilding every screen natively first.
-- Native features such as Android back button, splash screen, sharing, deep links, camera/gallery permission, and app packaging are already in place.
+- Native features such as Android back button, splash screen, deep links, camera permission for photo search, push-notification token registration, and app packaging are already in place.
 
 ## Run Locally
 
@@ -43,6 +43,15 @@ npm run android:build
 
 Upload the generated `.aab` to Google Play Console.
 
+## Play Store Readiness
+
+- Privacy policy URL: `https://www.globalshopper.in/privacy`
+- App package: `in.globalshopper.app`
+- Production build format: Android App Bundle (`.aab`)
+- Camera permission: used only for photo search.
+- Notification permission: used for order/account updates when the customer allows notifications.
+- Storage/media permissions are blocked because the app does not need broad file access.
+
 ## Package Details
 
 - Android package: `in.globalshopper.app`
@@ -54,8 +63,8 @@ Upload the generated `.aab` to Google Play Console.
 
 These can be added without changing the backend:
 
-- Push notifications for order updates
 - Native camera/gallery photo search picker
+- Push-notification sending from admin/order events
 - Native bottom tab navigation
 - Native product listing/detail screens using `/api/store/*`
 - Native order tracking screen
