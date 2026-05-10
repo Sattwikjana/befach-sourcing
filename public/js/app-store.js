@@ -624,11 +624,66 @@ function renderTrack() {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  LEGAL / COMPANY DETAILS
+//  ABOUT / LEGAL / COMPANY DETAILS
 //  Public page that exposes company registration, GSTIN, IEC, CIN
 //  and contact info. Surfaced in the footer; helps establish
 //  legitimacy with payment processors and CJ verification.
 // ══════════════════════════════════════════════════════════════
+function renderAbout() {
+  const c = window.COMPANY_INFO || {};
+  app.innerHTML = `
+    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">About us</span></div>
+    <section class="about-page">
+      <div class="about-hero-card">
+        <span class="about-kicker">${esc(c.brandTagline || 'One World. Endless Choices.')}</span>
+        <h1>About ${esc(c.brandName || 'Global Shopper')}</h1>
+        <p>We curate premium products from artisans, ateliers and verified suppliers across 200+ countries, then deliver them to customers in India with clear pricing and support.</p>
+      </div>
+
+      <div class="about-feature-grid">
+        <article>
+          <strong>200+ countries</strong>
+          <span>Global catalog sourced through verified supplier networks.</span>
+        </article>
+        <article>
+          <strong>10–15 day delivery</strong>
+          <span>Tracked international delivery for eligible products.</span>
+        </article>
+        <article>
+          <strong>Shipping included</strong>
+          <span>Product prices are shown with India shipping included.</span>
+        </article>
+        <article>
+          <strong>Human support</strong>
+          <span>Help for orders, returns, refunds and product questions.</span>
+        </article>
+      </div>
+
+      <section class="about-card">
+        <h2>Operating entity</h2>
+        <dl class="about-details">
+          <div><dt>Legal name</dt><dd>${esc(c.legalName || '—')}</dd></div>
+          <div><dt>Registered office</dt><dd>${esc(c.registeredAddress || '—')}</dd></div>
+          <div><dt>GSTIN</dt><dd>${esc(c.gstin || '—')}</dd></div>
+          <div><dt>IEC</dt><dd>${esc(c.iec || '—')}</dd></div>
+        </dl>
+      </section>
+
+      <section class="about-card">
+        <h2>Need help?</h2>
+        <div class="about-link-grid">
+          <a href="/track">Track order</a>
+          <a href="/faq">Shipping &amp; returns</a>
+          <a href="/returns">Returns &amp; refunds</a>
+          <a href="/privacy">Privacy policy</a>
+          <a href="/legal">Legal &amp; compliance</a>
+          <a href="mailto:${esc(c.email || 'sales@befach.com')}">Contact support</a>
+        </div>
+      </section>
+    </section>
+  `;
+}
+
 function renderLegal() {
   const c = window.COMPANY_INFO || {};
   app.innerHTML = `
@@ -1616,6 +1671,7 @@ window.renderCheckout = renderCheckout;
 window.renderOrderDetail = renderOrderDetail;
 window.renderTrack = renderTrack;
 window.renderAdmin = renderAdmin;
+window.renderAbout = renderAbout;
 window.renderFaq = renderFaq;
 window.renderPrivacy = renderPrivacy;
 window.renderLegal = renderLegal;

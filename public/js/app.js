@@ -151,9 +151,16 @@ function renderDrawer() {
       </div>
     `}
 
-      <div class="drawer-section">
-        <div class="drawer-section-label">Support</div>
-        <a href="/faq" class="drawer-link">Help &amp; FAQ</a>
+      <div class="drawer-section drawer-about-section">
+        <div class="drawer-section-label">About &amp; support</div>
+        <div class="drawer-about-card">
+          <strong>${esc(COMPANY_INFO.brandName)}</strong>
+          <span>${esc(COMPANY_INFO.brandTagline)}</span>
+          <p>Premium global products delivered to India in 10–15 days.</p>
+          <small>Operated by ${esc(COMPANY_INFO.legalName)}</small>
+        </div>
+        <a href="/about" class="drawer-link">About us</a>
+        <a href="/faq" class="drawer-link">Shipping, returns &amp; FAQ</a>
         <a href="/privacy" class="drawer-link">Privacy policy</a>
         <a href="/legal" class="drawer-link">Legal &amp; compliance</a>
       </div>
@@ -1061,6 +1068,7 @@ function handleRoute() {
   if (path.startsWith('/order/')) { setPageTitle('Order Tracking | Global Shopper'); return finish(renderOrderDetail(path.slice('/order/'.length))); }
   if (path === '/track') { setPageTitle('Track Order | Global Shopper'); return finish(renderTrack()); }
   if (path === '/admin') { setPageTitle('Admin | Global Shopper'); return finish(renderAdmin()); }
+  if (path === '/about') { setPageTitle('About Global Shopper | Global Shopper'); return finish(renderAbout()); }
   if (path === '/faq') { setPageTitle('Shipping & Returns FAQ | Global Shopper'); return finish(renderFaq()); }
   if (path === '/privacy') { setPageTitle('Privacy Policy | Global Shopper'); return finish(renderPrivacy()); }
   if (path === '/legal') { setPageTitle('Legal & Compliance | Global Shopper'); return finish(renderLegal()); }
