@@ -2890,16 +2890,18 @@ body.page-home .header-nav { margin-left: auto; }
   right: 0;
   background: #fff;
   border-top: 1px solid var(--border);
-  padding: 10px 14px env(safe-area-inset-bottom, 10px);
+  padding: 8px 14px calc(10px + env(safe-area-inset-bottom, 0px));
   z-index: 50;
   box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
 .mobile-cta-price {
-  flex: 1;
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -2908,20 +2910,43 @@ body.page-home .header-nav { margin-left: auto; }
   color: var(--brand-dark);
   font-weight: 800;
 }
+.mobile-cta-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.mobile-cta-actions.single {
+  grid-template-columns: 1fr;
+}
 .mobile-cta-btn {
-  flex: 1;
-  background: var(--brand);
+  width: 100%;
+  background: #111827;
   color: #fff;
   border: none;
-  padding: 14px 20px;
-  border-radius: var(--radius);
-  font-weight: 700;
+  padding: 14px 12px;
+  border-radius: 14px;
+  font-weight: 900;
   font-size: 15px;
   cursor: pointer;
   min-height: 48px;
+  letter-spacing: 0;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
 }
-.mobile-cta-btn:hover { background: var(--brand-dark); }
-.mobile-cta-btn:disabled { background: #e3d0c0; }
+.mobile-cta-btn:hover { background: #0B1220; }
+.mobile-cta-btn-buy {
+  background: #FDBA00;
+  color: #111827;
+  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.24);
+}
+.mobile-cta-btn-buy:hover { background: #F59E0B; }
+.mobile-cta-btn-cart {
+  background: #111827;
+}
+.mobile-cta-btn:disabled {
+  background: #CBD5E1;
+  color: #64748B;
+  box-shadow: none;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    Persistent mobile bottom nav — phones/tablets ≤860px wide
@@ -3115,6 +3140,7 @@ body.page-home .header-nav { margin-left: auto; }
   .product-detail + .section { padding-bottom: 80px; }   /* room for sticky bar */
   /* Show the sticky CTA bar on product page */
   body.page-product .mobile-cta-bar { display: flex; }
+  body.page-product main { padding-bottom: calc(126px + env(safe-area-inset-bottom, 0px)); }
   /* Variant chips bigger for fingers */
   .pd-variant-chip,
   .pd-size-btn { min-height: 44px; padding: 0 18px; font-size: 14px; }
@@ -4535,7 +4561,7 @@ body {
   }
 
   html.global-shopper-native-app .header {
-    padding-top: 8px;
+    padding-top: 30px;
   }
 
   .header-inner {

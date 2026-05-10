@@ -3074,8 +3074,7 @@ async function renderProduct(pid) {
   document.getElementById('pdQtyMinus').onclick = () => { qtyInput.value = Math.max(1, parseInt(qtyInput.value) - 1 || 1); };
   document.getElementById('pdQtyPlus').onclick = () => { qtyInput.value = parseInt(qtyInput.value) + 1 || 2; };
 
-  // Add to cart
-  document.getElementById('pdAddCart').onclick = () => {
+  function addCurrentProductToCart(showAddedToast = true) {
     if (!current.vid) return showToast('Please pick a variant');
     const qty = parseInt(qtyInput.value) || 1;
     if (!addToCart({
@@ -3087,19 +3086,18 @@ async function renderProduct(pid) {
       image: current.image,
       priceUsd: current.priceUsd.toString(),
     })) return;
-    showToast(`✅ Added ${qty} × ${current.name.slice(0, 30)} to cart`);
+    if (showAddedToast) showToast(`Added ${qty} × ${current.name.slice(0, 30)} to cart`);
+    return true;
+  }
+
+  // Add to cart
+  document.getElementById('pdAddCart').onclick = () => {
+    addCurrentProductToCart(true);
   };
 
   // Buy now
   document.getElementById('pdBuyNow').onclick = () => {
-    if (!current.vid) return showToast('Please pick a variant');
-    const qty = parseInt(qtyInput.value) || 1;
-    if (!addToCart({
-      pid: current.pid, vid: current.vid, quantity: qty,
-      productName: current.name, variantName: current.variantName,
-      image: current.image, priceUsd: current.priceUsd.toString(),
-    })) return;
-    navigate('/checkout');
+    if (addCurrentProductToCart(false)) navigate('/checkout');
   };
 
   // Initial stock check
@@ -3112,17 +3110,21 @@ async function renderProduct(pid) {
   installMobileCtaBar({
     getPrice: () => current.priceUsd,
     getDisabled: () => !current.vid || document.getElementById('pdAddCart')?.disabled,
-    onClick: () => {
-      const qty = parseInt(qtyInput.value) || 1;
-      if (!addToCart({
-        pid: current.pid, vid: current.vid, quantity: qty,
-        productName: current.name, variantName: current.variantName,
-        image: current.image, priceUsd: current.priceUsd.toString(),
-      })) return;
-      showToast(`✅ Added to cart`);
-    },
-    label: '🛒 Add to Cart',
     priceLabel: 'incl. shipping',
+    actions: [
+      {
+        label: 'Add to Cart',
+        className: 'mobile-cta-btn-cart',
+        onClick: () => addCurrentProductToCart(true),
+      },
+      {
+        label: 'Buy Now',
+        className: 'mobile-cta-btn-buy',
+        onClick: () => {
+          if (addCurrentProductToCart(false)) navigate('/checkout');
+        },
+      },
+    ],
   });
 }
 
@@ -3130,22 +3132,41 @@ async function renderProduct(pid) {
  * Inject (or refresh) the sticky bottom CTA bar. CSS controls visibility:
  * only shows on mobile via body.page-product / body.page-cart selectors.
  */
-function installMobileCtaBar({ getPrice, getDisabled, onClick, label, priceLabel }) {
+function installMobileCtaBar({ getPrice, getDisabled, onClick, label, priceLabel, actions }) {
   document.getElementById('mobileCtaBar')?.remove();
   const bar = document.createElement('div');
   bar.className = 'mobile-cta-bar';
   bar.id = 'mobileCtaBar';
+  const actionList = (Array.isArray(actions) && actions.length)
+    ? actions
+    : [{ label: label || 'Continue', onClick }];
   bar.innerHTML = `
     <div class="mobile-cta-price">
       <span>${esc(priceLabel || '')}</span>
       <strong data-mcta-price>${fmtINR(getPrice())}</strong>
     </div>
-    <button class="mobile-cta-btn" data-mcta-btn>${esc(label)}</button>
+    <div class="mobile-cta-actions ${actionList.length === 1 ? 'single' : ''}">
+      ${actionList.map((action, idx) => `
+        <button class="mobile-cta-btn ${esc(action.className || '')}" data-mcta-action="${idx}">
+          ${esc(action.label || 'Continue')}
+        </button>
+      `).join('')}
+    </div>
   `;
   document.body.appendChild(bar);
-  const btn = bar.querySelector('[data-mcta-btn]');
-  btn.disabled = !!(getDisabled && getDisabled());
-  btn.onclick = onClick;
+  const buttons = [...bar.querySelectorAll('[data-mcta-action]')];
+  const syncButtons = () => {
+    const globallyDisabled = !!(getDisabled && getDisabled());
+    buttons.forEach((btn, idx) => {
+      const action = actionList[idx] || {};
+      btn.disabled = globallyDisabled || !!(action.getDisabled && action.getDisabled());
+    });
+  };
+  buttons.forEach((btn, idx) => {
+    const action = actionList[idx] || {};
+    btn.onclick = action.onClick || onClick;
+  });
+  syncButtons();
   // Refresh the price/disabled state every 250ms — cheap, and tracks
   // variant changes without us having to plumb events everywhere.
   if (window._mctaTimer) clearInterval(window._mctaTimer);
@@ -3157,7 +3178,7 @@ function installMobileCtaBar({ getPrice, getDisabled, onClick, label, priceLabel
     }
     const priceEl = bar.querySelector('[data-mcta-price]');
     if (priceEl) priceEl.textContent = fmtINR(getPrice());
-    btn.disabled = !!(getDisabled && getDisabled());
+    syncButtons();
   }, 250);
 }
 window.installMobileCtaBar = installMobileCtaBar;
