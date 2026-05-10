@@ -2744,6 +2744,8 @@ async function renderSearch(query, page = 1, opts = {}) {
     }
 
     const grid = document.getElementById('searchGrid');
+    const pag = document.getElementById('pagination');
+    if (pag) pag.innerHTML = '';
     if (!products.length) {
       grid.innerHTML = `<div class="empty-state">
         <div class="empty-icon">🔍</div>
@@ -2756,8 +2758,7 @@ async function renderSearch(query, page = 1, opts = {}) {
     grid.innerHTML = products.map(productCard).join('');
     backfillCardShipping(grid);
 
-    const pag = document.getElementById('pagination');
-    if (totalPages > 1) {
+    if (pag && totalPages > 1) {
       // Three modes: pure category browse, search-within-category, or pure search.
       let baseHash;
       if (opts.categoryId && query) {
@@ -2791,6 +2792,8 @@ async function renderSearch(query, page = 1, opts = {}) {
       pag.innerHTML = html;
     }
   } catch (err) {
+    const pag = document.getElementById('pagination');
+    if (pag) pag.innerHTML = '';
     document.getElementById('searchGrid').innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">⚠️</div>
