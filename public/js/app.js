@@ -2573,8 +2573,13 @@ async function renderCategory(categoryId, page, params) {
   const name = params?.get('name') || '';
   // Make sure the category tree is loaded before we look up children
   await loadCategories();
-  const children = findCategoryChildren(categoryId);
-  return renderSearch('', page, { categoryId, categoryName: name, categoryChildren: children });
+  const childInfo = findCategoryChildren(categoryId);
+  return renderSearch('', page, {
+    categoryId,
+    categoryName: name,
+    categoryChildren: childInfo.children,
+    categoryChildLevel: childInfo.level,
+  });
 }
 
 // Find the immediate children of a given category id at any nesting level.
@@ -2583,12 +2588,16 @@ async function renderCategory(categoryId, page, params) {
 // being stuck on whatever CJ returns first for the parent id.
 function findCategoryChildren(id) {
   for (const cat of state.categories || []) {
-    if (cat.categoryFirstId === id) return cat.categoryFirstList || [];
+    if (cat.categoryFirstId === id) {
+      return { children: cat.categoryFirstList || [], level: 'second' };
+    }
     for (const sec of cat.categoryFirstList || []) {
-      if (sec.categorySecondId === id) return sec.categorySecondList || [];
+      if (sec.categorySecondId === id) {
+        return { children: sec.categorySecondList || [], level: 'third' };
+      }
     }
   }
-  return [];
+  return { children: [], level: '' };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2613,17 +2622,25 @@ async function renderSearch(query, page = 1, opts = {}) {
   if (opts.categoryName && !query) setPageTitle(`${cleanDisplayName(opts.categoryName)} Online | Global Shopper`);
   else if (query) setPageTitle(`Search results for ${query} | Global Shopper`);
   else setPageTitle('Browse Products | Global Shopper');
-  const childChips = (opts.categoryChildren || []).length ? `
-    <nav class="subcategory-strip subcategory-visual-strip" aria-label="Subcategories">
-      ${opts.categoryChildren.map(c => {
-        const cname = c.categoryName || c.categorySecondName || c.categoryFirstName || '';
-        return `<a class="subcat-chip subcat-visual-card" href="${categoryHref(c)}">
-          <span class="subcat-visual-img">${catIcon(cname, opts.categoryName || '')}</span>
-          <span class="subcat-visual-name">${esc(cname)}</span>
-        </a>`;
-      }).join('')}
-    </nav>
-  ` : '';
+  const categoryChildren = opts.categoryChildren || [];
+  const childChips = categoryChildren.length
+    ? (opts.categoryChildLevel === 'third'
+      ? `<nav class="subcategory-strip subcategory-text-strip" aria-label="Sub-subcategories">
+          ${categoryChildren.map(c => {
+            const cname = c.categoryName || c.categorySecondName || c.categoryFirstName || '';
+            return `<a class="subcat-chip" href="${categoryHref(c)}">${esc(cname)}</a>`;
+          }).join('')}
+        </nav>`
+      : `<nav class="subcategory-strip subcategory-visual-strip" aria-label="Subcategories">
+          ${categoryChildren.map(c => {
+            const cname = c.categoryName || c.categorySecondName || c.categoryFirstName || '';
+            return `<a class="subcat-chip subcat-visual-card" href="${categoryHref(c)}">
+              <span class="subcat-visual-img">${catIcon(cname, opts.categoryName || '')}</span>
+              <span class="subcat-visual-name">${esc(cname)}</span>
+            </a>`;
+          }).join('')}
+        </nav>`)
+    : '';
 
   // Read sort state from URL.
   const urlParams = new URLSearchParams(location.search);
