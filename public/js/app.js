@@ -2072,17 +2072,15 @@ async function renderHome() {
         </section>
 
         <!-- MEN'S FASHION -->
-        <section class="fashion-section home-product-rail">
-          <div class="fashion-banner fashion-banner-men">
-            <div class="fashion-banner-bg" style="background-image:url('/img/cat-men-clothing.png?v=20260508h')"></div>
-            <div class="fashion-banner-copy">
-              <span class="fashion-eyebrow">Men's collection</span>
-              <h2>Sharp everyday style</h2>
-              <p>Global shirts, layers and standout streetwear.</p>
-              <a class="fashion-cta" id="menShopCta" href="/search?q=men shirt">Shop Now →</a>
+        <section class="section home-product-rail">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Everyday style</span>
+              <h2 class="section-title">Men's clothing picks</h2>
             </div>
+            <a href="/search?q=men shirt" class="section-link" id="menMore">View all →</a>
           </div>
-          <div class="products-grid fashion-grid" id="menGrid">${productSkeleton(8)}</div>
+          <div class="products-grid" id="menGrid">${productSkeleton(8)}</div>
         </section>
 
         <!-- TRENDING TECH & GADGETS -->
@@ -2110,17 +2108,15 @@ async function renderHome() {
         </section>
 
         <!-- WOMEN'S FASHION -->
-        <section class="fashion-section home-product-rail">
-          <div class="fashion-banner fashion-banner-women">
-            <div class="fashion-banner-bg" style="background-image:url('/img/cat-women-clothing.png?v=20260508h')"></div>
-            <div class="fashion-banner-copy">
-              <span class="fashion-eyebrow">Women's collection</span>
-              <h2>Statement-ready fashion</h2>
-              <p>Dresses, sets and accessories with a global look.</p>
-              <a class="fashion-cta" id="womenShopCta" href="/search?q=women dress">Shop Now →</a>
+        <section class="section home-product-rail">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Style picks</span>
+              <h2 class="section-title">Women's clothing picks</h2>
             </div>
+            <a href="/search?q=women dress" class="section-link" id="womenMore">View all →</a>
           </div>
-          <div class="products-grid fashion-grid" id="womenGrid">${productSkeleton(8)}</div>
+          <div class="products-grid" id="womenGrid">${productSkeleton(8)}</div>
         </section>
 
         <!-- SMART GADGETS -->
@@ -2418,16 +2414,15 @@ async function loadHomeProducts() {
   const womenCat = findCat(/^women.?s\s+clothing/i) || findCat(/^women/i);
   const menCat   = findCat(/^men.?s\s+clothing/i)   || findCat(/^men\b/i);
 
-  // Point the fashion banner "Shop Now" CTAs at the actual Men's /
-  // Women's Clothing category page instead of a narrow
-  // keyword search like "men shirt" — the user expects the full category.
+  // Point the fashion row "View all" links at the actual Men's /
+  // Women's Clothing category page instead of a narrow keyword search.
   const setHref = (id, cat) => {
     if (!cat) return;
     const el = document.getElementById(id);
     if (el) el.href = categoryHref(cat);
   };
-  setHref('menShopCta',    menCat);
-  setHref('womenShopCta',  womenCat);
+  setHref('menMore',    menCat);
+  setHref('womenMore',  womenCat);
 
   const mobileStrip = document.getElementById('mobileShopStrip');
   if (mobileStrip) mobileStrip.innerHTML = renderMobileCategoryShortcuts();
