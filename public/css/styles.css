@@ -4496,19 +4496,19 @@ body {
   .mobile-shop-strip {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px 8px;
+    gap: 9px 5px;
     overflow: visible;
-    margin: 0 0 16px;
-    padding: 2px 0 4px;
+    margin: 0 0 14px;
+    padding: 2px 0;
   }
   .mobile-shop-strip::-webkit-scrollbar { display: none; }
   .mobile-shop-strip a {
     min-width: 0;
     display: grid;
-    grid-template-rows: 58px auto;
+    grid-template-rows: 66px auto;
     justify-items: center;
     align-items: start;
-    gap: 7px;
+    gap: 4px;
     color: #172033;
     font-size: 10.8px;
     font-weight: 800;
@@ -4520,14 +4520,14 @@ body {
     align-items: flex-start;
     justify-content: center;
     width: 100%;
-    min-height: 42px;
+    min-height: 30px;
     overflow-wrap: anywhere;
   }
   .mobile-shop-strip img {
-    width: 58px;
-    height: 58px;
+    width: 66px;
+    height: 66px;
     padding: 0;
-    border-radius: 18px;
+    border-radius: 20px;
     object-fit: cover;
     object-position: center;
     background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
@@ -4730,16 +4730,16 @@ body {
     font-size: 10px;
   }
   .mobile-shop-strip {
-    gap: 10px 6px;
+    gap: 8px 4px;
   }
   .mobile-shop-strip a {
-    grid-template-rows: 54px auto;
-    font-size: 10px;
+    grid-template-rows: 64px auto;
+    font-size: 9.8px;
   }
   .mobile-shop-strip img {
-    width: 54px;
-    height: 54px;
-    border-radius: 16px;
+    width: 64px;
+    height: 64px;
+    border-radius: 20px;
   }
   .subcategory-visual-strip {
     gap: 8px 6px;
@@ -5006,7 +5006,7 @@ body {
 
   .mobile-shop-strip {
     margin: 0 0 18px;
-    padding: 14px 10px 12px;
+    padding: 10px 6px 9px;
     border-radius: 22px;
     background: rgba(255, 255, 255, 0.82);
     border: 1px solid rgba(203, 213, 225, 0.62);
@@ -5014,20 +5014,20 @@ body {
   }
 
   .mobile-shop-strip a {
-    min-height: 104px;
+    min-height: 94px;
     -webkit-tap-highlight-color: transparent;
   }
 
   .mobile-shop-strip img {
-    width: 60px;
-    height: 60px;
-    border-radius: 20px;
+    width: 68px;
+    height: 68px;
+    border-radius: 22px;
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
   }
 
   .mobile-shop-strip a span {
     color: #111827;
-    font-size: 10.5px;
+    font-size: 10.2px;
     font-weight: 900;
     letter-spacing: 0;
   }
