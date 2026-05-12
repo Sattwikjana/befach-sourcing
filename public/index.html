@@ -79,15 +79,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260512-desktop-blue" />
-  <!-- Inline style as a safety net — guaranteed to load with no race
-       conditions against the external CSS. -->
-  <style>
-    @media (min-width: 861px) {
-      html[data-page="home"] #headerSearchForm,
-      html[data-page="home"] .header-search { display: none !important; }
-    }
-  </style>
+  <link rel="stylesheet" href="/css/styles.css?v=20260512-usp-carousel" />
   <script>
     // 1) MIGRATE OLD HASH URLs — anyone hitting /#/cart from a stale
     //    bookmark or shared link is silently redirected to /cart so
@@ -98,10 +90,8 @@
       var clean = location.hash.slice(1);   // "/cart?foo=bar"
       history.replaceState(null, '', clean);
     }
-    // 2) Set the page slug on <html> BEFORE first paint so CSS rules
-    //    like html[data-page="home"] .header-search { display: none }
-    //    fire immediately — no flash of the wrong layout. CSS alone
-    //    hides the search bar on home and shows it on every other page.
+    // 2) Set the page slug on <html> BEFORE first paint so route-scoped
+    //    CSS rules can apply before the first render.
     (function () {
       var path = location.pathname || '/';
       var slug = (path === '/' || path === '') ? 'home' : (path.split('/')[1] || 'home');
@@ -302,7 +292,7 @@
   <!-- Razorpay Checkout — loaded async so it doesn't block the page;
        only used on the checkout page when the customer hits "Pay & Place order". -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
-  <script src="/js/app.js?v=20260510h"></script>
+  <script src="/js/app.js?v=20260512-usp-carousel"></script>
   <script src="/js/app-store.js?v=20260510c"></script>
   <!-- Surface any uncaught JS error in the page so we can debug from
        the browser without DevTools. Goes to console.error and shows

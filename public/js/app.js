@@ -67,6 +67,40 @@ const drawerEl = document.getElementById('drawer');
 const drawerBackdrop = document.getElementById('drawerBackdrop');
 const drawerClose = document.getElementById('drawerClose');
 const DEFAULT_PAGE_TITLE = 'Global Shopper - One World. Endless Choices.';
+let stopHomeUspCarousel = null;
+
+const HOME_USP_SLIDES = [
+  {
+    src: '/img/hero/global-usp-1.jpg',
+    href: '/search?q=global%20products',
+    label: 'Explore global products and endless choices',
+    alt: 'Global Shopper campaign banner: Bored of the same? Global products, endless choices.'
+  },
+  {
+    src: '/img/hero/global-usp-2.jpg',
+    href: '/search?q=global%20shopping',
+    label: 'Upgrade your shopping with global products',
+    alt: 'Global Shopper campaign banner: Upgrade your shopping with global products delivered to you.'
+  },
+  {
+    src: '/img/hero/global-usp-3.jpg',
+    href: '/search?q=trending%20global',
+    label: 'Shop trending global products now in India',
+    alt: 'Global Shopper campaign banner: Trending in US, now in India.'
+  },
+  {
+    src: '/img/hero/global-usp-4.jpg',
+    href: '/search?q=shop%20the%20world',
+    label: 'Shop the world from US, Korea and more',
+    alt: 'Global Shopper campaign banner: Shop the world from US, Korea and more.'
+  },
+  {
+    src: '/img/hero/global-usp-5.jpg',
+    href: '/search?q=premium%20global%20products',
+    label: 'Start shopping what is possible globally',
+    alt: 'Global Shopper campaign banner: Stop settling for what is available, start shopping what is possible.'
+  }
+];
 
 function cleanDisplayName(name) {
   return String(name || '')
@@ -96,6 +130,75 @@ function closeDrawer() {
 hamburgerBtn?.addEventListener('click', openDrawer);
 drawerClose?.addEventListener('click', closeDrawer);
 drawerBackdrop?.addEventListener('click', closeDrawer);
+
+function initMobileHeaderAutoHide() {
+  const header = document.getElementById('appHeader');
+  const mobileQuery = window.matchMedia('(max-width: 860px)');
+  let lastY = Math.max(0, window.scrollY || 0);
+  let ticking = false;
+
+  const syncHeaderHeight = () => {
+    if (mobileQuery.matches && header) {
+      document.documentElement.style.setProperty('--app-header-height', `${Math.ceil(header.offsetHeight)}px`);
+    } else {
+      document.documentElement.style.removeProperty('--app-header-height');
+    }
+  };
+
+  const shouldKeepHeaderVisible = () => {
+    const active = document.activeElement;
+    return !mobileQuery.matches ||
+      window.scrollY < 90 ||
+      drawerEl?.classList.contains('open') ||
+      (active && header?.contains(active));
+  };
+
+  const reveal = () => document.body.classList.remove('mobile-header-hidden');
+  const update = () => {
+    const y = Math.max(0, window.scrollY || 0);
+    const delta = y - lastY;
+
+    if (shouldKeepHeaderVisible()) {
+      reveal();
+    } else if (delta > 8) {
+      document.body.classList.add('mobile-header-hidden');
+    } else if (delta < -8) {
+      reveal();
+    }
+
+    lastY = y;
+    ticking = false;
+  };
+
+  window.addEventListener('scroll', () => {
+    if (!ticking) {
+      window.requestAnimationFrame(update);
+      ticking = true;
+    }
+  }, { passive: true });
+
+  window.addEventListener('resize', () => {
+    syncHeaderHeight();
+    lastY = Math.max(0, window.scrollY || 0);
+    if (!mobileQuery.matches) reveal();
+  }, { passive: true });
+
+  if (mobileQuery.addEventListener) {
+    mobileQuery.addEventListener('change', () => {
+      syncHeaderHeight();
+      reveal();
+    });
+  }
+
+  if (header && 'ResizeObserver' in window) {
+    new ResizeObserver(syncHeaderHeight).observe(header);
+  }
+  header?.addEventListener('focusin', reveal);
+  header?.addEventListener('pointerdown', reveal, { passive: true });
+  syncHeaderHeight();
+}
+
+initMobileHeaderAutoHide();
 
 /**
  * Build the entire drawer body fresh, based on the current auth state.
@@ -1006,6 +1109,11 @@ function handleRoute() {
   resetRouteVitals();
 
   if (typeof cancelBackfill === 'function') cancelBackfill();
+  if (typeof stopHomeUspCarousel === 'function') {
+    stopHomeUspCarousel();
+    stopHomeUspCarousel = null;
+  }
+  document.body.classList.remove('mobile-header-hidden');
 
   document.querySelectorAll('.nav-link').forEach(el => {
     el.classList.toggle('active', el.getAttribute('href') === path);
@@ -1981,46 +2089,20 @@ async function renderHome() {
       </aside>
 
       <div class="home-main">
-        <!-- HERO (compact) — premium global imports, doorstep delivery -->
-        <section class="home-hero home-hero-compact">
-          <div class="home-hero-inner">
-            <div class="home-hero-copy">
-              <span class="home-hero-eyebrow">Curated from across the globe</span>
-              <h1 class="home-hero-title">Shop the world. <span class="accent">Delivered to your door.</span></h1>
-              <p class="home-hero-sub">Premium products, hand-picked from artisans and ateliers in 200+ countries — delivered to India in 10–15 days.</p>
-              <form class="home-hero-search" id="heroSearchForm">
-                <input type="text" id="heroSearchInput" placeholder="Search dresses, watches, lighting, fragrances..." autocomplete="off" />
-                <button type="button" class="hero-photo-btn" id="heroPhotoSearchBtn" data-photo-search aria-label="Search by photo" title="Search by photo">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3v13H4V7z"/><circle cx="12" cy="13" r="4"/></svg>
-                </button>
-                <button type="submit" aria-label="Search">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-                  <span>Search</span>
-                </button>
-              </form>
-              <div class="home-hero-chips" aria-label="Popular searches">
-                <a href="/search?q=smart watch">Smart watches</a>
-                <a href="/search?q=co ord set">Co-ords</a>
-                <a href="/search?q=mini projector">Mini projectors</a>
-                <a href="/search?q=makeup organizer">Beauty tools</a>
-              </div>
-              <div class="home-hero-stats">
-                <div><strong>200+</strong><span>Countries</span></div>
-                <div><strong>10–15</strong><span>Days to your door</span></div>
-                <div><strong>Premium</strong><span>Quality, every order</span></div>
-              </div>
+        <section class="home-usp-carousel" id="homeUspCarousel" aria-label="Global Shopper offers" aria-roledescription="carousel" tabindex="0">
+          <div class="home-usp-viewport">
+            <div class="home-usp-track">
+              ${HOME_USP_SLIDES.map((slide, index) => `
+                <a class="home-usp-slide${index === 0 ? ' is-active' : ''}" href="${slide.href}" aria-label="${esc(slide.label)}" aria-hidden="${index === 0 ? 'false' : 'true'}" tabindex="${index === 0 ? '0' : '-1'}">
+                  <img src="${slide.src}?v=20260512usp" alt="${esc(slide.alt)}" width="1920" height="1080" loading="${index === 0 ? 'eager' : 'lazy'}" decoding="async"${index === 0 ? ' fetchpriority="high"' : ''} />
+                </a>
+              `).join('')}
             </div>
-            <div class="home-hero-art" aria-hidden="true">
-              <div class="hero-showcase-card hero-showcase-main">
-                <img src="/img/cat-women-clothing.png?v=20260508h" alt="" width="220" height="220" loading="eager" decoding="async" />
-                <span>Statement fashion</span>
-              </div>
-              <div class="hero-showcase-card hero-showcase-side">
-                <img src="/img/cat-electronics.png?v=20260508h" alt="" width="180" height="180" loading="eager" decoding="async" />
-                <span>Smart tech</span>
-              </div>
-              <div class="hero-showcase-badge">Global Shopper</div>
-            </div>
+          </div>
+          <div class="home-usp-dots" role="tablist" aria-label="Choose promotional slide">
+            ${HOME_USP_SLIDES.map((slide, index) => `
+              <button class="home-usp-dot${index === 0 ? ' is-active' : ''}" type="button" role="tab" aria-selected="${index === 0 ? 'true' : 'false'}" aria-label="Show slide ${index + 1}: ${esc(slide.label)}" data-usp-dot="${index}"></button>
+            `).join('')}
           </div>
         </section>
 
@@ -2150,14 +2232,7 @@ async function renderHome() {
     </div>
   `;
 
-  const heroInput = document.getElementById('heroSearchInput');
-  document.getElementById('heroSearchForm').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const q = heroInput.value.trim();
-    if (q.length < 2) return showToast('Type at least 2 characters');
-    navigate(`/search?q=${encodeURIComponent(q)}`);
-  });
-  document.getElementById('heroPhotoSearchBtn')?.addEventListener('click', openPhotoSearchPicker);
+  initHomeUspCarousel();
 
   loadCategories().then(() => {
     renderHomeSidebar();
@@ -2165,6 +2240,112 @@ async function renderHome() {
     if (mobileStrip) mobileStrip.innerHTML = renderMobileCategoryShortcuts();
   });
   loadHomeProducts();
+}
+
+function initHomeUspCarousel() {
+  if (typeof stopHomeUspCarousel === 'function') {
+    stopHomeUspCarousel();
+    stopHomeUspCarousel = null;
+  }
+
+  const root = document.getElementById('homeUspCarousel');
+  if (!root) return;
+
+  const track = root.querySelector('.home-usp-track');
+  const slides = Array.from(root.querySelectorAll('.home-usp-slide'));
+  const dots = Array.from(root.querySelectorAll('.home-usp-dot'));
+  if (!track || slides.length < 2) return;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let activeIndex = 0;
+  let timer = null;
+  let pointerStartX = 0;
+  let pointerCurrentX = 0;
+  let isDragging = false;
+
+  const stopTimer = () => {
+    if (timer) window.clearInterval(timer);
+    timer = null;
+  };
+
+  const startTimer = () => {
+    if (reduceMotion) return;
+    stopTimer();
+    timer = window.setInterval(() => setSlide(activeIndex + 1), 5200);
+  };
+
+  const setSlide = (nextIndex) => {
+    activeIndex = (nextIndex + slides.length) % slides.length;
+    track.style.transform = `translate3d(${-activeIndex * 100}%, 0, 0)`;
+    slides.forEach((slide, index) => {
+      slide.classList.toggle('is-active', index === activeIndex);
+      slide.setAttribute('aria-hidden', index === activeIndex ? 'false' : 'true');
+      slide.tabIndex = index === activeIndex ? 0 : -1;
+    });
+    dots.forEach((dot, index) => {
+      dot.classList.toggle('is-active', index === activeIndex);
+      dot.setAttribute('aria-selected', index === activeIndex ? 'true' : 'false');
+    });
+  };
+
+  const onPointerDown = (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    isDragging = true;
+    pointerStartX = event.clientX;
+    pointerCurrentX = event.clientX;
+    stopTimer();
+    root.classList.add('is-dragging');
+    root.setPointerCapture?.(event.pointerId);
+  };
+
+  const onPointerMove = (event) => {
+    if (!isDragging) return;
+    pointerCurrentX = event.clientX;
+  };
+
+  const onPointerEnd = (event) => {
+    if (!isDragging) return;
+    isDragging = false;
+    root.classList.remove('is-dragging');
+    if (root.hasPointerCapture?.(event.pointerId)) {
+      root.releasePointerCapture(event.pointerId);
+    }
+    const delta = pointerCurrentX - pointerStartX;
+    if (Math.abs(delta) > 44) setSlide(activeIndex + (delta < 0 ? 1 : -1));
+    startTimer();
+  };
+
+  dots.forEach(dot => {
+    dot.addEventListener('click', () => {
+      const index = Number(dot.dataset.uspDot || 0);
+      setSlide(index);
+      startTimer();
+    });
+  });
+
+  root.addEventListener('mouseenter', stopTimer);
+  root.addEventListener('mouseleave', startTimer);
+  root.addEventListener('focusin', stopTimer);
+  root.addEventListener('focusout', startTimer);
+  root.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setSlide(activeIndex + 1);
+      startTimer();
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setSlide(activeIndex - 1);
+      startTimer();
+    }
+  });
+  root.addEventListener('pointerdown', onPointerDown);
+  root.addEventListener('pointermove', onPointerMove);
+  root.addEventListener('pointerup', onPointerEnd);
+  root.addEventListener('pointercancel', onPointerEnd);
+
+  setSlide(0);
+  startTimer();
+  stopHomeUspCarousel = stopTimer;
 }
 
 // Horizontal circular-icon category strip on the home page.
