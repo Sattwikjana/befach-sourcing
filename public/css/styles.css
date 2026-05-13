@@ -440,15 +440,17 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   flex-shrink: 0;
 }
 
-/* Desktop premium blue header.
-   Mobile keeps its dedicated app-style header in the <=860px rules below. */
+/* Desktop premium velvet header — deep night-violet gradient that
+   matches the hero banner background. Three stops go from indigo-black
+   to royal violet to a quieter aubergine highlight, giving the bar a
+   3D "rich plum" look instead of a flat colour. */
 @media (min-width: 861px) {
   .header {
     background:
-      radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.18), transparent 30%),
-      linear-gradient(135deg, #3B0764 0%, #6D28D9 55%, #A78BFA 100%);
+      radial-gradient(circle at 88% 0%, rgba(167, 139, 250, 0.22), transparent 32%),
+      linear-gradient(135deg, #1A0B36 0%, #2E1065 38%, #4C1D95 100%);
     border-bottom: 0;
-    box-shadow: 0 16px 34px rgba(59, 7, 100, 0.30);
+    box-shadow: 0 18px 38px rgba(15, 6, 40, 0.42);
   }
 
   .header-inner {
@@ -4434,7 +4436,7 @@ body {
 
 .home-hero {
   background:
-    linear-gradient(135deg, rgba(2, 6, 23, 0.96) 0%, rgba(17, 24, 39, 0.92) 44%, rgba(124, 58, 237, 0.85) 100%),
+    linear-gradient(135deg, rgba(15, 6, 40, 0.98) 0%, rgba(46, 16, 101, 0.94) 44%, rgba(76, 29, 149, 0.88) 100%),
     radial-gradient(circle at 76% 18%, rgba(247, 181, 0, 0.32), transparent 36%);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -5005,11 +5007,14 @@ body {
   }
 
   .header {
+    /* Premium velvet header — same deep night-violet gradient as desktop
+       so mobile and desktop feel like one continuous brand. The radial
+       light spot adds a subtle glow without lightening the bar overall. */
     background:
-      radial-gradient(circle at 14% 0%, rgba(255, 255, 255, 0.18), transparent 28%),
-      linear-gradient(180deg, #7C3AED 0%, #6D28D9 100%);
+      radial-gradient(circle at 14% 0%, rgba(167, 139, 250, 0.22), transparent 30%),
+      linear-gradient(180deg, #2E1065 0%, #1A0B36 100%);
     border-bottom: 0;
-    box-shadow: 0 12px 28px rgba(109, 40, 217, 0.30);
+    box-shadow: 0 12px 32px rgba(15, 6, 40, 0.45);
     /* Constant top padding for browser views — the OS status bar sits
        above the viewport in normal mobile browsing, so no safe-area
        inset is needed here. The previous max(8px, env(safe-area-inset-top))
@@ -5266,7 +5271,7 @@ body {
 
   .home-hero {
     background:
-      linear-gradient(135deg, rgba(33, 8, 56, 0.98) 0%, rgba(59, 7, 100, 0.96) 42%, rgba(124, 58, 237, 0.92) 100%),
+      linear-gradient(135deg, rgba(15, 6, 40, 0.98) 0%, rgba(46, 16, 101, 0.96) 42%, rgba(76, 29, 149, 0.92) 100%),
       radial-gradient(circle at 88% 18%, rgba(255, 215, 106, 0.34), transparent 32%);
   }
 
