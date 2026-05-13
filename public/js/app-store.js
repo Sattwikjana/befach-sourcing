@@ -890,6 +890,19 @@ async function renderAdmin() {
         <div id="adminBalance">Loading…</div>
       </section>
     </div>
+
+    <!-- Customer feedback — moved up to sit right after Recent orders /
+         dashboard cards so the team sees customer sentiment alongside
+         the day-to-day order/profit numbers. Submissions come from the
+         floating Feedback button on the home page. -->
+    <section class="card" style="margin-top:18px">
+      <div class="card-head-row">
+        <h2>Customer feedback <span class="muted small" id="adminFeedbackCount"></span></h2>
+      </div>
+      <div id="adminFeedbackAverages" style="margin-bottom:12px"></div>
+      <div id="adminFeedbackList">Loading…</div>
+    </section>
+
     <section class="card" style="margin-top:18px">
       <div class="card-head-row">
         <h2>Customers <span class="muted small" id="adminUsersCount"></span></h2>
@@ -907,20 +920,16 @@ async function renderAdmin() {
         One per line. URLs and SKUs can be mixed.
       </p>
       <textarea id="adminFeaturedInput" rows="4" placeholder="https://cjdropshipping.com/product/...-p-2604240113311612300.html&#10;CJYD2435107&#10;CJYD286686310JQ" style="width:100%;font-family:monospace;font-size:13px;padding:8px;border-radius:6px;border:1px solid #ddd"></textarea>
-      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button id="adminFeaturedAddBtn" class="btn btn-primary" type="button">Add to Featured</button>
+        <!-- The product list is no longer fetched + rendered on every
+             admin page load — only when the admin clicks Show. Saves a
+             CJ API roundtrip on every visit and keeps the dashboard
+             snappy. -->
+        <button id="adminFeaturedShowBtn" class="btn btn-ghost" type="button">Show featured products</button>
         <span id="adminFeaturedStatus" class="muted small"></span>
       </div>
-      <div id="adminFeatured" style="margin-top:14px">Loading…</div>
-    </section>
-
-    <!-- Customer feedback — submissions from the home-page Feedback button -->
-    <section class="card" style="margin-top:18px">
-      <div class="card-head-row">
-        <h2>Customer feedback <span class="muted small" id="adminFeedbackCount"></span></h2>
-      </div>
-      <div id="adminFeedbackAverages" style="margin-bottom:12px"></div>
-      <div id="adminFeedbackList">Loading…</div>
+      <div id="adminFeatured" style="margin-top:14px" hidden></div>
     </section>
   `;
 
@@ -1040,8 +1049,25 @@ async function renderAdmin() {
   // Customer feedback card — list submissions + aggregate ratings
   await loadAdminFeedback();
 
-  // Featured Products card — list current + bulk-add textarea
-  await loadAdminFeatured();
+  // Featured Products card — bulk-add textarea is always available, but
+  // the product list itself only loads when the admin clicks Show.
+  // Saves a CJ API roundtrip on every dashboard visit.
+  const showBtn = document.getElementById('adminFeaturedShowBtn');
+  const featuredEl = document.getElementById('adminFeatured');
+  showBtn?.addEventListener('click', async () => {
+    if (!featuredEl) return;
+    if (!featuredEl.hidden) {
+      // Toggle: hide if currently shown
+      featuredEl.hidden = true;
+      showBtn.textContent = 'Show featured products';
+      return;
+    }
+    featuredEl.hidden = false;
+    featuredEl.innerHTML = 'Loading…';
+    showBtn.textContent = 'Hide featured products';
+    await loadAdminFeatured();
+  });
+
   document.getElementById('adminFeaturedAddBtn')?.addEventListener('click', async () => {
     const ta = document.getElementById('adminFeaturedInput');
     const statusEl = document.getElementById('adminFeaturedStatus');
@@ -1053,8 +1079,10 @@ async function renderAdmin() {
       const { summary } = r;
       statusEl.textContent = `Added ${summary.added}, already in list ${summary.already}, skipped ${summary.skipped}, errors ${summary.errors}.`;
       if (summary.added || summary.already) ta.value = '';
-      // Refresh the displayed list
-      setTimeout(loadAdminFeatured, 4000); // CJ propagation lag
+      // Refresh the displayed list only if it's currently visible
+      if (featuredEl && !featuredEl.hidden) {
+        setTimeout(loadAdminFeatured, 4000); // CJ propagation lag
+      }
     } catch (e) {
       statusEl.textContent = `Failed: ${e.message}`;
     }
