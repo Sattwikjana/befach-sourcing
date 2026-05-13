@@ -5639,14 +5639,16 @@ body {
   }
 
   .brand {
-    max-width: 70px;
-    min-height: 42px;
-    padding: 4px 7px;
-    border-radius: 14px;
+    max-width: none;
+    min-height: 80px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .brand-logo-img {
-    height: 80px;
+    height: 100px;
     width: auto;
     flex-basis: auto;
   }
@@ -5759,12 +5761,12 @@ body {
   }
 
   .brand {
-    max-width: 64px;
-    min-height: 40px;
+    max-width: none;
+    min-height: 64px;
   }
 
   .brand-logo-img {
-    height: 72px;
+    height: 78px;
     width: auto;
     flex-basis: auto;
   }
