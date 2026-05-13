@@ -3107,13 +3107,15 @@ async function renderProduct(pid) {
     : (selectedVariant ? parseFloat(selectedVariant.price || selectedVariant.variantSellPrice || 0) : 0);
 
   app.innerHTML = `
-    <div class="breadcrumb">
-      <a href="/">Home</a> <span>›</span>
-      ${category ? `<a href="/search?q=${encodeURIComponent(category.split('/')[0].trim())}">${esc(category.split('/')[0].trim())}</a><span>›</span>` : ''}
-      <span class="current">${esc(name.slice(0, 60))}${name.length > 60 ? '…' : ''}</span>
-    </div>
-
     <div class="product-detail fade-in">
+      <!-- Title: shown above the image on mobile and beside it on desktop
+           (via CSS grid-template-areas). Moved out of .pd-info so a single
+           grid layout can place it differently per breakpoint without
+           duplicating markup or hurting SEO. The old breadcrumb above this
+           block was removed — it duplicated the category nav available in
+           the hamburger drawer and pushed the product image down on mobile. -->
+      <h1 class="pd-title">${esc(name)}</h1>
+
       <!-- Gallery -->
       <div class="pd-gallery">
         <div class="pd-main-wrap">
@@ -3135,7 +3137,6 @@ async function renderProduct(pid) {
 
       <!-- Info -->
       <div class="pd-info">
-        <h1 class="pd-title">${esc(name)}</h1>
         ${sku ? `<div class="pd-sku">SKU: ${esc(sku)}</div>` : ''}
 
         <div class="pd-price-box">
