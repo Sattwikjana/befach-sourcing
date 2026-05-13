@@ -3574,6 +3574,121 @@ async function checkVariantStock(vid) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  FEEDBACK MODAL — floating button (home page only) → review form
+// ══════════════════════════════════════════════════════════════
+// Star icon used inside each rating button. Inline SVG keeps the
+// payload tiny and dodges a network request for an extra asset.
+const FB_STAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l3.09 6.26 6.91 1-5 4.87 1.18 6.87L12 18.27 5.82 21.5 7 14.63l-5-4.87 6.91-1z"/></svg>';
+
+function fbBuildStarRow(rowEl) {
+  // Render 5 buttons. Each button toggles all stars ≤ it on.
+  rowEl.innerHTML = '';
+  for (let i = 1; i <= 5; i++) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'star-btn';
+    btn.dataset.value = String(i);
+    btn.setAttribute('aria-label', `${i} of 5`);
+    btn.dataset.on = 'false';
+    btn.innerHTML = FB_STAR_SVG;
+    btn.addEventListener('click', () => fbSetRating(rowEl, i));
+    rowEl.appendChild(btn);
+  }
+}
+function fbSetRating(rowEl, value) {
+  rowEl.dataset.rating = String(value);
+  rowEl.querySelectorAll('button').forEach((b, idx) => {
+    b.dataset.on = (idx + 1) <= value ? 'true' : 'false';
+  });
+}
+function fbResetForm() {
+  document.querySelectorAll('#feedbackForm .star-row').forEach(r => fbSetRating(r, 0));
+  const ta = document.getElementById('feedbackComments');
+  if (ta) ta.value = '';
+  const status = document.getElementById('feedbackStatus');
+  if (status) { status.textContent = ''; status.className = 'feedback-status'; }
+  const submit = document.getElementById('feedbackSubmit');
+  if (submit) { submit.disabled = false; submit.textContent = 'Submit feedback'; }
+}
+
+function fbOpen() {
+  // Build star widgets lazily the first time the modal is opened.
+  const overlay = document.getElementById('feedbackOverlay');
+  if (!overlay) return;
+  if (!overlay.dataset.built) {
+    document.querySelectorAll('#feedbackForm .star-row').forEach(fbBuildStarRow);
+    overlay.dataset.built = '1';
+  }
+  fbResetForm();
+  overlay.hidden = false;
+  document.body.style.overflow = 'hidden';
+  // Focus the first star for keyboard users
+  overlay.querySelector('.star-row button')?.focus();
+}
+function fbClose() {
+  const overlay = document.getElementById('feedbackOverlay');
+  if (!overlay) return;
+  overlay.hidden = true;
+  document.body.style.overflow = '';
+}
+
+async function fbSubmit(e) {
+  e.preventDefault();
+  const submit = document.getElementById('feedbackSubmit');
+  const status = document.getElementById('feedbackStatus');
+  const rows = document.querySelectorAll('#feedbackForm .feedback-row[data-q]');
+
+  const payload = {};
+  rows.forEach(r => { payload[r.dataset.q] = parseInt(r.querySelector('.star-row')?.dataset.rating || '0', 10) || 0; });
+  payload.comments = (document.getElementById('feedbackComments')?.value || '').trim();
+
+  const ratedAny = Object.entries(payload).some(([k, v]) => k !== 'comments' && v > 0);
+  if (!ratedAny && !payload.comments) {
+    status.textContent = 'Please rate at least one question, or leave a comment.';
+    status.className = 'feedback-status is-error';
+    return;
+  }
+
+  submit.disabled = true;
+  submit.textContent = 'Submitting…';
+  status.textContent = '';
+  status.className = 'feedback-status';
+
+  try {
+    const res = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Could not submit feedback');
+    status.textContent = '✓ Thanks! Your feedback helps us improve.';
+    status.className = 'feedback-status is-success';
+    submit.textContent = 'Submitted';
+    // Auto-close shortly after success
+    setTimeout(fbClose, 1400);
+  } catch (err) {
+    submit.disabled = false;
+    submit.textContent = 'Submit feedback';
+    status.textContent = '✗ ' + (err.message || 'Something went wrong');
+    status.className = 'feedback-status is-error';
+  }
+}
+
+document.getElementById('feedbackFab')?.addEventListener('click', fbOpen);
+document.getElementById('feedbackClose')?.addEventListener('click', fbClose);
+document.getElementById('feedbackOverlay')?.addEventListener('click', (e) => {
+  // Click outside the modal card closes the overlay.
+  if (e.target.id === 'feedbackOverlay') fbClose();
+});
+document.getElementById('feedbackForm')?.addEventListener('submit', fbSubmit);
+// Esc closes
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !document.getElementById('feedbackOverlay')?.hidden) fbClose();
+});
+
+// ══════════════════════════════════════════════════════════════
 //  CART, CHECKOUT, ORDER, TRACK, ADMIN, FAQ
 //  (in app-store.js)
 // ══════════════════════════════════════════════════════════════

@@ -785,6 +785,87 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ user: req.user });
 });
 
+// ══════════════════════════════════════════════════════════════════
+//  CUSTOMER FEEDBACK — public submit + admin list
+//  File-backed storage (data/feedback.json) so it survives restarts
+//  on the Render persistent disk. One entry per submission.
+// ══════════════════════════════════════════════════════════════════
+
+const FEEDBACK_FILE = path.join(__dirname, 'data', 'feedback.json');
+let feedbackList = (() => {
+  try { return fs.existsSync(FEEDBACK_FILE) ? JSON.parse(fs.readFileSync(FEEDBACK_FILE, 'utf8')) : []; }
+  catch { return []; }
+})();
+function saveFeedback() {
+  try {
+    const dir = path.dirname(FEEDBACK_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(feedbackList, null, 2));
+  } catch (e) { console.warn('[feedback] save failed:', e.message); }
+}
+
+function clampRating(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(5, Math.round(n)));
+}
+
+// Public — anyone can submit. We capture the logged-in user if available
+// (req.user is attached by auth.attachUser middleware) and otherwise
+// record the submission as anonymous.
+app.post('/api/feedback', (req, res) => {
+  const b = req.body || {};
+  const entry = {
+    id: 'fb_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+    createdAt: new Date().toISOString(),
+    lookFeel:      clampRating(b.lookFeel),
+    variety:       clampRating(b.variety),
+    easeNav:       clampRating(b.easeNav),
+    willUseAgain:  clampRating(b.willUseAgain),
+    willRecommend: clampRating(b.willRecommend),
+    willBuy:       clampRating(b.willBuy),
+    comments: typeof b.comments === 'string' ? b.comments.slice(0, 1000).trim() : '',
+    user: req.user ? { id: req.user.id, name: req.user.name, email: req.user.email } : null,
+    userAgent: (req.headers['user-agent'] || '').slice(0, 200),
+  };
+
+  // Require at least one rating > 0 so we don't store empty submissions
+  const ratingsSum = entry.lookFeel + entry.variety + entry.easeNav
+                   + entry.willUseAgain + entry.willRecommend + entry.willBuy;
+  if (ratingsSum === 0 && !entry.comments) {
+    return res.status(400).json({ error: 'Please rate at least one question or leave a comment.' });
+  }
+
+  feedbackList.push(entry);
+  // Cap at 10k entries — feedback is low-volume; if it ever exceeds
+  // this, the oldest entries are evicted (admin should export periodically).
+  if (feedbackList.length > 10000) {
+    feedbackList = feedbackList.slice(feedbackList.length - 10000);
+  }
+  saveFeedback();
+  res.json({ success: true, id: entry.id });
+});
+
+// Admin — paginated list of feedback (newest first) + aggregate averages.
+app.get('/api/admin/feedback', adminAuth, (req, res) => {
+  const page     = Math.max(1, parseInt(req.query.page) || 1);
+  const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 50));
+  const sorted   = [...feedbackList].sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
+  const start    = (page - 1) * pageSize;
+  const items    = sorted.slice(start, start + pageSize);
+  const total    = sorted.length;
+
+  // Aggregate averages across all submissions (not just this page).
+  const fields = ['lookFeel', 'variety', 'easeNav', 'willUseAgain', 'willRecommend', 'willBuy'];
+  const averages = {};
+  fields.forEach(f => {
+    const vals = sorted.map(e => e[f]).filter(v => v > 0);
+    averages[f] = vals.length ? +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) : 0;
+  });
+
+  res.json({ items, total, page, pageSize, averages });
+});
+
 app.patch('/api/auth/me', (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not signed in' });
   try {

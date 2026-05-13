@@ -913,6 +913,15 @@ async function renderAdmin() {
       </div>
       <div id="adminFeatured" style="margin-top:14px">Loading…</div>
     </section>
+
+    <!-- Customer feedback — submissions from the home-page Feedback button -->
+    <section class="card" style="margin-top:18px">
+      <div class="card-head-row">
+        <h2>Customer feedback <span class="muted small" id="adminFeedbackCount"></span></h2>
+      </div>
+      <div id="adminFeedbackAverages" style="margin-bottom:12px"></div>
+      <div id="adminFeedbackList">Loading…</div>
+    </section>
   `;
 
   try {
@@ -1028,6 +1037,9 @@ async function renderAdmin() {
     document.getElementById('adminUsers').innerHTML = `<p class="muted">Failed to load: ${esc(err.message)}</p>`;
   }
 
+  // Customer feedback card — list submissions + aggregate ratings
+  await loadAdminFeedback();
+
   // Featured Products card — list current + bulk-add textarea
   await loadAdminFeatured();
   document.getElementById('adminFeaturedAddBtn')?.addEventListener('click', async () => {
@@ -1047,6 +1059,84 @@ async function renderAdmin() {
       statusEl.textContent = `Failed: ${e.message}`;
     }
   });
+}
+
+async function loadAdminFeedback() {
+  const list = document.getElementById('adminFeedbackList');
+  const averagesEl = document.getElementById('adminFeedbackAverages');
+  const countEl = document.getElementById('adminFeedbackCount');
+  if (!list) return;
+
+  try {
+    const data = await adminFetch('/api/admin/feedback?page=1&pageSize=50');
+    const items = data.items || [];
+    if (countEl) countEl.textContent = `(${data.total || 0})`;
+
+    // Aggregate averages row
+    const labels = {
+      lookFeel:      'Look & feel',
+      variety:       'Product variety',
+      easeNav:       'Ease of nav.',
+      willUseAgain:  'Will use again',
+      willRecommend: 'Will recommend',
+      willBuy:       'Will buy',
+    };
+    if (averagesEl) {
+      averagesEl.innerHTML = data.total
+        ? `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
+            ${Object.entries(labels).map(([k, lab]) => `
+              <div class="stat-card" style="padding:10px 12px">
+                <div class="stat-label" style="font-size:11px">${lab}</div>
+                <div class="stat-value" style="font-size:18px">${data.averages[k] || '—'}</div>
+                <div class="stat-label" style="font-size:10px">avg / 5</div>
+              </div>
+            `).join('')}
+          </div>
+        `
+        : '<p class="muted small">No feedback yet — share the home page so customers can leave a review.</p>';
+    }
+
+    if (!items.length) {
+      list.innerHTML = '';
+      return;
+    }
+
+    list.innerHTML = `
+      <table class="admin-table">
+        <thead><tr>
+          <th>When</th>
+          <th>Customer</th>
+          <th>Look</th>
+          <th>Variety</th>
+          <th>Nav</th>
+          <th>Again</th>
+          <th>Recomm</th>
+          <th>Buy</th>
+          <th>Comments</th>
+        </tr></thead>
+        <tbody>
+          ${items.map(e => `
+            <tr>
+              <td class="muted small">${new Date(e.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+              <td>
+                ${e.user ? `${esc(e.user.name || '')}<div class="muted small">${esc(e.user.email || '')}</div>` : '<span class="muted small">anonymous</span>'}
+              </td>
+              <td>${e.lookFeel || '—'}</td>
+              <td>${e.variety || '—'}</td>
+              <td>${e.easeNav || '—'}</td>
+              <td>${e.willUseAgain || '—'}</td>
+              <td>${e.willRecommend || '—'}</td>
+              <td>${e.willBuy || '—'}</td>
+              <td style="max-width:280px;white-space:normal">${e.comments ? esc(e.comments) : '<span class="muted small">—</span>'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (err) {
+    list.innerHTML = `<p class="muted">Failed to load feedback: ${esc(err.message)}</p>`;
+  }
 }
 
 async function loadAdminFeatured() {
