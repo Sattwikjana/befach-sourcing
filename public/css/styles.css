@@ -6,19 +6,18 @@
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Brand — premium royal purple + warm gold accent for a luxurious
-     "purple velvet + champagne" palette. Purple replaces the previous
-     marketplace blue everywhere; gold stays as the premium accent. */
-  --brand:         #111827;        /* deep marketplace ink — text + dark surfaces */
-  --brand-dark:    #020617;        /* hover/pressed dark */
-  --brand-light:   #F5F3FF;        /* purple-tinted surface (was blue tinted) */
-  --accent:        #F7B500;        /* shopping gold — premium accent */
-  --accent-dark:   #A35D00;        /* gold hover state */
+  /* Brand — true black (matches the GCOM wordmark) + warm gold
+     accent (matches the gold square inside the logo's "G") */
+  --brand:         #111827;        /* deep marketplace ink */
+  --brand-dark:    #020617;        /* hover/pressed */
+  --brand-light:   #EAF2FF;        /* blue-tinted surface */
+  --accent:        #F7B500;        /* shopping gold */
+  --accent-dark:   #A35D00;        /* hover state */
   --accent-soft:   #FFF4CF;        /* gold-tinted surface fill */
-  --shop-blue:     #7C3AED;        /* royal violet for search / primary actions (legacy var name kept) */
-  --shop-purple:   #7C3AED;        /* alias — new code should reference this */
-  --shop-purple-deep: #6D28D9;     /* hover / pressed */
-  --shop-purple-darkest: #3B0764;  /* deep velvet — used in gradients */
+  --shop-blue:     #2563EB;        /* search/actions */
+  --shop-purple:   #2563EB;        /* legacy alias */
+  --shop-purple-deep: #1D4ED8;     /* hover / pressed */
+  --shop-purple-darkest: #071B4F;  /* deep blue */
   --shop-teal:     #0F766E;        /* trust/availability */
   --shop-rose:     #DB2777;        /* fashion accent */
 
@@ -28,13 +27,12 @@
   --text-muted:    #707682;        /* meta info, footnotes */
   --text-on-brand: #FAF8F2;        /* body copy on black backgrounds */
 
-  /* Surfaces — barely-perceptible purple tint for a premium "violet
-     velvet" undertone without overpowering the cards and content. */
-  --bg:            #F8F5FE;        /* marketplace app background */
+  /* Surfaces — ivory cream, slightly warmer than navy-era theme */
+  --bg:            #F4F6FB;        /* marketplace app background */
   --surface:       #FFFFFF;        /* cards, panels */
-  --surface-alt:   #F1ECFA;        /* alt sections, banners */
-  --border:        #E6E1F0;        /* dividers */
-  --border-strong: #C2B8D6;        /* hover/focus borders */
+  --surface-alt:   #EEF3F9;        /* alt sections, banners */
+  --border:        #E1E7F0;        /* dividers */
+  --border-strong: #B7C4D6;        /* hover/focus borders */
 
   /* Status */
   --success:       #0F5132;        /* deep forest — "Shipping included" check */
@@ -166,7 +164,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 /* On-light variant (used in the white hamburger drawer). Colours mirror the
    reference image the user provided: deep navy GLOBAL + brand blue SHOPPER. */
 .brand-wordmark-on-light .brand-wordmark-global { color: #0B1F4D; }
-.brand-wordmark-on-light .brand-wordmark-shopper { color: #7C3AED; }
+.brand-wordmark-on-light .brand-wordmark-shopper { color: #2563EB; }
 .brand-wordmark-on-light .brand-wordmark-sub    { color: #6B7280; }
 
 /* Legacy tagline classes — kept (no-op) in case any embedded surface still
@@ -253,8 +251,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   transition: background 0.15s, color 0.15s;
 }
 .header-photo-btn:hover {
-  background: #F5F3FF;
-  color: var(--shop-blue, #7C3AED);
+  background: #EAF2FF;
+  color: var(--shop-blue, #2563EB);
 }
 .header-photo-btn:disabled {
   cursor: wait;
@@ -440,17 +438,14 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   flex-shrink: 0;
 }
 
-/* Desktop premium velvet header — deep night-violet gradient that
-   matches the hero banner background. Three stops go from indigo-black
-   to royal violet to a quieter aubergine highlight, giving the bar a
-   3D "rich plum" look instead of a flat colour. */
+/* Desktop premium header — deep blue gradient that matches the brand. */
 @media (min-width: 861px) {
   .header {
     background:
-      radial-gradient(circle at 88% 0%, rgba(167, 139, 250, 0.22), transparent 32%),
-      linear-gradient(135deg, #1A0B36 0%, #2E1065 38%, #4C1D95 100%);
+      radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.18), transparent 30%),
+      linear-gradient(135deg, #071B4F 0%, #0B4FD8 55%, #1769FF 100%);
     border-bottom: 0;
-    box-shadow: 0 18px 38px rgba(15, 6, 40, 0.42);
+    box-shadow: 0 16px 34px rgba(7, 27, 79, 0.24);
   }
 
   .header-inner {
@@ -499,7 +494,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 
   .header-cat-btn:hover {
     background: #EEF4FF;
-    color: #6D28D9;
+    color: #1D4ED8;
   }
 
   .header-photo-btn {
@@ -508,18 +503,18 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   }
 
   .header-photo-btn:hover {
-    background: #F5F3FF;
-    color: #6D28D9;
+    background: #EAF2FF;
+    color: #1D4ED8;
   }
 
   .header-search-btn {
     background: var(--accent);
-    color: #3B0764;
+    color: #071B4F;
   }
 
   .header-search-btn:hover {
     background: #FFC533;
-    color: #3B0764;
+    color: #071B4F;
   }
 
   .header-nav {
@@ -556,29 +551,29 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 
   .nav-register-btn {
     background: #fff;
-    color: #3B0764 !important;
+    color: #071B4F !important;
     box-shadow: 0 10px 24px rgba(2, 6, 23, 0.18);
   }
 
   .nav-register-btn:hover {
     background: #FFD766;
-    color: #3B0764 !important;
+    color: #071B4F !important;
   }
 
   .nav-account {
     background: rgba(255, 255, 255, 0.94);
-    color: #3B0764;
+    color: #071B4F;
     box-shadow: 0 10px 24px rgba(2, 6, 23, 0.16);
   }
 
   .nav-account:hover {
     background: #fff;
-    color: #6D28D9;
+    color: #1D4ED8;
   }
 
   .nav-avatar,
   .cart-badge {
-    background: #3B0764;
+    background: #071B4F;
     color: #fff;
   }
 
@@ -1159,7 +1154,7 @@ main {
 }
 .cat-sub-card:hover {
   transform: translateY(-2px);
-  border-color: #DDD6FE;
+  border-color: #BFDBFE;
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
   color: var(--shop-blue);
 }
@@ -1168,7 +1163,7 @@ main {
   height: 48px;
   border-radius: 14px;
   overflow: hidden;
-  background: #F5F3FF;
+  background: #EAF2FF;
 }
 .cat-sub-card-img img.cat-img {
   width: 100%;
@@ -1383,7 +1378,7 @@ main {
   align-items: flex-end;
 }
 .banner-a { background: linear-gradient(135deg, #fef3c7, #fde68a); }
-.banner-b { background: linear-gradient(135deg, #ede9fe, #bfdbfe); }
+.banner-b { background: linear-gradient(135deg, #DBEAFE, #bfdbfe); }
 .banner h3 { margin: 0 0 6px 0; font-size: 26px; letter-spacing: 0; }
 .banner p { margin: 0 0 12px 0; color: var(--text-secondary); }
 .banner-cta { font-weight: 600; color: var(--text); border-bottom: 2px solid var(--text); padding-bottom: 2px; }
@@ -1831,9 +1826,9 @@ main {
   box-shadow: 0 5px 14px rgba(15, 23, 42, 0.04);
 }
 .subcat-visual-card:hover {
-  background: #F5F3FF;
+  background: #EAF2FF;
   color: var(--shop-blue);
-  border-color: #DDD6FE;
+  border-color: #BFDBFE;
 }
 .subcat-visual-img {
   width: 46px;
@@ -2120,7 +2115,7 @@ main {
   background: #eef2ff;
   color: #3730a3;
 }
-.status-chip.status-cj_created { background: #ede9fe; color: #1e40af; }
+.status-chip.status-cj_created { background: #DBEAFE; color: #1e40af; }
 .status-chip.status-pending { background: #fef3c7; color: #92400e; }
 .status-chip.status-shipped { background: #d1fae5; color: #065f46; }
 .status-chip.status-delivered { background: #d1fae5; color: #065f46; }
@@ -2416,8 +2411,8 @@ main {
 }
 .account-menu-link:hover,
 .account-menu-link.active {
-  background: #F5F3FF;
-  border-color: #DDD6FE;
+  background: #EAF2FF;
+  border-color: #BFDBFE;
   color: var(--shop-blue);
 }
 .account-signout-btn {
@@ -2481,7 +2476,7 @@ main {
   font-size: 12px;
 }
 .account-action-card:hover {
-  border-color: #DDD6FE;
+  border-color: #BFDBFE;
   color: var(--shop-blue);
 }
 
@@ -2743,15 +2738,15 @@ main {
   padding: 10px 12px;
   border: 1px solid #D8E1EF;
   border-radius: 12px;
-  color: #7C3AED;
+  color: #2563EB;
   font-weight: 800;
   text-align: center;
   text-decoration: none;
-  background: #FAF7FF;
+  background: #F8FAFF;
 }
 .about-link-grid a:hover {
-  border-color: #7C3AED;
-  background: #F5F3FF;
+  border-color: #2563EB;
+  background: #EAF2FF;
 }
 
 @media (max-width: 860px) {
@@ -3138,7 +3133,7 @@ main {
   margin: 4px 14px 8px;
   padding: 14px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #F5F3FF 0%, #FAF7FF 100%);
+  background: linear-gradient(135deg, #EAF2FF 0%, #F8FAFF 100%);
   border: 1px solid #D8E7FF;
 }
 .drawer-about-card strong,
@@ -3153,7 +3148,7 @@ main {
 }
 .drawer-about-card span {
   margin-top: 3px;
-  color: #7C3AED;
+  color: #2563EB;
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.16em;
@@ -3433,7 +3428,7 @@ main {
   body.page-register .mbn-item[data-page="account"]::before,
   body.page-orders .mbn-item[data-page="account"]::before,
   body.page-returns .mbn-item[data-page="account"]::before {
-    background: #EDE9FE;
+    background: #DBEAFE;
   }
   .mbn-item:active { color: var(--shop-blue); }
   /* Cart count badge — hidden when 0 (data-empty="true") */
@@ -3831,8 +3826,8 @@ main {
   border-left: 1px solid var(--border);
 }
 .home-hero-search .hero-photo-btn:hover {
-  background: #F5F3FF;
-  color: var(--shop-blue, #7C3AED);
+  background: #EAF2FF;
+  color: var(--shop-blue, #2563EB);
 }
 .home-hero-stats {
   display: flex;
@@ -4386,14 +4381,14 @@ body {
 .header-search-btn {
   background: var(--shop-blue);
 }
-.header-search-btn:hover { background: #6D28D9; }
+.header-search-btn:hover { background: #1D4ED8; }
 .header-photo-btn {
   background: #fff;
   color: #475569;
 }
 .header-photo-btn:hover {
-  background: #F5F3FF;
-  color: #6D28D9;
+  background: #EAF2FF;
+  color: #1D4ED8;
 }
 
 .product-card {
@@ -4478,8 +4473,8 @@ body {
   font-weight: 700;
 }
 .home-hero-search .hero-photo-btn:hover {
-  background: #F5F3FF;
-  color: #6D28D9;
+  background: #EAF2FF;
+  color: #1D4ED8;
 }
 .home-hero-chips {
   display: flex;
@@ -4562,7 +4557,7 @@ body {
 }
 .trust-icon {
   background: #EEF6FF;
-  border-color: #DDD6FE;
+  border-color: #BFDBFE;
   color: var(--shop-blue);
 }
 
@@ -4626,8 +4621,8 @@ body {
   color: #111827;
 }
 .section-link {
-  border: 1px solid #EDE9FE;
-  background: #F5F3FF;
+  border: 1px solid #DBEAFE;
+  background: #EAF2FF;
   color: var(--shop-blue);
   border-radius: 999px;
   padding: 7px 11px;
@@ -5002,19 +4997,17 @@ body {
 @media (max-width: 860px) {
   body {
     background:
-      linear-gradient(180deg, #F5F3FF 0%, #FAF7FF 360px, var(--bg) 100%),
+      linear-gradient(180deg, #EAF2FF 0%, #F8FAFF 360px, var(--bg) 100%),
       var(--bg);
   }
 
   .header {
-    /* Premium velvet header — same deep night-violet gradient as desktop
-       so mobile and desktop feel like one continuous brand. The radial
-       light spot adds a subtle glow without lightening the bar overall. */
+    /* Premium blue header — same brand family as desktop. */
     background:
-      radial-gradient(circle at 14% 0%, rgba(167, 139, 250, 0.22), transparent 30%),
-      linear-gradient(180deg, #2E1065 0%, #1A0B36 100%);
+      radial-gradient(circle at 14% 0%, rgba(255, 255, 255, 0.18), transparent 28%),
+      linear-gradient(180deg, #0B5FFF 0%, #0646D8 100%);
     border-bottom: 0;
-    box-shadow: 0 12px 32px rgba(15, 6, 40, 0.45);
+    box-shadow: 0 12px 28px rgba(6, 70, 216, 0.24);
     /* Constant top padding for browser views — the OS status bar sits
        above the viewport in normal mobile browsing, so no safe-area
        inset is needed here. The previous max(8px, env(safe-area-inset-top))
@@ -5196,7 +5189,7 @@ body {
     place-items: center;
     background: #0B1220;
     color: #fff;
-    border: 2px solid #7C3AED;
+    border: 2px solid #2563EB;
     font-size: 11px;
     line-height: 1;
   }
@@ -5242,7 +5235,7 @@ body {
   .header.header-search-open .header-search-btn {
     min-width: 56px;
     padding: 0;
-    background: #7C3AED;
+    background: #2563EB;
     color: #fff;
   }
   .header.header-search-open .header-photo-btn {
@@ -5322,9 +5315,9 @@ body {
   }
 
   .trust-icon {
-    background: #F5F3FF;
-    border-color: #DDD6FE;
-    color: #7C3AED;
+    background: #EAF2FF;
+    border-color: #BFDBFE;
+    color: #2563EB;
   }
 
   .mobile-bottom-nav {
@@ -5356,7 +5349,7 @@ body {
   body.page-register .mbn-item[data-page="account"],
   body.page-orders .mbn-item[data-page="account"],
   body.page-returns .mbn-item[data-page="account"] {
-    color: #7C3AED;
+    color: #2563EB;
   }
 
   body.page-home .mbn-item[data-page="home"]::before,
@@ -5369,7 +5362,7 @@ body {
   body.page-register .mbn-item[data-page="account"]::before,
   body.page-orders .mbn-item[data-page="account"]::before,
   body.page-returns .mbn-item[data-page="account"]::before {
-    background: #EDE9FE;
+    background: #DBEAFE;
   }
 
   .mbn-badge {
@@ -5878,3 +5871,5 @@ body {
     transition: none !important;
   }
 }
+
+
