@@ -2361,6 +2361,11 @@ main {
   grid-template-columns: 240px 1fr;
   gap: 22px;
   margin-top: 16px;
+  /* Without min-width: 0 the grid column can blow out wider than the
+     viewport when a child has long content (email, button) — known
+     CSS grid quirk. This prevents the mobile menu pills from extending
+     off the right edge of the screen. */
+  min-width: 0;
 }
 .account-side {
   background: #fff;
@@ -2371,6 +2376,12 @@ main {
   position: sticky;
   top: calc(var(--header-h) + 32px);
   align-self: start;
+  /* Defensive: keep all interactive children inside the card on every
+     viewport (including the wide pill backgrounds of .account-menu-link
+     and the full-width Sign-out button). */
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 .account-avatar {
   width: 72px; height: 72px;
@@ -2398,16 +2409,26 @@ main {
   gap: 6px;
   margin: 16px 0;
   text-align: left;
+  min-width: 0;
 }
 .account-menu-link {
   display: flex;
   align-items: center;
   min-height: 42px;
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-radius: 10px;
   color: var(--text-secondary);
   font-weight: 700;
   border: 1px solid transparent;
+  /* Box-sizing + max-width guarantee the pill background never exceeds
+     its parent column — fixes the "menu items cut off the right edge"
+     bug seen on mobile. */
+  box-sizing: border-box;
+  max-width: 100%;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .account-menu-link:hover,
 .account-menu-link.active {
@@ -3587,9 +3608,17 @@ main {
   body.page-cart .cart-summary { padding-bottom: 18px; }
   body.page-cart main { padding-bottom: calc(142px + env(safe-area-inset-bottom, 0px)); }
 
-  /* Account — single column */
-  .account-layout { grid-template-columns: 1fr; }
-  .account-side { position: static; padding: 20px; }
+  /* Account — single column. Tighten padding on mobile so the menu
+     pills (and the Sign-out button) sit comfortably inside the card
+     and don't visually run off the screen edge. */
+  .account-layout { grid-template-columns: 1fr; margin-top: 10px; }
+  .account-side {
+    position: static;
+    padding: 18px 14px;
+    border-radius: 14px;
+  }
+  .account-menu-list { gap: 4px; margin: 14px 0 10px; }
+  .account-menu-link { min-height: 44px; padding: 10px 12px; font-size: 14px; }
   .account-guest-hub { grid-template-columns: 1fr; gap: 12px; }
   .account-guest-card { padding: 20px; }
   .account-guest-card h1 { font-size: 24px; }

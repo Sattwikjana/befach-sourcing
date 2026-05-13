@@ -1426,7 +1426,9 @@ async function renderAccount() {
   if (!state.user) return renderGuestAccount();
 
   app.innerHTML = `
-    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">My Account</span></div>
+    <!-- Breadcrumb removed — the in-page profile header (avatar + name +
+         email) is unambiguous about where the user is, and the trail
+         was eating vertical space above the fold on mobile. -->
     <div class="account-layout">
       <aside class="account-side">
         <div class="account-avatar">${esc((state.user.name || 'U').slice(0, 1).toUpperCase())}</div>
