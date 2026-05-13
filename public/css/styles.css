@@ -3080,8 +3080,15 @@ main {
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0;
   flex-shrink: 0;
+  /* Match the velvet-night main header so the drawer feels continuous
+     with the brand bar instead of jarring on a white card. */
+  background:
+    radial-gradient(circle at 14% 0%, rgba(167, 139, 250, 0.22), transparent 30%),
+    linear-gradient(180deg, #2E1065 0%, #1A0B36 100%);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(15, 6, 40, 0.35);
 }
 .drawer-brand-link { display: flex; align-items: center; gap: 12px; }
 .drawer-brand-img {
@@ -3109,12 +3116,13 @@ main {
   height: 36px;
   display: grid;
   place-items: center;
-  color: var(--text-secondary);
+  /* White on the velvet drawer head so the × stays visible. */
+  color: rgba(255, 255, 255, 0.9);
   cursor: pointer;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.drawer-close:hover { background: var(--surface-alt); color: var(--text); }
+.drawer-close:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
 
 .drawer-body {
   flex: 1;
