@@ -6,15 +6,19 @@
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Brand — true black (matches the GCOM wordmark) + warm gold
-     accent (matches the gold square inside the logo's "G") */
-  --brand:         #111827;        /* deep marketplace ink */
-  --brand-dark:    #020617;        /* hover/pressed */
-  --brand-light:   #EAF2FF;        /* blue-tinted surface */
-  --accent:        #F7B500;        /* shopping gold */
-  --accent-dark:   #A35D00;        /* hover state */
+  /* Brand — premium royal purple + warm gold accent for a luxurious
+     "purple velvet + champagne" palette. Purple replaces the previous
+     marketplace blue everywhere; gold stays as the premium accent. */
+  --brand:         #111827;        /* deep marketplace ink — text + dark surfaces */
+  --brand-dark:    #020617;        /* hover/pressed dark */
+  --brand-light:   #F5F3FF;        /* purple-tinted surface (was blue tinted) */
+  --accent:        #F7B500;        /* shopping gold — premium accent */
+  --accent-dark:   #A35D00;        /* gold hover state */
   --accent-soft:   #FFF4CF;        /* gold-tinted surface fill */
-  --shop-blue:     #2563EB;        /* search/actions */
+  --shop-blue:     #7C3AED;        /* royal violet for search / primary actions (legacy var name kept) */
+  --shop-purple:   #7C3AED;        /* alias — new code should reference this */
+  --shop-purple-deep: #6D28D9;     /* hover / pressed */
+  --shop-purple-darkest: #3B0764;  /* deep velvet — used in gradients */
   --shop-teal:     #0F766E;        /* trust/availability */
   --shop-rose:     #DB2777;        /* fashion accent */
 
@@ -24,12 +28,13 @@
   --text-muted:    #707682;        /* meta info, footnotes */
   --text-on-brand: #FAF8F2;        /* body copy on black backgrounds */
 
-  /* Surfaces — ivory cream, slightly warmer than navy-era theme */
-  --bg:            #F4F6FB;        /* marketplace app background */
+  /* Surfaces — barely-perceptible purple tint for a premium "violet
+     velvet" undertone without overpowering the cards and content. */
+  --bg:            #F8F5FE;        /* marketplace app background */
   --surface:       #FFFFFF;        /* cards, panels */
-  --surface-alt:   #EEF3F9;        /* alt sections, banners */
-  --border:        #E1E7F0;        /* dividers */
-  --border-strong: #B7C4D6;        /* hover/focus borders */
+  --surface-alt:   #F1ECFA;        /* alt sections, banners */
+  --border:        #E6E1F0;        /* dividers */
+  --border-strong: #C2B8D6;        /* hover/focus borders */
 
   /* Status */
   --success:       #0F5132;        /* deep forest — "Shipping included" check */
@@ -161,7 +166,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 /* On-light variant (used in the white hamburger drawer). Colours mirror the
    reference image the user provided: deep navy GLOBAL + brand blue SHOPPER. */
 .brand-wordmark-on-light .brand-wordmark-global { color: #0B1F4D; }
-.brand-wordmark-on-light .brand-wordmark-shopper { color: #1F62FF; }
+.brand-wordmark-on-light .brand-wordmark-shopper { color: #7C3AED; }
 .brand-wordmark-on-light .brand-wordmark-sub    { color: #6B7280; }
 
 /* Legacy tagline classes — kept (no-op) in case any embedded surface still
@@ -248,8 +253,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   transition: background 0.15s, color 0.15s;
 }
 .header-photo-btn:hover {
-  background: #EFF6FF;
-  color: var(--shop-blue, #2563EB);
+  background: #F5F3FF;
+  color: var(--shop-blue, #7C3AED);
 }
 .header-photo-btn:disabled {
   cursor: wait;
@@ -441,9 +446,9 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   .header {
     background:
       radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.18), transparent 30%),
-      linear-gradient(135deg, #071B4F 0%, #0B4FD8 55%, #1769FF 100%);
+      linear-gradient(135deg, #3B0764 0%, #6D28D9 55%, #A78BFA 100%);
     border-bottom: 0;
-    box-shadow: 0 16px 34px rgba(7, 27, 79, 0.24);
+    box-shadow: 0 16px 34px rgba(59, 7, 100, 0.30);
   }
 
   .header-inner {
@@ -492,7 +497,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 
   .header-cat-btn:hover {
     background: #EEF4FF;
-    color: #0B4FD8;
+    color: #6D28D9;
   }
 
   .header-photo-btn {
@@ -501,18 +506,18 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   }
 
   .header-photo-btn:hover {
-    background: #EFF6FF;
-    color: #0B4FD8;
+    background: #F5F3FF;
+    color: #6D28D9;
   }
 
   .header-search-btn {
     background: var(--accent);
-    color: #071B4F;
+    color: #3B0764;
   }
 
   .header-search-btn:hover {
     background: #FFC533;
-    color: #071B4F;
+    color: #3B0764;
   }
 
   .header-nav {
@@ -549,29 +554,29 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 
   .nav-register-btn {
     background: #fff;
-    color: #071B4F !important;
+    color: #3B0764 !important;
     box-shadow: 0 10px 24px rgba(2, 6, 23, 0.18);
   }
 
   .nav-register-btn:hover {
     background: #FFD766;
-    color: #071B4F !important;
+    color: #3B0764 !important;
   }
 
   .nav-account {
     background: rgba(255, 255, 255, 0.94);
-    color: #071B4F;
+    color: #3B0764;
     box-shadow: 0 10px 24px rgba(2, 6, 23, 0.16);
   }
 
   .nav-account:hover {
     background: #fff;
-    color: #0B4FD8;
+    color: #6D28D9;
   }
 
   .nav-avatar,
   .cart-badge {
-    background: #071B4F;
+    background: #3B0764;
     color: #fff;
   }
 
@@ -1152,7 +1157,7 @@ main {
 }
 .cat-sub-card:hover {
   transform: translateY(-2px);
-  border-color: #BFDBFE;
+  border-color: #DDD6FE;
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
   color: var(--shop-blue);
 }
@@ -1161,7 +1166,7 @@ main {
   height: 48px;
   border-radius: 14px;
   overflow: hidden;
-  background: #EFF6FF;
+  background: #F5F3FF;
 }
 .cat-sub-card-img img.cat-img {
   width: 100%;
@@ -1376,7 +1381,7 @@ main {
   align-items: flex-end;
 }
 .banner-a { background: linear-gradient(135deg, #fef3c7, #fde68a); }
-.banner-b { background: linear-gradient(135deg, #dbeafe, #bfdbfe); }
+.banner-b { background: linear-gradient(135deg, #ede9fe, #bfdbfe); }
 .banner h3 { margin: 0 0 6px 0; font-size: 26px; letter-spacing: 0; }
 .banner p { margin: 0 0 12px 0; color: var(--text-secondary); }
 .banner-cta { font-weight: 600; color: var(--text); border-bottom: 2px solid var(--text); padding-bottom: 2px; }
@@ -1824,9 +1829,9 @@ main {
   box-shadow: 0 5px 14px rgba(15, 23, 42, 0.04);
 }
 .subcat-visual-card:hover {
-  background: #EFF6FF;
+  background: #F5F3FF;
   color: var(--shop-blue);
-  border-color: #BFDBFE;
+  border-color: #DDD6FE;
 }
 .subcat-visual-img {
   width: 46px;
@@ -2113,7 +2118,7 @@ main {
   background: #eef2ff;
   color: #3730a3;
 }
-.status-chip.status-cj_created { background: #dbeafe; color: #1e40af; }
+.status-chip.status-cj_created { background: #ede9fe; color: #1e40af; }
 .status-chip.status-pending { background: #fef3c7; color: #92400e; }
 .status-chip.status-shipped { background: #d1fae5; color: #065f46; }
 .status-chip.status-delivered { background: #d1fae5; color: #065f46; }
@@ -2409,8 +2414,8 @@ main {
 }
 .account-menu-link:hover,
 .account-menu-link.active {
-  background: #EFF6FF;
-  border-color: #BFDBFE;
+  background: #F5F3FF;
+  border-color: #DDD6FE;
   color: var(--shop-blue);
 }
 .account-signout-btn {
@@ -2474,7 +2479,7 @@ main {
   font-size: 12px;
 }
 .account-action-card:hover {
-  border-color: #BFDBFE;
+  border-color: #DDD6FE;
   color: var(--shop-blue);
 }
 
@@ -2736,15 +2741,15 @@ main {
   padding: 10px 12px;
   border: 1px solid #D8E1EF;
   border-radius: 12px;
-  color: #0B5FFF;
+  color: #7C3AED;
   font-weight: 800;
   text-align: center;
   text-decoration: none;
-  background: #F8FBFF;
+  background: #FAF7FF;
 }
 .about-link-grid a:hover {
-  border-color: #0B5FFF;
-  background: #EFF6FF;
+  border-color: #7C3AED;
+  background: #F5F3FF;
 }
 
 @media (max-width: 860px) {
@@ -3131,7 +3136,7 @@ main {
   margin: 4px 14px 8px;
   padding: 14px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #EFF6FF 0%, #F8FBFF 100%);
+  background: linear-gradient(135deg, #F5F3FF 0%, #FAF7FF 100%);
   border: 1px solid #D8E7FF;
 }
 .drawer-about-card strong,
@@ -3146,7 +3151,7 @@ main {
 }
 .drawer-about-card span {
   margin-top: 3px;
-  color: #0B5FFF;
+  color: #7C3AED;
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.16em;
@@ -3426,7 +3431,7 @@ main {
   body.page-register .mbn-item[data-page="account"]::before,
   body.page-orders .mbn-item[data-page="account"]::before,
   body.page-returns .mbn-item[data-page="account"]::before {
-    background: #DBEAFE;
+    background: #EDE9FE;
   }
   .mbn-item:active { color: var(--shop-blue); }
   /* Cart count badge — hidden when 0 (data-empty="true") */
@@ -3824,8 +3829,8 @@ main {
   border-left: 1px solid var(--border);
 }
 .home-hero-search .hero-photo-btn:hover {
-  background: #EFF6FF;
-  color: var(--shop-blue, #2563EB);
+  background: #F5F3FF;
+  color: var(--shop-blue, #7C3AED);
 }
 .home-hero-stats {
   display: flex;
@@ -4374,19 +4379,19 @@ body {
 }
 .header-search:focus-within {
   border-color: var(--shop-blue);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.16);
 }
 .header-search-btn {
   background: var(--shop-blue);
 }
-.header-search-btn:hover { background: #1D4ED8; }
+.header-search-btn:hover { background: #6D28D9; }
 .header-photo-btn {
   background: #fff;
   color: #475569;
 }
 .header-photo-btn:hover {
-  background: #EFF6FF;
-  color: #1D4ED8;
+  background: #F5F3FF;
+  color: #6D28D9;
 }
 
 .product-card {
@@ -4429,7 +4434,7 @@ body {
 
 .home-hero {
   background:
-    linear-gradient(135deg, rgba(2, 6, 23, 0.96) 0%, rgba(17, 24, 39, 0.92) 44%, rgba(37, 99, 235, 0.82) 100%),
+    linear-gradient(135deg, rgba(2, 6, 23, 0.96) 0%, rgba(17, 24, 39, 0.92) 44%, rgba(124, 58, 237, 0.85) 100%),
     radial-gradient(circle at 76% 18%, rgba(247, 181, 0, 0.32), transparent 36%);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -4471,8 +4476,8 @@ body {
   font-weight: 700;
 }
 .home-hero-search .hero-photo-btn:hover {
-  background: #EFF6FF;
-  color: #1D4ED8;
+  background: #F5F3FF;
+  color: #6D28D9;
 }
 .home-hero-chips {
   display: flex;
@@ -4555,7 +4560,7 @@ body {
 }
 .trust-icon {
   background: #EEF6FF;
-  border-color: #BFDBFE;
+  border-color: #DDD6FE;
   color: var(--shop-blue);
 }
 
@@ -4619,8 +4624,8 @@ body {
   color: #111827;
 }
 .section-link {
-  border: 1px solid #DBEAFE;
-  background: #EFF6FF;
+  border: 1px solid #EDE9FE;
+  background: #F5F3FF;
   color: var(--shop-blue);
   border-radius: 999px;
   padding: 7px 11px;
@@ -4995,16 +5000,16 @@ body {
 @media (max-width: 860px) {
   body {
     background:
-      linear-gradient(180deg, #EAF2FF 0%, #F5F8FF 360px, var(--bg) 100%),
+      linear-gradient(180deg, #F5F3FF 0%, #FAF7FF 360px, var(--bg) 100%),
       var(--bg);
   }
 
   .header {
     background:
       radial-gradient(circle at 14% 0%, rgba(255, 255, 255, 0.18), transparent 28%),
-      linear-gradient(180deg, #0B5FFF 0%, #0646D8 100%);
+      linear-gradient(180deg, #7C3AED 0%, #6D28D9 100%);
     border-bottom: 0;
-    box-shadow: 0 12px 28px rgba(6, 70, 216, 0.24);
+    box-shadow: 0 12px 28px rgba(109, 40, 217, 0.30);
     /* Constant top padding for browser views — the OS status bar sits
        above the viewport in normal mobile browsing, so no safe-area
        inset is needed here. The previous max(8px, env(safe-area-inset-top))
@@ -5186,7 +5191,7 @@ body {
     place-items: center;
     background: #0B1220;
     color: #fff;
-    border: 2px solid #0B5FFF;
+    border: 2px solid #7C3AED;
     font-size: 11px;
     line-height: 1;
   }
@@ -5232,7 +5237,7 @@ body {
   .header.header-search-open .header-search-btn {
     min-width: 56px;
     padding: 0;
-    background: #0B5FFF;
+    background: #7C3AED;
     color: #fff;
   }
   .header.header-search-open .header-photo-btn {
@@ -5256,12 +5261,12 @@ body {
     margin: 0 0 16px;
     border-radius: 22px;
     border-color: rgba(255, 255, 255, 0.2);
-    box-shadow: 0 18px 38px rgba(6, 70, 216, 0.2);
+    box-shadow: 0 18px 38px rgba(109, 40, 217, 0.24);
   }
 
   .home-hero {
     background:
-      linear-gradient(135deg, rgba(6, 20, 48, 0.98) 0%, rgba(17, 39, 93, 0.96) 42%, rgba(11, 95, 255, 0.9) 100%),
+      linear-gradient(135deg, rgba(33, 8, 56, 0.98) 0%, rgba(59, 7, 100, 0.96) 42%, rgba(124, 58, 237, 0.92) 100%),
       radial-gradient(circle at 88% 18%, rgba(255, 215, 106, 0.34), transparent 32%);
   }
 
@@ -5312,9 +5317,9 @@ body {
   }
 
   .trust-icon {
-    background: #EAF2FF;
-    border-color: #BFDBFE;
-    color: #0B5FFF;
+    background: #F5F3FF;
+    border-color: #DDD6FE;
+    color: #7C3AED;
   }
 
   .mobile-bottom-nav {
@@ -5346,7 +5351,7 @@ body {
   body.page-register .mbn-item[data-page="account"],
   body.page-orders .mbn-item[data-page="account"],
   body.page-returns .mbn-item[data-page="account"] {
-    color: #0B5FFF;
+    color: #7C3AED;
   }
 
   body.page-home .mbn-item[data-page="home"]::before,
@@ -5359,7 +5364,7 @@ body {
   body.page-register .mbn-item[data-page="account"]::before,
   body.page-orders .mbn-item[data-page="account"]::before,
   body.page-returns .mbn-item[data-page="account"]::before {
-    background: #DBEAFE;
+    background: #EDE9FE;
   }
 
   .mbn-badge {
