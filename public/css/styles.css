@@ -120,7 +120,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
    every breakpoint. Drop-shadow gives the (transparent-edged) image
    contrast against the dark velvet header. */
 .brand-logo-img {
-  height: 120px;
+  height: 60px;
   width: auto;
   max-width: 100%;
   flex: 0 0 auto;
@@ -458,8 +458,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   }
 
   .header-inner {
-    min-height: 134px;
-    padding: 10px 24px;
+    min-height: 72px;
+    padding: 8px 24px;
   }
 
   .brand {
@@ -467,10 +467,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
     gap: 16px;
   }
 
-  /* Desktop: generous wordmark size — the image carries the full
+  /* Desktop: compact wordmark — the image carries the full
      "GLOBAL SHOPPER by Befach" brand, no separate text needed. */
   .brand-logo-img {
-    height: 120px;
+    height: 60px;
     width: auto;
     flex-basis: auto;
     padding: 0;
@@ -3518,7 +3518,7 @@ main {
     padding: 6px 14px;
   }
   /* Tablet: logo carries the full wordmark — no separate text. */
-  .brand-logo-img { height: 100px; width: auto; flex-basis: auto; }
+  .brand-logo-img { height: 50px; width: auto; flex-basis: auto; }
   .brand { gap: 10px; }
   .brand-text-main { font-size: 26px; }
   .brand-text-sub  { font-size: 10px; letter-spacing: 0.28em; }
@@ -3744,7 +3744,7 @@ main {
   main { padding: 12px; }
   .header-inner { padding: 6px 12px; gap: 8px; }
   /* Phone: logo carries the full wordmark — no separate text. */
-  .brand-logo-img { height: 88px; width: auto; flex-basis: auto; }
+  .brand-logo-img { height: 44px; width: auto; flex-basis: auto; }
   .brand-text-main { font-size: 22px; }
   .brand-text-sub  { font-size: 9px; letter-spacing: 0.24em; }
   .page-title { font-size: 20px; }
@@ -4732,7 +4732,7 @@ body {
     padding: 0 12px;
   }
   .brand-logo-img {
-    height: 100px;
+    height: 50px;
     width: auto;
     flex-basis: auto;
   }
@@ -5097,8 +5097,8 @@ body {
 
   .header-inner {
     max-width: none;
-    min-height: 116px;
-    padding: 6px 12px 8px;
+    min-height: 64px;
+    padding: 5px 12px 6px;
     gap: 8px;
     grid-template-columns: 44px minmax(0, 1fr) auto;
     align-items: center;
@@ -5130,7 +5130,7 @@ body {
   .brand {
     width: auto;
     max-width: none;
-    min-height: 48px;
+    min-height: 0;
     justify-self: start;
     gap: 8px;
     padding: 0;
@@ -5141,7 +5141,7 @@ body {
   }
 
   .brand-logo-img {
-    height: 100px;
+    height: 52px;
     width: auto;
     flex: 0 0 auto;
     filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.30));
@@ -5459,11 +5459,10 @@ body {
     min-width: 42px;
   }
 
-  /* Tiny phone: no white card, smaller logo, hide "by Befach" so the
-     stacked GLOBAL/SHOPPER stays readable next to the bigger logo. */
+  /* Tiny phone: tighter logo so the compact header fits everything. */
   .brand {
     max-width: none;
-    min-height: 44px;
+    min-height: 0;
     padding: 0;
     background: transparent;
     box-shadow: none;
@@ -5471,7 +5470,7 @@ body {
   }
 
   .brand-logo-img {
-    height: 72px;
+    height: 40px;
     width: auto;
     flex-basis: auto;
   }
@@ -5624,10 +5623,10 @@ body {
   }
 
   .header-inner {
-    min-height: 100px;
+    min-height: 62px;
     grid-template-columns: 40px minmax(72px, 1fr) auto !important;
     gap: 7px;
-    padding: 6px 10px 10px;
+    padding: 5px 10px 6px;
   }
 
   .header-hamburger,
@@ -5640,7 +5639,7 @@ body {
 
   .brand {
     max-width: none;
-    min-height: 80px;
+    min-height: 0;
     padding: 0;
     border-radius: 0;
     background: transparent;
@@ -5648,7 +5647,7 @@ body {
   }
 
   .brand-logo-img {
-    height: 100px;
+    height: 50px;
     width: auto;
     flex-basis: auto;
   }
@@ -5762,11 +5761,11 @@ body {
 
   .brand {
     max-width: none;
-    min-height: 64px;
+    min-height: 0;
   }
 
   .brand-logo-img {
-    height: 78px;
+    height: 40px;
     width: auto;
     flex-basis: auto;
   }
