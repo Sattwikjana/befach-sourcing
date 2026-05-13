@@ -120,7 +120,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
    every breakpoint. Drop-shadow gives the (transparent-edged) image
    contrast against the dark velvet header. */
 .brand-logo-img {
-  height: 84px;
+  height: 120px;
   width: auto;
   max-width: 100%;
   flex: 0 0 auto;
@@ -458,7 +458,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   }
 
   .header-inner {
-    min-height: 78px;
+    min-height: 134px;
     padding: 10px 24px;
   }
 
@@ -470,7 +470,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   /* Desktop: generous wordmark size — the image carries the full
      "GLOBAL SHOPPER by Befach" brand, no separate text needed. */
   .brand-logo-img {
-    height: 84px;
+    height: 120px;
     width: auto;
     flex-basis: auto;
     padding: 0;
@@ -3518,7 +3518,7 @@ main {
     padding: 6px 14px;
   }
   /* Tablet: logo carries the full wordmark — no separate text. */
-  .brand-logo-img { height: 68px; width: auto; flex-basis: auto; }
+  .brand-logo-img { height: 100px; width: auto; flex-basis: auto; }
   .brand { gap: 10px; }
   .brand-text-main { font-size: 26px; }
   .brand-text-sub  { font-size: 10px; letter-spacing: 0.28em; }
@@ -3744,7 +3744,7 @@ main {
   main { padding: 12px; }
   .header-inner { padding: 6px 12px; gap: 8px; }
   /* Phone: logo carries the full wordmark — no separate text. */
-  .brand-logo-img { height: 56px; width: auto; flex-basis: auto; }
+  .brand-logo-img { height: 88px; width: auto; flex-basis: auto; }
   .brand-text-main { font-size: 22px; }
   .brand-text-sub  { font-size: 9px; letter-spacing: 0.24em; }
   .page-title { font-size: 20px; }
@@ -4732,9 +4732,9 @@ body {
     padding: 0 12px;
   }
   .brand-logo-img {
-    width: 46px;
-    height: 46px;
-    flex-basis: 46px;
+    height: 100px;
+    width: auto;
+    flex-basis: auto;
   }
 
   .home-main {
@@ -5097,7 +5097,7 @@ body {
 
   .header-inner {
     max-width: none;
-    min-height: 80px;
+    min-height: 116px;
     padding: 6px 12px 8px;
     gap: 8px;
     grid-template-columns: 44px minmax(0, 1fr) auto;
@@ -5141,7 +5141,7 @@ body {
   }
 
   .brand-logo-img {
-    height: 64px;
+    height: 100px;
     width: auto;
     flex: 0 0 auto;
     filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.30));
@@ -5471,7 +5471,7 @@ body {
   }
 
   .brand-logo-img {
-    height: 48px;
+    height: 72px;
     width: auto;
     flex-basis: auto;
   }
@@ -5624,7 +5624,7 @@ body {
   }
 
   .header-inner {
-    min-height: 92px;
+    min-height: 100px;
     grid-template-columns: 40px minmax(72px, 1fr) auto !important;
     gap: 7px;
     padding: 6px 10px 10px;
@@ -5646,9 +5646,9 @@ body {
   }
 
   .brand-logo-img {
-    width: 36px;
-    height: 36px;
-    flex-basis: 36px;
+    height: 80px;
+    width: auto;
+    flex-basis: auto;
   }
 
   .nav-account {
@@ -5764,9 +5764,9 @@ body {
   }
 
   .brand-logo-img {
-    width: 34px;
-    height: 34px;
-    flex-basis: 34px;
+    height: 72px;
+    width: auto;
+    flex-basis: auto;
   }
 
   .header-search {
