@@ -114,19 +114,19 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   text-decoration: none;
   flex-shrink: 0;
 }
-/* Logo image — cart-and-globe Global Shopper mark. The artwork is
-   intrinsically wide (~2.7:1 cart + motion trail), so we size by HEIGHT
-   and let width auto-scale to preserve the natural aspect ratio.
-   Drop-shadow gives the (transparent-edged) image enough contrast
-   against any header color without needing a white card wrapper. */
+/* Logo image — cart-and-globe + "GLOBAL SHOPPER by Befach" wordmark
+   baked into a single image at ~2.7:1 aspect ratio. We size by HEIGHT
+   and let width auto-scale so the wordmark text stays readable at
+   every breakpoint. Drop-shadow gives the (transparent-edged) image
+   contrast against the dark velvet header. */
 .brand-logo-img {
-  height: 56px;
+  height: 84px;
   width: auto;
-  max-width: none;
+  max-width: 100%;
   flex: 0 0 auto;
   display: block;
   object-fit: contain;
-  object-position: center center;
+  object-position: left center;
   filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.18));
 }
 
@@ -467,10 +467,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
     gap: 16px;
   }
 
-  /* Desktop: large logo, no white card behind it — the new wide logo
-     sizes by height with auto width so its 2.7:1 aspect renders correctly. */
+  /* Desktop: generous wordmark size — the image carries the full
+     "GLOBAL SHOPPER by Befach" brand, no separate text needed. */
   .brand-logo-img {
-    height: 72px;
+    height: 84px;
     width: auto;
     flex-basis: auto;
     padding: 0;
@@ -3517,11 +3517,8 @@ main {
     gap: 10px;
     padding: 6px 14px;
   }
-  /* Brand on tablet — keep logo + wordmark, scaled down */
-  .brand-logo-img { height: 56px; width: auto; flex-basis: auto; }
-  .brand-wordmark-global,
-  .brand-wordmark-shopper { font-size: 17px; }
-  .brand-wordmark-sub { font-size: 10px; letter-spacing: 0.16em; margin-top: 2px; }
+  /* Tablet: logo carries the full wordmark — no separate text. */
+  .brand-logo-img { height: 68px; width: auto; flex-basis: auto; }
   .brand { gap: 10px; }
   .brand-text-main { font-size: 26px; }
   .brand-text-sub  { font-size: 10px; letter-spacing: 0.28em; }
@@ -3746,11 +3743,8 @@ main {
 @media (max-width: 500px) {
   main { padding: 12px; }
   .header-inner { padding: 6px 12px; gap: 8px; }
-  /* Phone: keep logo + compact wordmark. Wordmark text shrinks further. */
-  .brand-logo-img { height: 48px; width: auto; flex-basis: auto; }
-  .brand-wordmark-global,
-  .brand-wordmark-shopper { font-size: 14px; }
-  .brand-wordmark-sub { font-size: 8.5px; letter-spacing: 0.14em; }
+  /* Phone: logo carries the full wordmark — no separate text. */
+  .brand-logo-img { height: 56px; width: auto; flex-basis: auto; }
   .brand-text-main { font-size: 22px; }
   .brand-text-sub  { font-size: 9px; letter-spacing: 0.24em; }
   .page-title { font-size: 20px; }
@@ -5147,7 +5141,7 @@ body {
   }
 
   .brand-logo-img {
-    height: 52px;
+    height: 64px;
     width: auto;
     flex: 0 0 auto;
     filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.30));
@@ -5477,14 +5471,10 @@ body {
   }
 
   .brand-logo-img {
-    height: 40px;
+    height: 48px;
     width: auto;
     flex-basis: auto;
   }
-
-  .brand-wordmark-global,
-  .brand-wordmark-shopper { font-size: 13px; }
-  .brand-wordmark-sub { display: none; }
 
   .nav-account {
     padding: 4px !important;
