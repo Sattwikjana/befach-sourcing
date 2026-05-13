@@ -5000,7 +5000,15 @@ body {
       linear-gradient(180deg, #0B5FFF 0%, #0646D8 100%);
     border-bottom: 0;
     box-shadow: 0 12px 28px rgba(6, 70, 216, 0.24);
-    padding-top: max(8px, env(safe-area-inset-top, 0px));
+    /* Constant top padding for browser views — the OS status bar sits
+       above the viewport in normal mobile browsing, so no safe-area
+       inset is needed here. The previous max(8px, env(safe-area-inset-top))
+       combined with the page's viewport-fit=cover meta tag was making
+       Android Chrome / Samsung Internet on some phones report a 40-60px
+       inset, producing the inconsistent tall-header bug. The Expo
+       native app overrides this rule below (and React Native's
+       SafeAreaView already handles the device safe area at the shell). */
+    padding-top: 8px;
   }
 
   html.global-shopper-native-app .header {
