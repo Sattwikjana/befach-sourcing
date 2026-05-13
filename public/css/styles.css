@@ -3613,17 +3613,55 @@ main {
   body.page-cart .cart-summary { padding-bottom: 18px; }
   body.page-cart main { padding-bottom: calc(142px + env(safe-area-inset-bottom, 0px)); }
 
-  /* Account — single column. Tighten padding on mobile so the menu
-     pills (and the Sign-out button) sit comfortably inside the card
-     and don't visually run off the screen edge. */
-  .account-layout { grid-template-columns: 1fr; margin-top: 10px; }
+  /* Account — single column. Switch to a flat mobile layout so the
+     menu pills can never overflow the viewport. The card chrome
+     (white background + border + radius) is kept, but the layout is
+     forced to width: 100% with box-sizing: border-box everywhere so
+     long emails / pills / sign-out button can't blow out the column.
+     overflow-x: hidden as a final safety belt. */
+  .account-layout {
+    grid-template-columns: 1fr;
+    margin-top: 10px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
   .account-side {
     position: static;
     padding: 18px 14px;
     border-radius: 14px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
-  .account-menu-list { gap: 4px; margin: 14px 0 10px; }
-  .account-menu-link { min-height: 44px; padding: 10px 12px; font-size: 14px; }
+  .account-menu-list { gap: 4px; margin: 14px 0 10px; width: 100%; min-width: 0; }
+  .account-menu-link {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 14px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .account-signout-btn {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .account-email {
+    /* Long emails were a likely trigger for the grid blow-out. Force
+       breaking at any character and limit width to the container. */
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+  }
+  /* main wraps every page; this is a final guard so no single mis-styled
+     child of the account layout can paint past the viewport edge. */
+  body.page-account main {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
   .account-guest-hub { grid-template-columns: 1fr; gap: 12px; }
   .account-guest-card { padding: 20px; }
   .account-guest-card h1 { font-size: 24px; }
