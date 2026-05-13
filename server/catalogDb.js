@@ -336,8 +336,6 @@ function getDescendantCategoryIds(categoryId) {
 
 const CATEGORY_KEYWORD_STOP_WORDS = new Set([
   'and', 'with', 'for', 'the', 'new', 'best', 'top',
-  'men', 'man', 'mens', 'women', 'woman', 'womens', 'lady', 'ladies',
-  'girl', 'girls', 'boy', 'boys', 'kid', 'kids', 'baby', 'child',
 ]);
 
 function keywordTokens(input) {
@@ -410,6 +408,72 @@ function placeholders(values) {
   return values.map(() => '?').join(', ');
 }
 
+const AUDIENCE_SQL_EXCLUDES = {
+  men: [
+    'women', 'woman', 'womens', "women's", 'ladies', 'lady', 'female',
+    'girls', 'girl',
+    'baby', 'babies', 'newborn', 'infant', 'toddler', 'child', 'children',
+    'kids', 'kid', 'boys', 'boy',
+    'pet', 'pets', 'dog', 'dogs', 'puppy', 'puppies', 'cat', 'cats',
+    'kitten', 'kittens',
+  ],
+  women: [
+    'men', 'mens', "men's", 'man', 'male', 'gentleman', 'gentlemen',
+    'boys', 'boy',
+    'baby', 'babies', 'newborn', 'infant', 'toddler', 'child', 'children',
+    'kids', 'kid',
+    'pet', 'pets', 'dog', 'dogs', 'puppy', 'puppies', 'cat', 'cats',
+    'kitten', 'kittens',
+  ],
+  kids: [
+    'men', 'mens', "men's", 'man', 'male', 'gentleman', 'gentlemen',
+    'women', 'woman', 'womens', "women's", 'ladies', 'lady', 'female',
+    'pet', 'pets', 'dog', 'dogs', 'puppy', 'puppies', 'cat', 'cats',
+    'kitten', 'kittens',
+  ],
+  pets: [
+    'men', 'mens', "men's", 'man', 'male', 'gentleman', 'gentlemen',
+    'women', 'woman', 'womens', "women's", 'ladies', 'lady', 'female',
+    'baby', 'babies', 'newborn', 'infant', 'toddler', 'child', 'children',
+    'kids', 'kid', 'boys', 'boy', 'girls', 'girl',
+  ],
+};
+
+const ADULT_CLOTHING_SQL_EXCLUDES = [
+  'shoe', 'shoes', 'sneaker', 'sneakers', 'sandal', 'sandals', 'boot', 'boots',
+  'heel', 'heels', 'slipper', 'slippers', 'footwear',
+  'handbag', 'backpack', 'duffle', 'luggage', 'tote', 'purse', 'wallet',
+  'bag', 'bags',
+  'watch', 'watches', 'jewelry', 'jewellery', 'earring', 'earrings',
+  'necklace', 'bracelet', 'ring', 'rings',
+  'sunglass', 'sunglasses', 'eyeglass', 'eyeglasses', 'glasses', 'eyewear',
+  'spectacle', 'spectacles',
+  'belt', 'belts', 'sock', 'socks', 'hat', 'hats', 'cap', 'caps', 'beanie',
+  'scarf', 'scarves', 'glove', 'gloves', 'tie', 'ties',
+];
+
+function likeWordPattern(term) {
+  const value = String(term || '').trim().toLowerCase();
+  if (!value) return '%';
+  return /[^a-z0-9]/.test(value) ? `%${value}%` : `% ${value} %`;
+}
+
+function buildSearchFilterSql({ audience = '', family = '' } = {}) {
+  const normalAudience = ['men', 'women', 'kids', 'pets'].includes(audience) ? audience : '';
+  const terms = new Set(AUDIENCE_SQL_EXCLUDES[normalAudience] || []);
+  if (family === 'clothing' && (normalAudience === 'men' || normalAudience === 'women')) {
+    ADULT_CLOTHING_SQL_EXCLUDES.forEach(term => terms.add(term));
+  }
+  if (!terms.size) return { sql: '', args: [] };
+
+  const textExpr = "(' ' || LOWER(COALESCE(p.name, '') || ' ' || COALESCE(p.category_name, '')) || ' ')";
+  const args = [...terms].map(likeWordPattern);
+  return {
+    sql: `\n        ${args.map(() => `AND ${textExpr} NOT LIKE ?`).join('\n        ')}`,
+    args,
+  };
+}
+
 function rowsToProducts(rows) {
   return (rows || []).map(row => {
     let raw = {};
@@ -444,7 +508,15 @@ function estimateTotal({ offset, limit, rowsLength, exactTotal }) {
   return offset + rowsLength + (limit * 25);
 }
 
-function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20, includeTotal = false } = {}) {
+function searchProducts({
+  keyWord = '',
+  categoryId = '',
+  page = 1,
+  size = 20,
+  includeTotal = false,
+  audience = '',
+  family = '',
+} = {}) {
   if (!isEnabled()) return null;
   const dbh = ensureDb();
   const limit = Math.max(1, Math.min(parseInt(size, 10) || 20, 100));
@@ -456,12 +528,13 @@ function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20, in
     ? ` AND p.category_id IN (${placeholders(categoryIds)})`
     : '';
   const categoryArgs = categoryIds;
+  const searchFilter = buildSearchFilterSql({ audience, family });
   const q = inferredCategoryIds.length ? '' : ftsQuery(keyWord);
 
   let rows;
   let total = null;
   if (q) {
-    const baseArgs = [q, ...categoryArgs];
+    const baseArgs = [q, ...categoryArgs, ...searchFilter.args];
     rows = dbh.prepare(`
       SELECT p.*, bm25(catalog_products_fts) AS rank
       FROM catalog_products_fts
@@ -469,6 +542,7 @@ function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20, in
       WHERE catalog_products_fts MATCH ?
         AND p.active = 1
         ${categorySql}
+        ${searchFilter.sql}
       ORDER BY rank ASC, p.listed_num DESC, p.sell_price ASC
       LIMIT ? OFFSET ?
     `).all(...baseArgs, limit, offset);
@@ -480,6 +554,7 @@ function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20, in
         WHERE catalog_products_fts MATCH ?
           AND p.active = 1
           ${categorySql}
+          ${searchFilter.sql}
       `).get(...baseArgs).count;
     }
   } else {
@@ -488,16 +563,18 @@ function searchProducts({ keyWord = '', categoryId = '', page = 1, size = 20, in
       FROM catalog_products p
       WHERE p.active = 1
         ${categorySql}
+        ${searchFilter.sql}
       ORDER BY p.listed_num DESC, p.sell_price ASC, p.updated_at DESC
       LIMIT ? OFFSET ?
-    `).all(...categoryArgs, limit, offset);
+    `).all(...categoryArgs, ...searchFilter.args, limit, offset);
     if (includeTotal) {
       total = dbh.prepare(`
         SELECT COUNT(*) AS count
         FROM catalog_products p
         WHERE p.active = 1
           ${categorySql}
-      `).get(...categoryArgs).count;
+          ${searchFilter.sql}
+      `).get(...categoryArgs, ...searchFilter.args).count;
     }
   }
 

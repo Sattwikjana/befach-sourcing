@@ -225,7 +225,7 @@ const CACHE = new Map(); // insertion order = LRU order
 // shape or sort order. Old cached entries with a different version
 // won't be read, so users see the new behavior immediately on deploy
 // without waiting for the 30-min TTL to expire.
-const PRODUCTS_CACHE_VERSION = 'v8';
+const PRODUCTS_CACHE_VERSION = 'v9';
 const productsRawKey = (params) => `productsRaw:${PRODUCTS_CACHE_VERSION}:${JSON.stringify(params)}`;
 
 function cacheGet(key, ttlMs) {
@@ -1875,8 +1875,10 @@ function mergeCatalogAndLiveMeta(liveMeta, catalogMeta, size) {
   };
 }
 
-async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size, allowLive = true }) {
-  const catalogMeta = catalog.searchProducts({ keyWord, categoryId, page, size });
+async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size, allowLive = true, searchIntent = null }) {
+  const catalogFilters = searchIntentForCatalog(searchIntent);
+  const catalogMetaRaw = catalog.searchProducts({ keyWord, categoryId, page, size, ...catalogFilters });
+  const catalogMeta = applySearchIntentFilter(catalogMetaRaw, searchIntent, size);
   const hasCatalog = !!catalogMeta?.products?.length;
   const liveSize = Math.min(parseInt(size, 10) || 20, 40);
 
@@ -1888,7 +1890,7 @@ async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size
     priority,
   }).then(liveMeta => {
     cacheLiveProducts(liveMeta, categoryId);
-    return liveMeta;
+    return applySearchIntentFilter(liveMeta, searchIntent, size);
   });
 
   const timeout = (ms) => new Promise(resolve => setTimeout(() => resolve(null), ms));
@@ -1936,7 +1938,11 @@ async function searchProductsWithCatalogExtras({ keyWord, categoryId, page, size
     const fallbackName = categoryNameForId(categoryId);
     const fallbackTerms = categoryCatalogFallbackTerms(fallbackName);
     for (const term of fallbackTerms) {
-      const fallbackMeta = catalog.searchProducts({ keyWord: term, page, size });
+      const fallbackMeta = applySearchIntentFilter(
+        catalog.searchProducts({ keyWord: term, page, size, ...catalogFilters }),
+        searchIntent,
+        size
+      );
       if (fallbackMeta?.products?.length) {
         if (allowLive) fetchLive('high').catch(err => {
           console.warn('[products] background category CJ refresh failed:', err.message);
@@ -2168,7 +2174,147 @@ const CATEGORY_FAMILY_RULES = {
     positive: /\b(electronic|gadget|phone|mobile|charger|cable|usb|earbud|earbuds|headphone|headphones|speaker|camera|projector|laptop|tablet|keyboard|mouse|power bank|smartwatch|smart watch|drone|adapter)\b/,
   },
 };
-const BROAD_CLOTHING_REJECT_RE = /\b(shoe|shoes|sneaker|sneakers|sandal|sandals|boot|boots|heel|heels|slipper|slippers|footwear|handbag|backpack|duffle|luggage|tote|purse|wallet|bag|bags|watch|watches|jewelry|jewellery|earring|earrings|necklace|bracelet|ring|rings|sunglass|sunglasses|eyeglass|eyeglasses|glasses|eyewear|spectacle|spectacles|belt|belts|sock|socks|hat|hats|cap|caps|beanie|scarf|scarves|glove|gloves|tie|ties|baby|child|children|kids|kid|boys|boy|girls|girl)\b/;
+const BROAD_CLOTHING_REJECT_RE = /\b(shoe|shoes|sneaker|sneakers|sandal|sandals|boot|boots|heel|heels|slipper|slippers|footwear|handbag|backpack|duffle|luggage|tote|purse|wallet|bag|bags|watch|watches|jewelry|jewellery|earring|earrings|necklace|bracelet|ring|rings|sunglass|sunglasses|eyeglass|eyeglasses|glasses|eyewear|spectacle|spectacles|belt|belts|sock|socks|hat|hats|cap|caps|beanie|scarf|scarves|glove|gloves|tie|ties|baby|babies|newborn|infant|toddler|child|children|kids|kid|boys|boy|girls|girl|pet|pets|dog|dogs|puppy|puppies|cat|cats|kitten|kittens)\b/;
+
+const MEN_SIGNAL_RE = /\b(men'?s|mens|men|man|male|gentleman|gentlemen)\b/i;
+const WOMEN_SIGNAL_RE = /\b(women'?s|womens|women|woman|ladies|lady|female)\b/i;
+const KIDS_SIGNAL_RE = /\b(baby|babies|newborn|infant|toddler|child|children|kid|kids|boy|boys|girl|girls)\b/i;
+const PET_SIGNAL_RE = /\b(pet|pets|dog|dogs|puppy|puppies|cat|cats|kitten|kittens)\b/i;
+const CLOTHING_QUERY_RE = /\b(clothing|clothes|clothings|fashion|apparel|wear|dress|dresses|shirt|shirts|t-?shirt|tee|top|tops|blouse|skirt|pants|trouser|trousers|jeans|shorts|leggings?|tights?|jacket|jackets|coat|coats|hoodie|sweater|cardigan|suit|suits|gown|kurta|saree|lehenga|romper|jumpsuit|outfit|outfits)\b/i;
+const ADULT_GARMENT_SIGNAL_RE = /\b(shirt|shirts|t-?shirt|tee|top|tops|blouse|dress|dresses|gown|skirt|pants|trouser|trousers|jeans|shorts|leggings?|tights?|jacket|jackets|coat|coats|hoodie|sweater|cardigan|vest|camisole|bodysuit|jumpsuit|romper|kurta|saree|lehenga|suit|suits|outfit|outfits|apparel|clothing|clothes)\b/i;
+const MEN_CATEGORY_RE = /\b(men'?s|mens|men|man)\s+(clothing|fashion|wear|apparel)\b/i;
+const WOMEN_CATEGORY_RE = /\b(women'?s|womens|women|woman|ladies)\s+(clothing|fashion|wear|apparel)\b/i;
+const KIDS_CATEGORY_RE = /\b(baby|babies|kids|children|boys|girls|toy|toys)\b/i;
+const PET_CATEGORY_RE = /\b(pet|pets|dog|dogs|cat|cats|puppy|puppies|kitten|kittens)\b/i;
+
+function normaliseSearchText(value) {
+  return ` ${String(value || '').toLowerCase().replace(/[^a-z0-9']+/g, ' ')} `;
+}
+
+function inferDeterministicSearchIntent(rawQuery = '') {
+  const text = normaliseSearchText(rawQuery);
+  const hasPet = PET_SIGNAL_RE.test(text);
+  const hasKids = KIDS_SIGNAL_RE.test(text);
+  const hasMen = MEN_SIGNAL_RE.test(text);
+  const hasWomen = WOMEN_SIGNAL_RE.test(text);
+  const hasClothing = CLOTHING_QUERY_RE.test(text);
+
+  let audience = null;
+  if (hasPet) audience = 'pets';
+  else if (hasKids) audience = 'kids';
+  else if (hasMen && !hasWomen) audience = 'men';
+  else if (hasWomen && !hasMen) audience = 'women';
+
+  let family = null;
+  if (hasClothing) family = 'clothing';
+  else if (audience === 'pets') family = 'pet';
+  else if (audience === 'kids') family = 'toys';
+
+  return {
+    audience,
+    gender: ['men', 'women', 'kids'].includes(audience) ? audience : null,
+    family,
+    strictAudience: !!audience,
+  };
+}
+
+function mergeDeterministicSearchIntent(rawQuery, parsedIntent = {}) {
+  const deterministic = inferDeterministicSearchIntent(rawQuery);
+  const parsedGender = ['men', 'women', 'kids'].includes(parsedIntent?.gender)
+    ? parsedIntent.gender
+    : null;
+  const parsedFamily = parsedIntent?.category === 'clothing' ? 'clothing' : null;
+  const audience = deterministic.audience || parsedGender || null;
+  const family = deterministic.family || parsedFamily || null;
+  return {
+    ...parsedIntent,
+    gender: deterministic.gender || parsedGender || parsedIntent?.gender || null,
+    _audience: audience,
+    _family: family,
+    _strictAudience: !!(deterministic.strictAudience || parsedGender),
+  };
+}
+
+function searchIntentForCatalog(intent) {
+  return {
+    audience: intent?._audience || '',
+    family: intent?._family || '',
+  };
+}
+
+function productConflictsWithSearchIntent(product, intent = {}) {
+  const audience = intent?._audience || intent?.audience || '';
+  const family = intent?._family || intent?.family || '';
+  if (!audience && !family) return false;
+
+  const text = normaliseSearchText(productSearchText(product));
+  const title = normaliseSearchText(productTitleText(product));
+
+  if (audience === 'men') {
+    if (WOMEN_SIGNAL_RE.test(text) || KIDS_SIGNAL_RE.test(text) || PET_SIGNAL_RE.test(text)) return true;
+  } else if (audience === 'women') {
+    if (MEN_SIGNAL_RE.test(text) || KIDS_SIGNAL_RE.test(text) || PET_SIGNAL_RE.test(text)) return true;
+  } else if (audience === 'kids') {
+    if (PET_SIGNAL_RE.test(text)) return true;
+    if (MEN_SIGNAL_RE.test(text) || WOMEN_SIGNAL_RE.test(text)) return true;
+  } else if (audience === 'pets') {
+    if (MEN_SIGNAL_RE.test(text) || WOMEN_SIGNAL_RE.test(text) || KIDS_SIGNAL_RE.test(text)) return true;
+  }
+
+  if (family === 'clothing' && (audience === 'men' || audience === 'women')) {
+    if (BROAD_CLOTHING_REJECT_RE.test(title)) return true;
+    if (!ADULT_GARMENT_SIGNAL_RE.test(text)) return true;
+    return Object.entries(CATEGORY_FAMILY_RULES)
+      .filter(([other]) => other !== 'clothing')
+      .some(([, rule]) => rule.positive.test(title));
+  }
+
+  return false;
+}
+
+function scoreProductForSearchIntent(product, intent = {}, index = 0) {
+  const audience = intent?._audience || intent?.audience || '';
+  const family = intent?._family || intent?.family || '';
+  const text = normaliseSearchText(productSearchText(product));
+  const category = normaliseSearchText(product.categoryName || product.threeCategoryName || '');
+  let score = Math.max(0, 1000 - index) / 1000;
+
+  if (audience === 'men' && (MEN_CATEGORY_RE.test(category) || MEN_SIGNAL_RE.test(text))) score += 40;
+  if (audience === 'women' && (WOMEN_CATEGORY_RE.test(category) || WOMEN_SIGNAL_RE.test(text))) score += 40;
+  if (audience === 'kids' && (KIDS_CATEGORY_RE.test(category) || KIDS_SIGNAL_RE.test(text))) score += 40;
+  if (audience === 'pets' && (PET_CATEGORY_RE.test(category) || PET_SIGNAL_RE.test(text))) score += 40;
+  if (family === 'clothing' && ADULT_GARMENT_SIGNAL_RE.test(text)) score += 18;
+  if (family === 'pet' && PET_SIGNAL_RE.test(text)) score += 18;
+  score += Math.min((parseInt(product.listedNum || product.listedShopNum || 0, 10) || 0) / 10000, 8);
+  return score;
+}
+
+function filterAndRankProductsForSearchIntent(products, intent = {}) {
+  if (!intent?._audience && !intent?._family) return products || [];
+  return (products || [])
+    .map((product, index) => ({ product, index, score: scoreProductForSearchIntent(product, intent, index) }))
+    .filter(item => !productConflictsWithSearchIntent(item.product, intent))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(item => item.product);
+}
+
+function applySearchIntentFilter(meta, intent, pageSize) {
+  if (!meta?.products?.length || (!intent?._audience && !intent?._family)) return meta;
+  const before = meta.products.length;
+  const products = filterAndRankProductsForSearchIntent(meta.products, intent);
+  if (products.length === before) return meta;
+  const ratio = before > 0 ? products.length / before : 1;
+  const adjustedTotal = Math.max(products.length, Math.round((meta.total || products.length) * ratio));
+  const limit = Math.max(1, parseInt(pageSize, 10) || before);
+  console.log(`[search-intent] ${intent._audience || 'any'}:${intent._family || 'any'} filtered ${before - products.length}/${before}`);
+  return {
+    ...meta,
+    products,
+    total: adjustedTotal,
+    totalPages: Math.max(1, Math.ceil(adjustedTotal / limit)),
+    source: `${meta.source || 'results'}+intent-filter`,
+  };
+}
 
 function categoryFamilyFromName(name) {
   const label = String(name || '').trim();
@@ -2269,8 +2415,7 @@ function limitMetaProductsForDisplay(meta, pageSize) {
 
 const CATEGORY_MATCH_STOP_WORDS = new Set([
   'and', 'with', 'for', 'the', 'new',
-  'men', 'man', 'mens', 'women', 'woman', 'womens', 'lady', 'ladies',
-  'girl', 'girls', 'boy', 'boys', 'kid', 'kids', 'baby', 'child', 'parent', 'couple',
+  'parent', 'couple',
 ]);
 
 function keywordTokens(value) {
@@ -2426,10 +2571,11 @@ async function buildSmartSearchResponse(rawQuery, {
     source: 'fallback',
     fallbackReason: 'fast-path',
   };
-  const intent = intentOverride || await Promise.race([
+  const parsedIntent = intentOverride || await Promise.race([
     searchAI.parseQuery(rawQuery).catch(() => fastIntent),
     new Promise(resolve => setTimeout(() => resolve(fastIntent), SEARCH_AI_WAIT_MS)),
   ]);
+  const intent = mergeDeterministicSearchIntent(rawQuery, parsedIntent);
   const narrowKeywords = intent.keywords || rawQuery;
   const broaderKeywords = intent.broader_keywords || narrowKeywords;
   const usingBroader = broaderKeywords && broaderKeywords.toLowerCase() !== narrowKeywords.toLowerCase();
@@ -2446,6 +2592,7 @@ async function buildSmartSearchResponse(rawQuery, {
       categoryId: undefined,
       page,
       size: pageSize,
+      searchIntent: intent,
     }),
     usingBroader
       ? searchProductsWithCatalogExtras({
@@ -2453,6 +2600,7 @@ async function buildSmartSearchResponse(rawQuery, {
           categoryId: undefined,
           page,
           size: pageSize,
+          searchIntent: intent,
         })
       : Promise.resolve({ products: [], total: 0, totalPages: 1 }),
   ]);
@@ -2484,29 +2632,13 @@ async function buildSmartSearchResponse(rawQuery, {
   // pass-rate after gender/price filters run below.
   const beforeFilters = products.length;
 
-  // Apply AI-extracted filters client-side (CJ doesn't support these).
-
-  // ── Gender filter ──
-  // CJ's keyword search ignores prefix words like "men" — searching
-  // "men dress" returns mostly women's dresses because the title
-  // matcher is loose. We post-filter using the OPPOSITE gender's
-  // marker words against productNameEn + categoryName.
-  const GENDER_EXCLUDES = {
-    men:    ['women', 'woman', 'ladies', 'lady', 'female', 'girl', 'girls'],
-    women:  ['men', 'mens', 'gentleman', 'male', 'boy', 'boys'],
-    kids:   [],     // products labelled "men" or "women" usually fit kids too
-    unisex: [],     // anything goes
-  };
-  if (intent.gender && GENDER_EXCLUDES[intent.gender]?.length) {
-    const excludes = GENDER_EXCLUDES[intent.gender];
-    const excludeRegex = new RegExp(`\\b(${excludes.join('|')})\\b`, 'i');
-    const before = products.length;
-    products = products.filter(p => {
-      const name = (p.productNameEn || p.nameEn || p.productName || '').toLowerCase();
-      const cat  = (p.categoryName  || p.threeCategoryName || '').toLowerCase();
-      return !excludeRegex.test(name) && !excludeRegex.test(cat);
-    });
-    console.log(`[smart-search] gender=${intent.gender}: ${before} -> ${products.length} after filter`);
+  // Apply deterministic audience/family filtering after the catalog + CJ merge.
+  // This fixes broad CJ/category matches like "men clothing" pulling pet or
+  // baby dresses onto page 1, even when the AI parser times out.
+  const beforeIntentFilter = products.length;
+  products = filterAndRankProductsForSearchIntent(products, intent);
+  if (beforeIntentFilter !== products.length) {
+    console.log(`[smart-search] intent=${intent._audience || 'any'}:${intent._family || 'any'} ${beforeIntentFilter} -> ${products.length}`);
   }
 
   // Price filter — applied in INR using the same conversion as display.
@@ -2661,6 +2793,19 @@ app.get('/api/store/products', async (req, res) => {
     const wantStrict = strictShippable === '1' || strictShippable === 'true';
     const pageSize = Math.min(parseInt(size) || 20, 40);
     const trimmedKw = (keyWord || '').trim();
+    const searchIntent = trimmedKw
+      ? mergeDeterministicSearchIntent(trimmedKw, {
+          keywords: trimmedKw,
+          broader_keywords: trimmedKw,
+          category: null,
+          color: null,
+          gender: null,
+          price_min: null,
+          price_max: null,
+          intent: null,
+          source: 'deterministic',
+        })
+      : null;
     const currentPage = parseInt(page, 10) || 1;
     // On broad category landing pages, grab extra SQLite rows on page 1 so the
     // quality filter can remove off-category noise without leaving a thin grid.
@@ -2745,6 +2890,7 @@ app.get('/api/store/products', async (req, res) => {
         categoryId,
         page: currentPage,
         size: fetchPageSize,
+        searchIntent,
       });
 
       // CJ's listV2 categoryId index has gaps — many leaf-level categories
@@ -2762,6 +2908,7 @@ app.get('/api/store/products', async (req, res) => {
               keyWord: fallbackName,
               page: currentPage,
               size: fetchPageSize,
+              searchIntent,
             });
             if (meta2.products.length > 0) meta = meta2;
           } catch (e) {
@@ -2793,6 +2940,7 @@ app.get('/api/store/products', async (req, res) => {
         };
       }
     }
+    meta = applySearchIntentFilter(meta, searchIntent, pageSize);
 
     meta = applyCategoryQualityFilter(meta, {
       categoryId,
@@ -4016,7 +4164,14 @@ async function prewarmKeyword(keyword, size = 10, page = 1, allowLive = false) {
   const cached = cacheGet(rawKey, 30 * 60 * 1000);
   if (cached) return cached; // already warm
   try {
-    const meta = await searchProductsWithCatalogExtras({ keyWord: keyword, page, size, allowLive });
+    const searchIntent = keyword
+      ? mergeDeterministicSearchIntent(keyword, {
+          keywords: keyword,
+          broader_keywords: keyword,
+          source: 'deterministic',
+        })
+      : null;
+    const meta = await searchProductsWithCatalogExtras({ keyWord: keyword, page, size, allowLive, searchIntent });
     cacheSet(rawKey, meta);
     console.log(`[prewarm] "${keyword}" (${meta.products.length}/${meta.total}) ✓`);
     return meta;
