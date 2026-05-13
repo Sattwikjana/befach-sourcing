@@ -114,15 +114,16 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   text-decoration: none;
   flex-shrink: 0;
 }
-/* Logo image — cart-and-globe Global Shopper mark. Sized large by default;
-   media queries below scale it down for tablet/phone. Drop-shadow gives
-   the (transparent-edged) image enough contrast against any header color
-   without needing a white card wrapper. */
+/* Logo image — cart-and-globe Global Shopper mark. The artwork is
+   intrinsically wide (~2.7:1 cart + motion trail), so we size by HEIGHT
+   and let width auto-scale to preserve the natural aspect ratio.
+   Drop-shadow gives the (transparent-edged) image enough contrast
+   against any header color without needing a white card wrapper. */
 .brand-logo-img {
-  width: 100px;
-  height: 100px;
+  height: 56px;
+  width: auto;
   max-width: none;
-  flex: 0 0 100px;
+  flex: 0 0 auto;
   display: block;
   object-fit: contain;
   object-position: center center;
@@ -466,13 +467,12 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
     gap: 16px;
   }
 
-  /* Desktop: large logo, no white card behind it — the new logo is a
-     transparent PNG and the drop-shadow on the IMG gives it enough lift
-     against the blue gradient. */
+  /* Desktop: large logo, no white card behind it — the new wide logo
+     sizes by height with auto width so its 2.7:1 aspect renders correctly. */
   .brand-logo-img {
-    width: 100px;
-    height: 100px;
-    flex-basis: 100px;
+    height: 72px;
+    width: auto;
+    flex-basis: auto;
     padding: 0;
     border-radius: 0;
     background: transparent;
@@ -3518,7 +3518,7 @@ main {
     padding: 6px 14px;
   }
   /* Brand on tablet — keep logo + wordmark, scaled down */
-  .brand-logo-img { width: 80px; height: 80px; flex-basis: 80px; }
+  .brand-logo-img { height: 56px; width: auto; flex-basis: auto; }
   .brand-wordmark-global,
   .brand-wordmark-shopper { font-size: 17px; }
   .brand-wordmark-sub { font-size: 10px; letter-spacing: 0.16em; margin-top: 2px; }
@@ -3747,7 +3747,7 @@ main {
   main { padding: 12px; }
   .header-inner { padding: 6px 12px; gap: 8px; }
   /* Phone: keep logo + compact wordmark. Wordmark text shrinks further. */
-  .brand-logo-img { width: 64px; height: 64px; flex-basis: 64px; }
+  .brand-logo-img { height: 48px; width: auto; flex-basis: auto; }
   .brand-wordmark-global,
   .brand-wordmark-shopper { font-size: 14px; }
   .brand-wordmark-sub { font-size: 8.5px; letter-spacing: 0.14em; }
@@ -5147,9 +5147,9 @@ body {
   }
 
   .brand-logo-img {
-    width: 76px;
-    height: 76px;
-    flex: 0 0 76px;
+    height: 52px;
+    width: auto;
+    flex: 0 0 auto;
     filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.30));
   }
 
@@ -5477,9 +5477,9 @@ body {
   }
 
   .brand-logo-img {
-    width: 56px;
-    height: 56px;
-    flex-basis: 56px;
+    height: 40px;
+    width: auto;
+    flex-basis: auto;
   }
 
   .brand-wordmark-global,
