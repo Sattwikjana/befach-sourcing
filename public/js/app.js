@@ -3302,18 +3302,28 @@ async function renderProduct(pid) {
   let currentImageIndex = 0;
   const mainImgEl = document.getElementById('pdMainImg');
   const counterEl = document.getElementById('pdImgCounter');
-  function showImageAt(idx) {
+  // direction: +1 = new image slides in from the right (forward swipe),
+  // -1 = slides in from the left, 0 = no animation (initial render).
+  function showImageAt(idx, direction = 0) {
     if (!images.length) return;
     const n = images.length;
+    const prev = currentImageIndex;
     currentImageIndex = ((idx % n) + n) % n;
+    if (currentImageIndex === prev && direction !== 0) return;
     mainImgEl.src = imgProxy(images[currentImageIndex]);
+    if (direction !== 0) {
+      mainImgEl.classList.remove('pd-slide-in-left', 'pd-slide-in-right');
+      // Force reflow so re-adding the class restarts the animation.
+      void mainImgEl.offsetWidth;
+      mainImgEl.classList.add(direction > 0 ? 'pd-slide-in-right' : 'pd-slide-in-left');
+    }
     document.querySelectorAll('.pd-thumb').forEach((b, i) => {
       b.classList.toggle('active', i === currentImageIndex);
     });
     if (counterEl) counterEl.textContent = `${currentImageIndex + 1} / ${n}`;
   }
   document.querySelectorAll('.pd-thumb').forEach((btn, i) => {
-    btn.addEventListener('click', () => showImageAt(i));
+    btn.addEventListener('click', () => showImageAt(i, i > currentImageIndex ? 1 : i < currentImageIndex ? -1 : 0));
   });
 
   // Horizontal swipe on the main image (mobile). Threshold of 40px filters
@@ -3335,7 +3345,8 @@ async function renderProduct(pid) {
       const dx = t.clientX - startX;
       const dy = t.clientY - startY;
       if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
-      showImageAt(currentImageIndex + (dx < 0 ? 1 : -1));
+      const dir = dx < 0 ? 1 : -1;
+      showImageAt(currentImageIndex + dir, dir);
     }, { passive: true });
   }
 

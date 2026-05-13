@@ -1444,10 +1444,9 @@ main {
   }
   .pd-img-fab:active { transform: scale(0.92); }
   .pd-img-fav { top: 12px; }
-  .pd-img-share { top: 60px; }
+  .pd-img-share { bottom: 12px; }
   .pd-img-fav.on {
-    background: var(--brand, #6d28d9);
-    color: #fff;
+    color: #e11d48;
   }
   .pd-img-fav.on svg { fill: currentColor; }
   .pd-img-counter {
@@ -1465,6 +1464,23 @@ main {
     letter-spacing: 0.02em;
     pointer-events: none;
   }
+  /* Slide animation when paging the gallery on mobile. Only the incoming
+     image is animated — keeping a single <img> means no DOM gymnastics and
+     no flash of the outgoing frame on iOS Safari. */
+  .pd-main-img.pd-slide-in-right { animation: pd-slide-from-right 260ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+  .pd-main-img.pd-slide-in-left  { animation: pd-slide-from-left  260ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+}
+@keyframes pd-slide-from-right {
+  from { transform: translateX(40%); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+@keyframes pd-slide-from-left {
+  from { transform: translateX(-40%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pd-main-img.pd-slide-in-right,
+  .pd-main-img.pd-slide-in-left { animation: none; }
 }
 .pd-thumbs {
   display: grid;
