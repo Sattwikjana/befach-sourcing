@@ -704,15 +704,20 @@ main {
 .home-sidebar::-webkit-scrollbar { width: 6px; }
 .home-sidebar::-webkit-scrollbar-thumb { background: #dfe3e8; border-radius: 3px; }
 
+/* Sidebar cat row: ~42px tall so all 14 top-level categories fit on a
+   single page even at ~768p, while not feeling cramped. Padding 6/9 +
+   icon 28 + font 13 lands at ~42-44px per row → 14 × 43 ≈ 600px, which
+   fits inside the sidebar's max-height (100vh − header − 32) on every
+   common desktop viewport. */
 .sidebar-cat {
   display: grid;
-  grid-template-columns: 26px 1fr 10px;
+  grid-template-columns: 28px 1fr 12px;
   align-items: center;
-  gap: 9px;
-  padding: 5px 9px;
+  gap: 10px;
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   text-decoration: none;
   transition: background 0.12s, color 0.12s;
@@ -724,11 +729,11 @@ main {
 }
 .sidebar-cat.active .sidebar-cat-chev { color: var(--brand); }
 .sidebar-cat-icon {
-  width: 26px; height: 26px;
+  width: 28px; height: 28px;
   display: grid; place-items: center;
   background: #f4f6f9;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 15px;
 }
 .sidebar-cat:hover .sidebar-cat-icon,
 .sidebar-cat.active .sidebar-cat-icon {
@@ -5446,19 +5451,17 @@ body {
   background: #080519;
 }
 
-/* Desktop: flatten the slide so the hero takes the same vertical space
-   as the old "Shop the world" hero (~400-440px) instead of forcing the
-   full 16:9 letterbox (which on a 1500px-wide main column was ~840px
-   tall — eating most of the fold). object-fit: cover crops the source
-   slightly top/bottom but the active content of the banner (headline +
-   phones) stays centered. Mobile keeps 16:9 — narrow screens don't have
-   the same problem. */
+/* Desktop: keep the slide at the source 16:9 (so the banner image is
+   shown in full — no cropping) but cap the carousel's overall width so
+   the hero is shorter without losing any of the artwork. Centered in
+   the main column with neutral space on either side. Mobile is
+   untouched — narrow screens already render the carousel at a
+   reasonable height. */
 @media (min-width: 861px) {
-  .home-usp-slide {
-    aspect-ratio: 3 / 1;
-  }
-  .home-usp-slide img {
-    object-fit: cover;
+  .home-usp-carousel {
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
   }
 }
 
