@@ -5744,6 +5744,9 @@ body {
 
   .footer {
     display: block;
+    background: #fff;
+    color: var(--text);
+    border-top: 1px solid var(--border);
     margin-top: 34px;
     margin-bottom: var(--mobile-bottom-nav-height);
     padding: 24px 0 14px;
@@ -5765,17 +5768,25 @@ body {
   }
 
   .footer-brand-name {
+    color: var(--text);
     font-size: 20px;
   }
 
   .footer-brand-tag {
+    color: var(--text-muted);
     font-size: 9px;
   }
 
   .footer-about,
   .footer-company .footer-line {
+    color: var(--text-muted);
     font-size: 12px;
     line-height: 1.45;
+  }
+
+  .footer-company .footer-line strong,
+  .footer-col h4 {
+    color: var(--text);
   }
 
   .footer-col h4 {
@@ -5784,11 +5795,20 @@ body {
   }
 
   .footer-col a {
+    color: var(--text-secondary);
     font-size: 12.5px;
     padding: 3px 0;
   }
 
+  .footer-col a:hover,
+  .footer-company a,
+  .footer-company a:hover {
+    color: var(--brand);
+  }
+
   .footer-bottom {
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
     flex-direction: column;
     gap: 5px;
     padding: 12px 16px 0;
