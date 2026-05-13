@@ -3617,10 +3617,13 @@ main {
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
-    min-height: 110px;
+    min-height: 120px;
     padding: 10px 6px;
   }
-  .cat-sub-card-img { width: 58px; height: 58px; }
+  /* Mobile: match the homepage category-strip image size (68px) so the
+     browse and subcategory pages have the same chunky feel as the home
+     screen — user feedback "make the images bigger like homepage". */
+  .cat-sub-card-img { width: 68px; height: 68px; }
   .cat-sub-card-meta { grid-column: auto; font-size: 10.5px; }
   .subcategory-visual-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3633,10 +3636,10 @@ main {
     text-align: center;
     gap: 7px;
     padding: 7px 4px;
-    min-height: 94px;
+    min-height: 110px;
     box-shadow: none;
   }
-  .subcat-visual-img { width: 56px; height: 56px; border-radius: 17px; }
+  .subcat-visual-img { width: 68px; height: 68px; border-radius: 20px; }
   .subcat-visual-name { font-size: 11px; }
   .banner-row { grid-template-columns: 1fr; gap: 12px; }
   .banner { padding: 28px 20px; min-height: 140px; }
@@ -4968,9 +4971,11 @@ body {
   .subcategory-visual-strip {
     gap: 8px 6px;
   }
+  /* Narrow phones: match the .mobile-shop-strip img (64px on the same
+     breakpoint) so subcategory cards stay consistent with the home strip. */
   .subcat-visual-img {
-    width: 52px;
-    height: 52px;
+    width: 64px;
+    height: 64px;
   }
   .promo-stack {
     grid-template-columns: 1fr;

@@ -2757,7 +2757,6 @@ async function loadHomeProducts() {
 // ══════════════════════════════════════════════════════════════
 async function renderAllCategories() {
   app.innerHTML = `
-    <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">All Categories</span></div>
     <h1 class="page-title">All Categories</h1>
     <div id="allCatsGrid" class="categories-grid-full">
       ${Array(16).fill('<div class="category-card skeleton" style="height:120px"></div>').join('')}
@@ -2873,10 +2872,10 @@ async function renderSearch(query, page = 1, opts = {}) {
   const filterSort = urlParams.get('sort') || 'relevance';
 
   app.innerHTML = `
-    <div class="breadcrumb">
-      <a href="/">Home</a> <span>›</span>
-      <span class="current">${title}</span>
-    </div>
+    <!-- Breadcrumb removed by request: the page title (h1) below already
+         identifies where the user is, and the hamburger drawer carries
+         the full category tree. The trail was eating ~40px of vertical
+         space on mobile above the sort dropdown for no extra information. -->
     <div class="search-header">
       <div>
         <h1 class="page-title">${title}</h1>
