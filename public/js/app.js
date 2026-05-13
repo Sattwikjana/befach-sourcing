@@ -1994,7 +1994,58 @@ window._pdWishToggle = function(btn) {
   const added = toggleWishlist(pid);
   const label = btn.querySelector('.btn-wish-pd-label');
   if (label) label.textContent = added ? 'Saved' : 'Wishlist';
+  // Keep the mobile image-overlay heart in sync with the in-info button.
+  document.querySelectorAll(`.pd-img-fav[data-wish-pid="${CSS.escape(pid)}"]`).forEach(el => {
+    el.classList.toggle('on', added);
+    el.setAttribute('aria-pressed', added ? 'true' : 'false');
+    el.setAttribute('aria-label', added ? 'Remove from wishlist' : 'Save to wishlist');
+  });
   showToast(added ? '♥ Added to wishlist' : 'Removed from wishlist');
+};
+
+// Mobile-only heart overlay on the product image. Mirrors _pdWishToggle but
+// also flips the in-info .btn-wish-pd state so both surfaces stay coherent.
+window._pdImgWishToggle = function(btn) {
+  const pid = btn?.getAttribute('data-wish-pid');
+  if (!pid) return;
+  if (!state.user) return requireSignIn('save products to your wishlist');
+  const added = toggleWishlist(pid);
+  btn.classList.toggle('on', added);
+  btn.setAttribute('aria-pressed', added ? 'true' : 'false');
+  btn.setAttribute('aria-label', added ? 'Remove from wishlist' : 'Save to wishlist');
+  const infoBtn = document.querySelector(`.btn-wish-pd[data-wish-pid="${CSS.escape(pid)}"]`);
+  if (infoBtn) {
+    infoBtn.classList.toggle('on', added);
+    infoBtn.setAttribute('aria-pressed', added ? 'true' : 'false');
+    const label = infoBtn.querySelector('.btn-wish-pd-label');
+    if (label) label.textContent = added ? 'Saved' : 'Wishlist';
+  }
+  showToast(added ? '♥ Added to wishlist' : 'Removed from wishlist');
+};
+
+// Share the current product. Prefers the native share sheet on mobile
+// (iOS/Android), falls back to clipboard so desktop and unsupported
+// browsers still get something useful.
+window._pdShare = async function(btn) {
+  const pid = btn?.getAttribute('data-share-pid') || '';
+  const name = btn?.getAttribute('data-share-name') || 'Product';
+  const url = `${location.origin}/#/product/${encodeURIComponent(pid)}`;
+  const shareData = { title: name, text: `Check out ${name} on Global Shopper`, url };
+  try {
+    if (navigator.share) {
+      await navigator.share(shareData);
+      return;
+    }
+  } catch (err) {
+    // User cancelled the native sheet — don't fall through to clipboard.
+    if (err && err.name === 'AbortError') return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied to clipboard');
+  } catch {
+    showToast('Unable to share — copy this URL: ' + url, 4200);
+  }
 };
 
 /**
@@ -3117,11 +3168,40 @@ async function renderProduct(pid) {
 
       <!-- Gallery -->
       <div class="pd-gallery">
-        <div class="pd-main-wrap">
+        <div class="pd-main-wrap" id="pdMainWrap">
           <img class="pd-main-img" id="pdMainImg" src="${imgProxy(images[0])}" alt="${esc(name)}"
                width="600" height="600"
                fetchpriority="high" decoding="async"
                onerror="this.onerror=null;this.src='/img/globalshopper.png'" />
+          <!-- Mobile-only overlays. Hidden on desktop via CSS — the desktop
+               layout already exposes wishlist via .btn-wish-pd and share isn't
+               needed there. Heart reuses _pdWishToggle so both surfaces stay
+               in sync. -->
+          <button type="button"
+                  class="pd-img-fab pd-img-fav ${isInWishlist(pid) ? 'on' : ''}"
+                  data-wish-pid="${esc(pid)}"
+                  aria-label="${isInWishlist(pid) ? 'Remove from wishlist' : 'Save to wishlist'}"
+                  aria-pressed="${isInWishlist(pid) ? 'true' : 'false'}"
+                  onclick="window._pdImgWishToggle(this)">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+            </svg>
+          </button>
+          <button type="button"
+                  class="pd-img-fab pd-img-share"
+                  aria-label="Share this product"
+                  onclick="window._pdShare(this)"
+                  data-share-pid="${esc(pid)}"
+                  data-share-name="${esc(name)}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          </button>
+          ${images.length > 1 ? `<div class="pd-img-counter" id="pdImgCounter" aria-live="polite">1 / ${images.length}</div>` : ''}
         </div>
         <div class="pd-thumbs">
           ${images.slice(0, 8).map((src, i) => `
@@ -3214,14 +3294,50 @@ async function renderProduct(pid) {
     priceUsd: selectedPriceUsd,
   };
 
-  // Thumbnails
-  document.querySelectorAll('.pd-thumb').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.pd-thumb').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('pdMainImg').src = btn.getAttribute('data-src');
+  // Thumbnails + mobile swipe gallery.
+  // currentImageIndex tracks position in the original `images` array so swipe
+  // and thumb-click stay in sync. We deliberately don't repoint it when a
+  // variant image overrides the main img — swiping after a variant pick
+  // resumes from the last gallery index, which is what shoppers expect.
+  let currentImageIndex = 0;
+  const mainImgEl = document.getElementById('pdMainImg');
+  const counterEl = document.getElementById('pdImgCounter');
+  function showImageAt(idx) {
+    if (!images.length) return;
+    const n = images.length;
+    currentImageIndex = ((idx % n) + n) % n;
+    mainImgEl.src = imgProxy(images[currentImageIndex]);
+    document.querySelectorAll('.pd-thumb').forEach((b, i) => {
+      b.classList.toggle('active', i === currentImageIndex);
     });
+    if (counterEl) counterEl.textContent = `${currentImageIndex + 1} / ${n}`;
+  }
+  document.querySelectorAll('.pd-thumb').forEach((btn, i) => {
+    btn.addEventListener('click', () => showImageAt(i));
   });
+
+  // Horizontal swipe on the main image (mobile). Threshold of 40px filters
+  // accidental taps; vertical-dominant gestures fall through so page-scroll
+  // still works when the user swipes diagonally.
+  if (images.length > 1) {
+    const wrap = document.getElementById('pdMainWrap');
+    let startX = 0, startY = 0, tracking = false;
+    wrap.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+    wrap.addEventListener('touchend', (e) => {
+      if (!tracking) return;
+      tracking = false;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+      showImageAt(currentImageIndex + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+  }
 
   // ── Variant selector (CJ-style Color / Size rows) ──
   const parsedVariants = parseVariantAttributes(variants);

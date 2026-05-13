@@ -1415,8 +1415,57 @@ main {
   background: var(--surface-alt);
   border-radius: var(--radius);
   overflow: hidden;
+  position: relative;
 }
 .pd-main-img { width: 100%; height: 100%; object-fit: contain; }
+
+/* Mobile-only floating action buttons over the product image.
+   Hidden on desktop — the desktop layout already exposes wishlist via the
+   inline .btn-wish-pd button below the price block and the browser chrome
+   covers share. */
+.pd-img-fab,
+.pd-img-counter { display: none; }
+@media (max-width: 860px) {
+  .pd-img-fab {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    right: 12px;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(255, 255, 255, 0.94);
+    color: #0f172a;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 120ms ease, background 120ms ease, color 120ms ease;
+  }
+  .pd-img-fab:active { transform: scale(0.92); }
+  .pd-img-fav { top: 12px; }
+  .pd-img-share { top: 60px; }
+  .pd-img-fav.on {
+    background: var(--brand, #6d28d9);
+    color: #fff;
+  }
+  .pd-img-fav.on svg { fill: currentColor; }
+  .pd-img-counter {
+    display: inline-flex;
+    align-items: center;
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.62);
+    color: #fff;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+  }
+}
 .pd-thumbs {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
