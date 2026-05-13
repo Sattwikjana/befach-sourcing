@@ -1227,7 +1227,51 @@ headerSearchForm?.addEventListener('submit', (e) => {
   const q = headerSearchInput.value.trim();
   if (q.length < 2) return showToast('Type at least 2 characters');
   hideSearchSuggestions();
+  closeHeaderSearchToggle();
   navigate(`/search?q=${encodeURIComponent(q)}`);
+});
+
+// ── Mobile header search toggle ──
+// Mobile hides the inline .header-search bar by default; the
+// #headerSearchToggle button reveals it as a second row beneath the
+// top header strip. Clicking the icon adds .header-search-open to the
+// .header element (CSS un-hides the form) and focuses the input.
+// Submitting / Escape / clicking outside closes it again.
+const headerSearchToggle = document.getElementById('headerSearchToggle');
+const appHeaderEl = document.getElementById('appHeader');
+
+function openHeaderSearchToggle() {
+  if (!appHeaderEl) return;
+  appHeaderEl.classList.add('header-search-open');
+  headerSearchToggle?.setAttribute('aria-expanded', 'true');
+  // Defer focus so the CSS transition kicks in first — feels smoother
+  // and avoids iOS scrolling the page weirdly when the input takes focus.
+  setTimeout(() => headerSearchInput?.focus(), 60);
+}
+function closeHeaderSearchToggle() {
+  if (!appHeaderEl) return;
+  appHeaderEl.classList.remove('header-search-open');
+  headerSearchToggle?.setAttribute('aria-expanded', 'false');
+  hideSearchSuggestions?.();
+}
+headerSearchToggle?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const isOpen = appHeaderEl?.classList.contains('header-search-open');
+  if (isOpen) closeHeaderSearchToggle();
+  else openHeaderSearchToggle();
+});
+// Esc closes the bar
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && appHeaderEl?.classList.contains('header-search-open')) {
+    closeHeaderSearchToggle();
+  }
+});
+// Clicking outside the search form / icon closes it. Use mousedown so the
+// click that submits the form doesn't trigger close → re-open race.
+document.addEventListener('mousedown', (e) => {
+  if (!appHeaderEl?.classList.contains('header-search-open')) return;
+  if (e.target.closest('#headerSearchForm') || e.target.closest('#headerSearchToggle')) return;
+  closeHeaderSearchToggle();
 });
 headerPhotoSearchBtn?.addEventListener('click', openPhotoSearchPicker);
 photoSearchInput?.addEventListener('change', (e) => {
