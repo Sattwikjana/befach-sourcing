@@ -109,30 +109,65 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   text-decoration: none;
   flex-shrink: 0;
 }
-/* Logo image — Global Shopper wordmark. Tablet/mobile values scale
-   down proportionally in the media queries below. */
+/* Logo image — cart-and-globe Global Shopper mark. Sized large by default;
+   media queries below scale it down for tablet/phone. Drop-shadow gives
+   the (transparent-edged) image enough contrast against any header color
+   without needing a white card wrapper. */
 .brand-logo-img {
-  width: 56px;
-  height: 56px;
+  width: 88px;
+  height: 88px;
   max-width: none;
-  flex: 0 0 56px;
+  flex: 0 0 88px;
   display: block;
   object-fit: contain;
   object-position: center center;
+  filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.18));
 }
-/* Tagline rendered as text next to the logo, two lines stacked.
-   "ONE WORLD." in black, "ENDLESS CHOICES." in champagne gold. */
-.brand-tagline-side {
-  display: flex;
+
+/* Wordmark — "GLOBAL / SHOPPER / by Befach" stacked next to the logo.
+   "GLOBAL" and "SHOPPER" use Archivo Black (a heavy geometric sans) to
+   match the brand reference; "by Befach" is small body copy as a parent-
+   brand trust signal. Colours are context-dependent — see the desktop-
+   blue and mobile-blue header rules later in this file for white+gold,
+   and `.brand-wordmark-on-light` for navy+blue on white surfaces. */
+.brand-wordmark {
+  display: inline-flex;
   flex-direction: column;
-  line-height: 1.2;
-  font-size: 15px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  font-weight: 700;
+  justify-content: center;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
   white-space: nowrap;
-  border-left: 1px solid var(--border);
-  padding-left: 18px;
+  text-transform: uppercase;
+  gap: 1px;
+  /* No left border / divider — keeps the mark and wordmark visually unified. */
+}
+.brand-wordmark-global,
+.brand-wordmark-shopper {
+  font-family: var(--font-wordmark);
+  font-weight: 900;
+  font-size: 22px;
+  line-height: 1;
+}
+.brand-wordmark-sub {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  margin-top: 3px;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+/* On-light variant (used in the white hamburger drawer). Colours mirror the
+   reference image the user provided: deep navy GLOBAL + brand blue SHOPPER. */
+.brand-wordmark-on-light .brand-wordmark-global { color: #0B1F4D; }
+.brand-wordmark-on-light .brand-wordmark-shopper { color: #1F62FF; }
+.brand-wordmark-on-light .brand-wordmark-sub    { color: #6B7280; }
+
+/* Legacy tagline classes — kept (no-op) in case any embedded surface still
+   uses them. New markup uses .brand-wordmark instead. */
+.brand-tagline-side {
+  display: none;
 }
 .brand-tagline-black { color: var(--brand); }
 .brand-tagline-gold { color: var(--accent-dark); }
@@ -251,6 +286,14 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 }
 
 .cart-link { position: relative; }
+
+/* Mobile-only search icon in the header (≤860px). Replaces the wrap-around
+   .header-search row that used to take ~70px of vertical space. Hidden on
+   desktop where the inline .header-search bar still serves search.
+   Mobile-specific look (44×44 white-on-blue chip) lives in the Flipkart-
+   style mobile header rules later in this file. */
+.nav-search-icon { display: none; }
+
 .cart-badge {
   background: var(--brand);
   color: #fff;
@@ -304,6 +347,25 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 .nav-account:hover { background: var(--accent); color: var(--brand-dark); }
 .nav-account-chev { opacity: 0.6; transition: transform 0.15s; }
 .nav-account[aria-expanded="true"] .nav-account-chev { transform: rotate(180deg); }
+
+/* Icon-only avatar variant — used by updateAuthSlot() when signed in.
+   No "Hi, X" text, no chevron — just a circle with the first initial.
+   Cleaner and matches Flipkart / Amazon mobile-style headers. */
+.nav-account-icon {
+  padding: 2px !important;
+  background: transparent;
+  border-radius: 999px;
+  min-width: 40px;
+  min-height: 40px;
+  display: grid;
+  place-items: center;
+}
+.nav-account-icon:hover { background: rgba(255, 255, 255, 0.18); color: inherit; }
+.nav-account-icon .nav-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 13px;
+}
 
 /* Wishlist link in the header — heart icon with label, treated like
    the Track link visually. Hidden on phone breakpoint where the
@@ -391,29 +453,30 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 
   .brand {
     color: #fff;
+    gap: 16px;
   }
 
+  /* Desktop: large logo, no white card behind it — the new logo is a
+     transparent PNG and the drop-shadow on the IMG gives it enough lift
+     against the blue gradient. */
   .brand-logo-img {
-    width: 58px;
-    height: 58px;
-    flex-basis: 58px;
-    padding: 6px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 10px 28px rgba(2, 6, 23, 0.18);
+    width: 88px;
+    height: 88px;
+    flex-basis: 88px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    filter: drop-shadow(0 6px 14px rgba(2, 6, 23, 0.30));
   }
 
-  .brand-tagline-side {
-    border-left-color: rgba(255, 255, 255, 0.32);
-  }
-
-  .brand-tagline-black {
-    color: #fff;
-  }
-
-  .brand-tagline-gold {
-    color: #FFD766;
-  }
+  /* Wordmark colours on the blue header. "GLOBAL" reads white, "SHOPPER"
+     reads gold to match the existing brand-accent gold used elsewhere in
+     the header (search button, drawer header, etc.). Scoped to .header
+     so the white drawer keeps its on-light navy + blue palette. */
+  .header .brand-wordmark-global  { color: #FFFFFF; }
+  .header .brand-wordmark-shopper { color: #FFD766; }
+  .header .brand-wordmark-sub     { color: rgba(255, 255, 255, 0.82); }
 
   .header-search {
     border-color: rgba(255, 255, 255, 0.42);
@@ -3420,9 +3483,11 @@ body.page-home .header-nav { margin-left: auto; }
     gap: 10px;
     padding: 6px 14px;
   }
-  /* Brand on tablet — keep logo + side tagline */
-  .brand-logo-img { width: 48px; height: 48px; flex-basis: 48px; }
-  .brand-tagline-side { font-size: 12px; padding-left: 12px; }
+  /* Brand on tablet — keep logo + wordmark, scaled down */
+  .brand-logo-img { width: 64px; height: 64px; flex-basis: 64px; }
+  .brand-wordmark-global,
+  .brand-wordmark-shopper { font-size: 16px; }
+  .brand-wordmark-sub { font-size: 9.5px; letter-spacing: 0.16em; margin-top: 2px; }
   .brand { gap: 10px; }
   .brand-text-main { font-size: 26px; }
   .brand-text-sub  { font-size: 10px; letter-spacing: 0.28em; }
@@ -3587,10 +3652,11 @@ body.page-home .header-nav { margin-left: auto; }
 @media (max-width: 500px) {
   main { padding: 12px; }
   .header-inner { padding: 6px 12px; gap: 8px; }
-  /* Phone: hide the side tagline to give the search bar room.
-     Logo alone keeps brand identity. */
-  .brand-logo-img { width: 40px; height: 40px; flex-basis: 40px; }
-  .brand-tagline-side { display: none; }
+  /* Phone: keep logo + compact wordmark. Wordmark text shrinks further. */
+  .brand-logo-img { width: 56px; height: 56px; flex-basis: 56px; }
+  .brand-wordmark-global,
+  .brand-wordmark-shopper { font-size: 14px; }
+  .brand-wordmark-sub { font-size: 8.5px; letter-spacing: 0.14em; }
   .brand-text-main { font-size: 22px; }
   .brand-text-sub  { font-size: 9px; letter-spacing: 0.24em; }
   .page-title { font-size: 20px; }
@@ -4955,27 +5021,43 @@ body {
     background: rgba(255, 255, 255, 0.2);
   }
 
+  /* Mobile brand: logo + compact wordmark visible on the blue header.
+     No white card behind anything — the transparent logo PNG and the
+     drop-shadow on the IMG give enough lift. The wordmark text is set to
+     white + gold so it reads against the blue gradient. */
   .brand {
-    width: max-content;
-    max-width: 84px;
+    width: auto;
+    max-width: none;
     min-height: 48px;
     justify-self: start;
-    gap: 0;
-    padding: 4px 8px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
+    gap: 8px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: #fff;
   }
 
   .brand-logo-img {
-    width: 42px;
-    height: 42px;
-    flex: 0 0 42px;
+    width: 64px;
+    height: 64px;
+    flex: 0 0 64px;
+    filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.30));
   }
 
-  .brand-tagline-side {
-    display: none;
+  .brand-wordmark {
+    line-height: 0.95;
+    gap: 0;
   }
+  .brand-wordmark-global,
+  .brand-wordmark-shopper { font-size: 15px; }
+  .brand-wordmark-sub     { font-size: 9px; letter-spacing: 0.14em; margin-top: 2px; }
+
+  /* Mobile palette on the blue header — white + gold. Scope to .header
+     so the white drawer panel keeps its on-light navy + blue palette. */
+  .header .brand-wordmark-global  { color: #FFFFFF; }
+  .header .brand-wordmark-shopper { color: #FFD766; }
+  .header .brand-wordmark-sub     { color: rgba(255, 255, 255, 0.82); }
 
   .header-nav {
     justify-self: end;
@@ -4983,9 +5065,34 @@ body {
     min-width: 0;
   }
 
+  /* "Hi, Sattwik" pill is redundant on mobile — Account already lives in
+     the bottom nav. Hide the auth slot entirely on mobile; the desktop
+     account dropdown still works on ≥861px. */
   .auth-slot {
-    min-width: 0;
+    display: none;
   }
+
+  /* Mobile search icon — sits between the (hidden) nav links and the cart
+     link, styled to match the cart-link's white-on-blue chip. Tapping
+     routes to /search, replacing the wrap-around .header-search row. */
+  .nav-search-icon {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    padding: 0;
+    border-radius: 14px;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nav-search-icon:hover,
+  .nav-search-icon:active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.2);
+  }
+  .nav-search-icon svg { width: 22px; height: 22px; }
 
   .nav-account {
     min-height: 44px;
@@ -5057,66 +5164,16 @@ body {
     line-height: 1;
   }
 
-  .header-search {
-    grid-column: 1 / -1;
-    order: 3;
-    height: 56px;
-    margin-top: 2px;
-    overflow: hidden;
-    background: #fff;
-    border: 1px solid rgba(203, 213, 225, 0.9);
-    border-radius: 16px;
-    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.18);
+  /* Inline .header-search bar is hidden on mobile — replaced by the
+     .nav-search-icon button in the top-right of the header which routes
+     to /search. Keeps the markup in place so desktop still uses it, but
+     hides it from layout entirely on mobile so the header is one tight row. */
+  .header-search,
+  html[data-page="home"] .header-search,
+  body.page-home .header-search {
+    display: none !important;
   }
-
-  .header-search:focus-within {
-    border-color: rgba(255, 255, 255, 0.96);
-    box-shadow:
-      0 0 0 3px rgba(255, 255, 255, 0.22),
-      0 12px 26px rgba(15, 23, 42, 0.18);
-  }
-
-  .header-search input {
-    min-width: 0;
-    padding: 0 16px;
-    font-size: 16px;
-    color: #0F172A;
-    background: #fff;
-  }
-
-  .header-search input::placeholder {
-    color: #7A8797;
-  }
-
-  .header-cat-btn {
-    display: none;
-  }
-
-  .header-photo-btn {
-    min-width: 54px;
-    padding: 0;
-    border-left: 1px solid #E2E8F0;
-    color: #475569;
-    background: #fff;
-  }
-
-  .header-photo-btn:hover,
-  .header-photo-btn:active {
-    color: #0B5FFF;
-    background: #EFF6FF;
-  }
-
-  .header-search-btn {
-    min-width: 58px;
-    padding: 0;
-    background: #0B5FFF;
-    color: #fff;
-  }
-
-  .header-search-btn:hover,
-  .header-search-btn:active {
-    background: #0646D8;
-  }
+  .header-cat-btn { display: none; }
 
   body.page-home main {
     padding-top: 12px;
@@ -5247,23 +5304,33 @@ body {
   }
 
   .header-hamburger,
-  .cart-link {
+  .cart-link,
+  .nav-search-icon {
     width: 42px;
     height: 42px;
     min-width: 42px;
   }
 
+  /* Tiny phone: no white card, smaller logo, hide "by Befach" so the
+     stacked GLOBAL/SHOPPER stays readable next to the bigger logo. */
   .brand {
-    max-width: 68px;
+    max-width: none;
     min-height: 44px;
-    padding: 4px 7px;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    gap: 6px;
   }
 
   .brand-logo-img {
-    width: 38px;
-    height: 38px;
-    flex-basis: 38px;
+    width: 48px;
+    height: 48px;
+    flex-basis: 48px;
   }
+
+  .brand-wordmark-global,
+  .brand-wordmark-shopper { font-size: 13px; }
+  .brand-wordmark-sub { display: none; }
 
   .nav-account {
     padding: 4px !important;

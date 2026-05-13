@@ -1158,14 +1158,15 @@ function updateAuthSlot() {
   const slot = document.getElementById('authSlot');
   if (state.user) {
     const first = (state.user.name || state.user.email || 'You').split(' ')[0];
-    // Pill is now a button that toggles the account dropdown — gives
-    // desktop users one-click access to My profile / My orders /
-    // Wishlist / Returns / Sign out, matching the mobile drawer.
+    // Desktop signed-in: an icon-only avatar (circle with first initial)
+    // that toggles the account dropdown. We dropped the "Hi, Name" label
+    // and chevron — the avatar alone is a cleaner cue, matches what
+    // standard ecommerce sites (Flipkart, Amazon mobile) do, and avoids
+    // the redundancy with the Account item in the bottom nav.
+    // Mobile hides .auth-slot entirely via CSS.
     if (slot) slot.innerHTML = `
-      <button type="button" class="nav-link nav-account" id="accountTrigger" aria-haspopup="true" aria-expanded="false" title="Account menu">
+      <button type="button" class="nav-link nav-account nav-account-icon" id="accountTrigger" aria-haspopup="true" aria-expanded="false" aria-label="Hi, ${esc(first)} — open account menu" title="Account menu">
         <span class="nav-avatar">${esc(first.slice(0, 1).toUpperCase())}</span>
-        <span class="nav-label">Hi, ${esc(first)}</span>
-        <svg class="nav-account-chev" width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 7L1 3h8z"/></svg>
       </button>
     `;
     // Populate dropdown header + wire up toggle/sign-out
