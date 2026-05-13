@@ -706,13 +706,13 @@ main {
 
 .sidebar-cat {
   display: grid;
-  grid-template-columns: 32px 1fr 12px;
+  grid-template-columns: 26px 1fr 10px;
   align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
+  gap: 9px;
+  padding: 5px 9px;
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 500;
   text-decoration: none;
   transition: background 0.12s, color 0.12s;
@@ -724,11 +724,11 @@ main {
 }
 .sidebar-cat.active .sidebar-cat-chev { color: var(--brand); }
 .sidebar-cat-icon {
-  width: 32px; height: 32px;
+  width: 26px; height: 26px;
   display: grid; place-items: center;
   background: #f4f6f9;
   border-radius: 50%;
-  font-size: 16px;
+  font-size: 14px;
 }
 .sidebar-cat:hover .sidebar-cat-icon,
 .sidebar-cat.active .sidebar-cat-icon {
@@ -5444,6 +5444,22 @@ body {
   height: 100%;
   object-fit: contain;
   background: #080519;
+}
+
+/* Desktop: flatten the slide so the hero takes the same vertical space
+   as the old "Shop the world" hero (~400-440px) instead of forcing the
+   full 16:9 letterbox (which on a 1500px-wide main column was ~840px
+   tall — eating most of the fold). object-fit: cover crops the source
+   slightly top/bottom but the active content of the banner (headline +
+   phones) stays centered. Mobile keeps 16:9 — narrow screens don't have
+   the same problem. */
+@media (min-width: 861px) {
+  .home-usp-slide {
+    aspect-ratio: 3 / 1;
+  }
+  .home-usp-slide img {
+    object-fit: cover;
+  }
 }
 
 .home-usp-dots {
