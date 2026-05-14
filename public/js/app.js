@@ -3732,6 +3732,8 @@ function fbResetForm() {
   document.querySelectorAll('#feedbackForm .star-row').forEach(r => fbSetRating(r, 0));
   const ta = document.getElementById('feedbackComments');
   if (ta) ta.value = '';
+  const email = document.getElementById('feedbackEmail');
+  if (email) email.value = '';
   const status = document.getElementById('feedbackStatus');
   if (status) { status.textContent = ''; status.className = 'feedback-status'; }
   const submit = document.getElementById('feedbackSubmit');
@@ -3768,8 +3770,19 @@ async function fbSubmit(e) {
   const payload = {};
   rows.forEach(r => { payload[r.dataset.q] = parseInt(r.querySelector('.star-row')?.dataset.rating || '0', 10) || 0; });
   payload.comments = (document.getElementById('feedbackComments')?.value || '').trim();
+  const emailRaw = (document.getElementById('feedbackEmail')?.value || '').trim();
+  if (emailRaw) {
+    // Optional — but if provided, do a sanity check so we don't capture
+    // obvious typos. Same regex shape as the server's validEmail.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
+      status.textContent = "That email doesn't look quite right — leave it blank to skip.";
+      status.className = 'feedback-status is-error';
+      return;
+    }
+    payload.email = emailRaw;
+  }
 
-  const ratedAny = Object.entries(payload).some(([k, v]) => k !== 'comments' && v > 0);
+  const ratedAny = Object.entries(payload).some(([k, v]) => typeof v === 'number' && v > 0);
   if (!ratedAny && !payload.comments) {
     status.textContent = 'Please rate at least one question, or leave a comment.';
     status.className = 'feedback-status is-error';

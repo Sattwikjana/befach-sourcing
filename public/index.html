@@ -83,7 +83,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260513-velvet-drawer-head" />
+  <link rel="stylesheet" href="/css/styles.css?v=20260513-feedback-questions-v2" />
   <script>
     // 1) MIGRATE OLD HASH URLs — anyone hitting /#/cart from a stale
     //    bookmark or shared link is silently redirected to /cart so
@@ -324,7 +324,7 @@
           <div class="star-row" data-rating="0"></div>
         </div>
         <div class="feedback-row" data-q="willUseAgain">
-          <label class="feedback-q">Will you use Global Shopper again?</label>
+          <label class="feedback-q">Will you surf Global Shopper in your free time?</label>
           <div class="star-row" data-rating="0"></div>
         </div>
         <div class="feedback-row" data-q="willRecommend">
@@ -332,8 +332,12 @@
           <div class="star-row" data-rating="0"></div>
         </div>
         <div class="feedback-row" data-q="willBuy">
-          <label class="feedback-q">Will you buy with confidence?</label>
+          <label class="feedback-q">What is the likelihood of you buying products on this app?</label>
           <div class="star-row" data-rating="0"></div>
+        </div>
+        <div class="feedback-row feedback-row-comments">
+          <label class="feedback-q" for="feedbackEmail">Email (optional)</label>
+          <input type="email" id="feedbackEmail" placeholder="you@example.com" maxlength="200" autocomplete="email" />
         </div>
         <div class="feedback-row feedback-row-comments">
           <label class="feedback-q" for="feedbackComments">Anything else? (optional)</label>
@@ -355,8 +359,8 @@
   <!-- Razorpay Checkout — loaded async so it doesn't block the page;
        only used on the checkout page when the customer hits "Pay & Place order". -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
-  <script src="/js/app.js?v=20260513-velvet-drawer-head"></script>
-  <script src="/js/app-store.js?v=20260513-velvet-drawer-head"></script>
+  <script src="/js/app.js?v=20260513-feedback-questions-v2"></script>
+  <script src="/js/app-store.js?v=20260513-feedback-questions-v2"></script>
   <!-- Surface any uncaught JS error in the page so we can debug from
        the browser without DevTools. Goes to console.error and shows
        a discreet banner if anything blows up. -->

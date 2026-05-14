@@ -815,6 +815,11 @@ function clampRating(v) {
 // record the submission as anonymous.
 app.post('/api/feedback', (req, res) => {
   const b = req.body || {};
+  // Optional email — accepted only if it parses as a valid address.
+  // Anonymous visitors can leave this blank; signed-in users still
+  // get their account email captured via req.user.email.
+  const rawEmail = typeof b.email === 'string' ? b.email.trim().slice(0, 200) : '';
+  const validContactEmail = rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : '';
   const entry = {
     id: 'fb_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
     createdAt: new Date().toISOString(),
@@ -825,6 +830,7 @@ app.post('/api/feedback', (req, res) => {
     willRecommend: clampRating(b.willRecommend),
     willBuy:       clampRating(b.willBuy),
     comments: typeof b.comments === 'string' ? b.comments.slice(0, 1000).trim() : '',
+    contactEmail: validContactEmail,
     user: req.user ? { id: req.user.id, name: req.user.name, email: req.user.email } : null,
     userAgent: (req.headers['user-agent'] || '').slice(0, 200),
   };

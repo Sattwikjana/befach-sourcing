@@ -1100,14 +1100,14 @@ async function loadAdminFeedback() {
     const items = data.items || [];
     if (countEl) countEl.textContent = `(${data.total || 0})`;
 
-    // Aggregate averages row
+    // Aggregate averages row — short labels for the dashboard tiles.
     const labels = {
       lookFeel:      'Look & feel',
       variety:       'Product variety',
       easeNav:       'Ease of nav.',
-      willUseAgain:  'Will use again',
+      willUseAgain:  'Surfs in free time',
       willRecommend: 'Will recommend',
-      willBuy:       'Will buy',
+      willBuy:       'Likely to buy',
     };
     if (averagesEl) {
       averagesEl.innerHTML = data.total
@@ -1138,17 +1138,22 @@ async function loadAdminFeedback() {
           <th>Look</th>
           <th>Variety</th>
           <th>Nav</th>
-          <th>Again</th>
+          <th>Surfs</th>
           <th>Recomm</th>
           <th>Buy</th>
           <th>Comments</th>
         </tr></thead>
         <tbody>
-          ${items.map(e => `
+          ${items.map(e => {
+            // Prefer the contact email the customer typed in the form;
+            // fall back to their signed-in account email; else anonymous.
+            const customerEmail = e.contactEmail || (e.user && e.user.email) || '';
+            const customerName = e.user && e.user.name ? e.user.name : (customerEmail ? '' : 'anonymous');
+            return `
             <tr>
               <td class="muted small">${new Date(e.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td>
               <td>
-                ${e.user ? `${esc(e.user.name || '')}<div class="muted small">${esc(e.user.email || '')}</div>` : '<span class="muted small">anonymous</span>'}
+                ${customerName ? esc(customerName) : ''}${customerName && customerEmail ? '<br>' : ''}${customerEmail ? `<a href="mailto:${esc(customerEmail)}" class="muted small">${esc(customerEmail)}</a>` : (customerName ? '' : '<span class="muted small">anonymous</span>')}
               </td>
               <td>${e.lookFeel || '—'}</td>
               <td>${e.variety || '—'}</td>
@@ -1158,7 +1163,8 @@ async function loadAdminFeedback() {
               <td>${e.willBuy || '—'}</td>
               <td style="max-width:280px;white-space:normal">${e.comments ? esc(e.comments) : '<span class="muted small">—</span>'}</td>
             </tr>
-          `).join('')}
+          `;
+          }).join('')}
         </tbody>
       </table>
     `;

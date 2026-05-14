@@ -6076,7 +6076,9 @@ body.page-home .feedback-fab {
   color: var(--text);
 }
 
-.feedback-row textarea {
+.feedback-row textarea,
+.feedback-row input[type="email"],
+.feedback-row input[type="text"] {
   width: 100%;
   box-sizing: border-box;
   padding: 10px 12px;
@@ -6087,7 +6089,11 @@ body.page-home .feedback-fab {
   line-height: 1.45;
   resize: vertical;
 }
-.feedback-row textarea:focus {
+.feedback-row input[type="email"],
+.feedback-row input[type="text"] { resize: none; }
+.feedback-row textarea:focus,
+.feedback-row input[type="email"]:focus,
+.feedback-row input[type="text"]:focus {
   outline: none;
   border-color: var(--shop-purple);
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.16);
