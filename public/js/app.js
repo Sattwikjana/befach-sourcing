@@ -1103,7 +1103,25 @@ window.navigate = function(href) {
   handleRoute();
 };
 
+// Route generation token — bumps every time the user navigates to a new
+// route. Async renderers capture the gen at start and bail out of any
+// DOM writes if a newer route has been navigated to in the meantime.
+// Prevents the "Cannot set properties of null (setting 'innerHTML')"
+// error when a fetch resolves after the user has already left the page.
+let __routeGen = 0;
+window.currentRouteGen = () => __routeGen;
+window.isStaleRouteGen = (gen) => gen !== __routeGen;
+
+// Helper: safe innerHTML write — silently no-ops if the element is gone.
+// Use this whenever the write happens AFTER an awaited fetch / setTimeout
+// (i.e. anywhere the DOM might have been replaced under our feet).
+window.safeSetHTML = (idOrEl, html) => {
+  const el = typeof idOrEl === 'string' ? document.getElementById(idOrEl) : idOrEl;
+  if (el) el.innerHTML = html;
+};
+
 function handleRoute() {
+  __routeGen++;
   const { path, params } = getRoute();
   state.currentPage = path;
   resetRouteVitals();
@@ -1137,14 +1155,28 @@ function handleRoute() {
 
   window.scrollTo(0, 0);
 
+  // Capture the route gen at this point. If the render rejects AFTER
+  // the user has already navigated to a new route, the error came from
+  // a stale fetch — log it but DON'T overwrite the new page with the
+  // "Something went wrong" panel. That fixes the spurious error UI
+  // some customers were seeing when bouncing between Home / Account /
+  // back to Home faster than a fetch could resolve.
+  const finishGen = (typeof __routeGen === 'number') ? __routeGen : null;
   const finish = (rendered) => Promise.resolve(rendered)
     .catch(err => {
       console.error('route render failed', err);
+      if (finishGen !== null && finishGen !== __routeGen) {
+        // User has already moved on — swallow the error.
+        return;
+      }
       app.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Something went wrong</h3><p class="muted">${esc(err.message || 'Please retry.')}</p><button class="btn btn-primary" onclick="location.reload()">Retry</button></div>`;
     })
     .finally(() => {
-      enhanceRenderedPage();
-      trackMarketingPageView();
+      // Only run post-render polish if we're still the current route.
+      if (finishGen === null || finishGen === __routeGen) {
+        enhanceRenderedPage();
+        trackMarketingPageView();
+      }
     });
 
   if (path === '/' || path === '') {

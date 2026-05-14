@@ -1596,42 +1596,44 @@ async function renderAccount() {
       const { user } = await authPatch('/api/auth/me', fd);
       state.user = user;
       updateAuthSlot();
-      savedEl.textContent = '✓ Saved';
-      setTimeout(() => savedEl.textContent = '', 2500);
+      // savedEl could be null if the user navigated away mid-save —
+      // belt-and-braces null check so the success/failure write
+      // doesn't throw and bubble up to the route's error boundary.
+      if (savedEl) savedEl.textContent = '✓ Saved';
+      setTimeout(() => {
+        const live = document.getElementById('profileSaved');
+        if (live) live.textContent = '';
+      }, 2500);
     } catch (err) {
-      savedEl.textContent = '✗ ' + err.message;
+      if (savedEl) savedEl.textContent = '✗ ' + err.message;
     }
   };
 
-  // Order history
+  // Order history — async fetch. Capture the current route generation
+  // so if the user navigates away mid-fetch we bail before touching
+  // the DOM (which would throw "Cannot set properties of null").
+  const myGen = (typeof currentRouteGen === 'function') ? currentRouteGen() : null;
   try {
     const res = await fetch('/api/auth/orders', { credentials: 'include' });
     const data = await res.json();
+    if (typeof isStaleRouteGen === 'function' && isStaleRouteGen(myGen)) return;
     const list = data.orders || [];
-    const el = document.getElementById('myOrders');
-    if (!list.length) {
-      el.innerHTML = `<p class="muted">You haven't placed any orders yet. <a href="/">Start shopping</a></p>`;
-    } else {
-      el.innerHTML = `
-        <table class="admin-table">
-          <thead><tr><th>Order</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-            ${list.map(o => `
-              <tr>
-                <td><code>${esc(o.id)}</code></td>
-                <td>${new Date(o.createdAt).toLocaleDateString('en-IN')}</td>
-                <td>${o.items.length} item${o.items.length === 1 ? '' : 's'}</td>
-                <td><strong>${fmtINR(o.grandTotal)}</strong></td>
-                <td><span class="status-chip status-${esc((o.status || '').toLowerCase())}">${esc(o.status)}</span></td>
-                <td><a class="btn-sm btn-ghost" href="/order/${encodeURIComponent(o.id)}">View</a></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-    }
+    const tbody = list.map(o => `
+      <tr>
+        <td><code>${esc(o.id)}</code></td>
+        <td>${new Date(o.createdAt).toLocaleDateString('en-IN')}</td>
+        <td>${o.items.length} item${o.items.length === 1 ? '' : 's'}</td>
+        <td><strong>${fmtINR(o.grandTotal)}</strong></td>
+        <td><span class="status-chip status-${esc((o.status || '').toLowerCase())}">${esc(o.status)}</span></td>
+        <td><a class="btn-sm btn-ghost" href="/order/${encodeURIComponent(o.id)}">View</a></td>
+      </tr>
+    `).join('');
+    safeSetHTML('myOrders', list.length
+      ? `<table class="admin-table"><thead><tr><th>Order</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>${tbody}</tbody></table>`
+      : `<p class="muted">You haven't placed any orders yet. <a href="/">Start shopping</a></p>`);
   } catch (err) {
-    document.getElementById('myOrders').innerHTML = `<p class="muted">Failed to load orders: ${esc(err.message)}</p>`;
+    if (typeof isStaleRouteGen === 'function' && isStaleRouteGen(myGen)) return;
+    safeSetHTML('myOrders', `<p class="muted">Failed to load orders: ${esc(err.message)}</p>`);
   }
 }
 
@@ -1655,34 +1657,28 @@ async function renderOrders() {
     <p class="muted">Every order placed under <strong>${esc(state.user.email)}</strong>.</p>
     <section class="card" id="ordersCard"><div id="myOrdersList">Loading…</div></section>
   `;
+  const myGen = (typeof currentRouteGen === 'function') ? currentRouteGen() : null;
   try {
     const res = await fetch('/api/auth/orders', { credentials: 'include' });
     const data = await res.json();
+    if (typeof isStaleRouteGen === 'function' && isStaleRouteGen(myGen)) return;
     const list = data.orders || [];
-    const el = document.getElementById('myOrdersList');
-    if (!list.length) {
-      el.innerHTML = `<p class="muted">No orders yet. <a href="/">Start browsing</a></p>`;
-      return;
-    }
-    el.innerHTML = `
-      <table class="admin-table">
-        <thead><tr><th>Order</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr></thead>
-        <tbody>
-          ${list.map(o => `
-            <tr>
-              <td><code>${esc(o.id)}</code></td>
-              <td>${new Date(o.createdAt).toLocaleDateString('en-IN')}</td>
-              <td>${o.items.length} item${o.items.length === 1 ? '' : 's'}</td>
-              <td><strong>${fmtINR(o.grandTotal)}</strong></td>
-              <td><span class="status-chip status-${esc((o.status || '').toLowerCase())}">${esc(o.status)}</span></td>
-              <td><a class="btn-sm btn-ghost" href="/order/${encodeURIComponent(o.id)}">View</a></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
+    const tbody = list.map(o => `
+      <tr>
+        <td><code>${esc(o.id)}</code></td>
+        <td>${new Date(o.createdAt).toLocaleDateString('en-IN')}</td>
+        <td>${o.items.length} item${o.items.length === 1 ? '' : 's'}</td>
+        <td><strong>${fmtINR(o.grandTotal)}</strong></td>
+        <td><span class="status-chip status-${esc((o.status || '').toLowerCase())}">${esc(o.status)}</span></td>
+        <td><a class="btn-sm btn-ghost" href="/order/${encodeURIComponent(o.id)}">View</a></td>
+      </tr>
+    `).join('');
+    safeSetHTML('myOrdersList', list.length
+      ? `<table class="admin-table"><thead><tr><th>Order</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>${tbody}</tbody></table>`
+      : `<p class="muted">No orders yet. <a href="/">Start browsing</a></p>`);
   } catch (err) {
-    document.getElementById('myOrdersList').innerHTML = `<p class="muted">Couldn't load orders: ${esc(err.message)}</p>`;
+    if (typeof isStaleRouteGen === 'function' && isStaleRouteGen(myGen)) return;
+    safeSetHTML('myOrdersList', `<p class="muted">Couldn't load orders: ${esc(err.message)}</p>`);
   }
 }
 
