@@ -2189,7 +2189,7 @@ async function renderHome() {
             <div class="home-usp-track">
               ${HOME_USP_SLIDES.map((slide, index) => `
                 <a class="home-usp-slide${index === 0 ? ' is-active' : ''}" href="${slide.href}" aria-label="${esc(slide.label)}" aria-hidden="${index === 0 ? 'false' : 'true'}" tabindex="${index === 0 ? '0' : '-1'}">
-                  <img src="${slide.src}?v=20260513usp2" alt="${esc(slide.alt)}" width="1920" height="1080" loading="${index === 0 ? 'eager' : 'lazy'}" decoding="async"${index === 0 ? ' fetchpriority="high"' : ''} />
+                  <img src="${slide.src}?v=20260513usp3" alt="${esc(slide.alt)}" width="1600" height="900" loading="${index === 0 ? 'eager' : 'lazy'}" decoding="async"${index === 0 ? ' fetchpriority="high"' : ''} />
                 </a>
               `).join('')}
             </div>
