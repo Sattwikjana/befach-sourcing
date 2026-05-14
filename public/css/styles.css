@@ -3435,19 +3435,36 @@ main {
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
 }
 .mobile-cta-btn:hover { background: #0B1220; }
+
+/* Buy Now — warm "Flipkart amber" instead of the saturated egg-yolk
+   yellow it used to be. Light enough to read against the black "Buy
+   Now" label, distinct enough from the white Add-to-Cart sibling. */
 .mobile-cta-btn-buy {
-  background: #FDBA00;
+  background: #FFCE3A;
   color: #111827;
-  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.24);
+  box-shadow: 0 8px 18px rgba(255, 206, 58, 0.34);
 }
-.mobile-cta-btn-buy:hover { background: #F59E0B; }
+.mobile-cta-btn-buy:hover { background: #F5BE2C; }
+
+/* Add to Cart — flip to a clean white card with a thin border and
+   dark text, matching the Flipkart-style PDP secondary action. */
 .mobile-cta-btn-cart {
-  background: #111827;
+  background: #fff;
+  color: #111827;
+  border: 1px solid #CBD5E1;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.10);
 }
+.mobile-cta-btn-cart:hover {
+  background: #F8FAFC;
+  border-color: #B4BFCF;
+  color: #111827;
+}
+
 .mobile-cta-btn:disabled {
   background: #CBD5E1;
   color: #64748B;
   box-shadow: none;
+  border: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════
