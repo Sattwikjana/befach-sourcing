@@ -1276,22 +1276,62 @@ function breadcrumbSchema(items) {
 }
 
 function baseSchemas(canonical) {
+  // Strong Organization signals help Google connect search queries like
+  // "globalshopper" (no space) and "global shopper" (with space) to the
+  // same brand entity. The alternateName + sameAs (when populated) +
+  // legalName + slogan + parentOrganization fields all reinforce that
+  // this domain IS the canonical "Global Shopper" brand.
+  const orgId = `${SITE_URL}/#organization`;
+  const siteId = `${SITE_URL}/#website`;
   return [
     {
       '@context': 'https://schema.org',
-      '@type': 'Organization',
+      '@type': 'OnlineStore',
+      '@id': orgId,
       name: SITE_NAME,
+      alternateName: ['globalshopper', 'globalshopper.in', 'Global Shopper by Befach'],
+      legalName: 'Global Shopper by Befach',
       url: SITE_URL,
-      logo: DEFAULT_META_IMAGE,
+      logo: {
+        '@type': 'ImageObject',
+        url: DEFAULT_META_IMAGE,
+        width: 1024,
+        height: 1024,
+      },
+      image: DEFAULT_META_IMAGE,
+      description: DEFAULT_META_DESCRIPTION,
+      slogan: 'One World. Endless Choices.',
+      areaServed: { '@type': 'Country', name: 'India' },
+      currenciesAccepted: 'INR',
+      paymentAccepted: 'Credit Card, Debit Card, UPI, Razorpay',
+      knowsAbout: [
+        'Cross-border ecommerce',
+        'Global shopping',
+        'Curated premium products',
+        'International dropshipping to India',
+        'Korean beauty', 'US electronics', 'Premium fashion',
+      ],
+      sameAs: [
+        // Add Facebook / Instagram / X / LinkedIn URLs here once those
+        // profiles exist — each sameAs link is a strong brand signal.
+      ],
     },
     {
       '@context': 'https://schema.org',
       '@type': 'WebSite',
+      '@id': siteId,
       name: SITE_NAME,
+      alternateName: 'globalshopper.in',
       url: SITE_URL,
+      description: DEFAULT_META_DESCRIPTION,
+      inLanguage: 'en-IN',
+      publisher: { '@id': orgId },
       potentialAction: {
         '@type': 'SearchAction',
-        target: `${SITE_URL}/search?q={search_term_string}`,
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
+        },
         'query-input': 'required name=search_term_string',
       },
     },
@@ -1302,18 +1342,23 @@ function baseSchemas(canonical) {
 function defaultSeo(req) {
   const canonical = absoluteUrl(req.path === '/' ? '/' : req.path);
   return {
-    title: 'Global Shopper - One World. Endless Choices.',
+    title: 'Global Shopper | Global Shopping Delivered to India',
     description: DEFAULT_META_DESCRIPTION,
     canonical,
     image: DEFAULT_META_IMAGE,
     type: 'website',
     robots: 'index,follow',
     fallback: {
-      heading: 'Global Shopper - One World. Endless Choices.',
-      description: DEFAULT_META_DESCRIPTION,
+      heading: 'Global Shopper — Global Shopping, Delivered to India',
+      // Longer, keyword-rich noscript fallback so crawlers (which often
+      // don't run JS) see real brand content. Mentions "Global Shopper"
+      // multiple times and the long-tail terms we want to rank for.
+      description: `Global Shopper is India's premium cross-border shopping destination. We hand-pick curated products from the US, Korea, the UK and 200+ countries — Korean beauty, premium electronics, designer fashion, home, jewellery, watches and more — and deliver them to your doorstep in India in 10–15 days with no hidden fees. Shop global trends with confidence on Global Shopper.`,
       links: [
-        { href: `${SITE_URL}/faq`, label: 'Shipping and returns' },
         { href: SITE_URL, label: 'Start shopping' },
+        { href: `${SITE_URL}/category`, label: 'Browse all categories' },
+        { href: `${SITE_URL}/faq`, label: 'Shipping & returns' },
+        { href: `${SITE_URL}/about`, label: 'About Global Shopper' },
       ],
     },
     schemas: baseSchemas(canonical),
@@ -1521,7 +1566,17 @@ function buildSeoTags(seo) {
     `  <link rel="alternate" hreflang="en-IN" href="${canonical}" />`,
     `  <link rel="alternate" hreflang="x-default" href="${canonical}" />`,
     `  <meta name="robots" content="${robots}" />`,
-    `  <meta name="theme-color" content="#0f172a" />`,
+    `  <meta name="googlebot" content="${robots}" />`,
+    `  <meta name="theme-color" content="#1A0B36" />`,
+    // Brand-strengthening tags — help search engines + OS surfaces
+    // (Android home-screen / iOS Safari) consistently render the
+    // "Global Shopper" name when the site is bookmarked or surfaced.
+    `  <meta name="application-name" content="${htmlEscape(SITE_NAME)}" />`,
+    `  <meta name="apple-mobile-web-app-title" content="${htmlEscape(SITE_NAME)}" />`,
+    `  <meta name="author" content="${htmlEscape(SITE_NAME)}" />`,
+    // Keywords — Google ignores this, but Bing / DuckDuckGo / Yandex
+    // still factor it in, and it's a zero-cost brand-reinforcement signal.
+    `  <meta name="keywords" content="Global Shopper, globalshopper, globalshopper.in, Global Shopper by Befach, online shopping India, cross-border shopping, premium global products, Korean beauty India, US electronics India, international shopping delivered to India" />`,
     `  <meta property="og:site_name" content="${htmlEscape(SITE_NAME)}" />`,
     `  <meta property="og:locale" content="en_IN" />`,
     `  <meta property="og:type" content="${type}" />`,
