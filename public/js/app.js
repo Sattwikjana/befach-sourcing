@@ -2225,41 +2225,44 @@ async function renderHome() {
           </div>
         </section>
 
-        <!-- FEATURED COLLECTION — admin-curated picks. 2-col grid on
-             mobile (same as category page), 3-4 col on desktop. -->
-        <section class="section home-products-block">
-          <div class="section-head">
-            <div>
-              <span class="section-kicker">Hand-picked</span>
-              <h2 class="section-title">Featured collection</h2>
-            </div>
-            <a href="/search?q=trending" class="section-link" id="featuredMore">View all →</a>
-          </div>
-          <div class="products-grid products-grid-2col" id="featuredGrid">${productSkeleton(8)}</div>
-        </section>
-
-        <!-- TRENDING FASHION — women + men picks blended. -->
+        <!-- WOMEN'S FASHION — category-based fetch so we stay inside
+             actual women's clothing (no random "new arrival briefs"). -->
         <section class="section home-products-block">
           <div class="section-head">
             <div>
               <span class="section-kicker">Style picks</span>
-              <h2 class="section-title">Trending fashion</h2>
+              <h2 class="section-title">Trending women's fashion</h2>
             </div>
-            <a href="/search?q=co ord set" class="section-link" id="fashionFindsMore">View all →</a>
+            <a href="/search?q=women+dress" class="section-link" id="featuredMore">View all →</a>
           </div>
-          <div class="products-grid products-grid-2col" id="fashionFindsGrid">${productSkeleton(8)}</div>
+          <div class="products-grid products-grid-2col" id="featuredGrid">${productSkeleton(8)}</div>
         </section>
 
-        <!-- SMART PICKS — gadgets that are hard to find locally. -->
+        <!-- SMART PICKS — gadgets that are hard to find in India.
+             Pulled high in the page so visitors see "what makes this
+             store different" before the men's fashion row. -->
         <section class="section home-products-block">
           <div class="section-head">
             <div>
               <span class="section-kicker">Hard to find locally</span>
               <h2 class="section-title">Smart picks from around the world</h2>
             </div>
-            <a href="/search?q=smart" class="section-link" id="smartMore">View all →</a>
+            <a href="/search?q=smart+gadget" class="section-link" id="smartMore">View all →</a>
           </div>
           <div class="products-grid products-grid-2col" id="smartGrid">${productSkeleton(8)}</div>
+        </section>
+
+        <!-- MEN'S FASHION — category-based fetch (shirts / outerwear /
+             co-ords), skipping accessories like belts / wallets. -->
+        <section class="section home-products-block">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Everyday style</span>
+              <h2 class="section-title">Men's fashion picks</h2>
+            </div>
+            <a href="/search?q=men+shirt" class="section-link" id="fashionFindsMore">View all →</a>
+          </div>
+          <div class="products-grid products-grid-2col" id="fashionFindsGrid">${productSkeleton(8)}</div>
         </section>
       </div>
 
@@ -2588,27 +2591,15 @@ async function loadHomeProducts() {
   const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 86400000);
   const pick = (arr) => arr[dayOfYear % arr.length];
 
-  // Curated keyword pools — rotated by day-of-year so the page refreshes.
-  const featuredPool = [
-    'best seller', 'premium', 'gift set', 'editor pick',
-    'limited edition', 'top rated', 'new arrival', 'trending',
-  ];
-  // Fashion blends women + men picks so a single section reads as
-  // "trending fashion" instead of two separate gendered rails.
-  const fashionFindsPool = [
-    'co ord set', 'women dress', 'oversized jacket', 'party dress',
-    'streetwear', 'mens shirt', 'mens jacket', 'mens hoodie',
-    'platform sandals', 'statement earrings', 'handbag',
-  ];
-  // Smart-picks blend: gadgets that are hard to find in India locally —
-  // smart plant pots, handheld steam iron, neck fan, mini projector etc.
-  // Merged the old "smart gadgets" + "rare finds" pools into one.
+  // Smart-picks gadgets — items that are hard to find in India.
+  // Very specific keywords so CJ returns the actual gadget, not a
+  // random "new arrival" match. Day-of-year rotation = fresh each day.
   const smartPool = [
-    'smart plant pot', 'handheld steam iron', 'neck fan', 'mini projector',
-    'portable blender', 'wireless microscope', 'translator device',
-    'led mask', 'neck massager', 'smart watch', 'smart bulb',
-    'smart camera', 'key finder', 'usb c dock', 'portable printer',
-    'car vacuum', 'label maker', 'smart speaker', 'cooling fan',
+    'mini projector', 'portable blender', 'smart plant pot', 'self watering planter',
+    'handheld steam iron', 'portable garment steamer', 'neck fan', 'portable cooling fan',
+    'wireless microscope', 'translator device', 'led face mask', 'neck massager',
+    'smart key finder', 'portable label maker', 'wireless charger', 'usb c hub',
+    'mini car vacuum', 'smart bulb', 'pet feeder camera', 'mini cordless drill',
   ];
 
   // Make sure we have the CJ category tree before fetching fashion rows.
@@ -2631,10 +2622,11 @@ async function loadHomeProducts() {
     const el = document.getElementById(id);
     if (el) el.href = categoryHref(cat);
   };
-  // Fashion "View all" goes to women's clothing by default (largest
-  // catalogue overlap); men's clothing is still one tap away in the
-  // category sidebar.
-  setHref('fashionFindsMore', womenCat);
+  // Point fashion "View all" links at the actual category pages so the
+  // user lands on a populated grid instead of a narrow keyword search.
+  // featuredGrid renders the women's row, fashionFindsGrid renders men's.
+  setHref('featuredMore',     womenCat);
+  setHref('fashionFindsMore', menCat);
 
   const mobileStrip = document.getElementById('mobileShopStrip');
   if (mobileStrip) mobileStrip.innerHTML = renderMobileCategoryShortcuts();
@@ -2666,14 +2658,16 @@ async function loadHomeProducts() {
   const candidates = (pool, count = 3) =>
     Array.from({ length: count }, (_, i) => pool[(dayOfYear + i) % pool.length]);
 
-  // 3 sections. Each fetches 8 products (matches what's visible in the
-  // 2-col grid at the size cap before scroll). All run in parallel.
-  // The fashion section uses a keyword pool that blends women + men
-  // results so the page reads as "trending fashion" without two rails.
+  // 3 sections. Each fetches 8 products. Fashion sections use CJ
+  // category IDs (not keyword search) so they stay inside the actual
+  // Women's / Men's Clothing trees — no more random "new arrival
+  // briefs" appearing in the featured row because the keyword loosely
+  // matched. Smart picks stays keyword-based with very specific gadget
+  // terms (mini projector, smart plant pot, etc.).
   const sections = [
-    { grid: grids.featured,     kind: 'kw', keywords: candidates(featuredPool),     size: 8, moreId: 'featuredMore',     label: 'featured products' },
-    { grid: grids.fashionFinds, kind: 'kw', keywords: candidates(fashionFindsPool), size: 8, moreId: 'fashionFindsMore', label: 'trending fashion'  },
-    { grid: grids.smart,        kind: 'kw', keywords: candidates(smartPool),        size: 8, moreId: 'smartMore',        label: 'smart picks'        },
+    { grid: grids.featured,     kind: 'cat', cat: womenChild || womenCat, size: 8, moreId: null,               label: 'womens fashion' },
+    { grid: grids.smart,        kind: 'kw',  keywords: candidates(smartPool), size: 8, moreId: 'smartMore',     label: 'smart picks'    },
+    { grid: grids.fashionFinds, kind: 'cat', cat: menChild   || menCat,   size: 8, moreId: null,               label: 'mens fashion'   },
   ];
 
   // Hide a section's container outright when nothing is available — empty
@@ -2696,8 +2690,11 @@ async function loadHomeProducts() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
+  // _v2 prefix invalidates yesterday's cache entries that were
+  // populated by the looser keyword-based logic (which had returned
+  // random "new arrival briefs" etc. for the Featured row).
   function cacheKey(label) {
-    return `gs_home_${label.replace(/\s+/g, '_')}_${todayKey()}`;
+    return `gs_home_v2_${label.replace(/\s+/g, '_')}_${todayKey()}`;
   }
   function readCache(label) {
     try {
@@ -2713,12 +2710,16 @@ async function loadHomeProducts() {
     catch { /* quota — silently fail; cache is best-effort */ }
   }
   // Sweep any home-cache entries that aren't from today so localStorage
-  // doesn't grow without bound. Cheap to run on every home load.
+  // doesn't grow without bound. Cheap to run on every home load. Also
+  // removes any legacy gs_home_ entries (pre-v2 prefix) so cached
+  // "new arrival briefs" from the old logic doesn't keep rendering.
   try {
     const today = todayKey();
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
-      if (k && k.startsWith('gs_home_') && !k.endsWith(`_${today}`)) {
+      if (!k || !k.startsWith('gs_home_')) continue;
+      // Drop pre-v2 keys entirely + drop any v2 key not from today.
+      if (!k.startsWith('gs_home_v2_') || !k.endsWith(`_${today}`)) {
         localStorage.removeItem(k);
       }
     }
