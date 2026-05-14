@@ -1346,15 +1346,33 @@ main {
   box-shadow: 0 2px 6px rgba(15,23,42,0.18);
 }
 .product-card-sku { font-size: 11px; color: var(--text-muted); }
+/* Shipping-included pill — clean SVG delivery truck (no emoji) +
+   subtle tinted background so the badge reads as a deliberate UI
+   element instead of inline body copy. */
 .product-card-ship {
   font-size: 11px;
-  color: var(--success);
-  font-weight: 500;
+  color: var(--shop-teal);
+  font-weight: 600;
+  letter-spacing: 0.01em;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  padding: 3px 9px 3px 7px;
+  background: rgba(15, 118, 110, 0.08);
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 999px;
+  align-self: flex-start;
 }
-.product-card-ship::before { content: '🚚'; font-size: 11px; }
+.product-card-ship::before {
+  content: '';
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230F766E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='1' y='4' width='14' height='12' rx='1'/%3E%3Cpath d='M15 8h4l4 4v4h-8z'/%3E%3Ccircle cx='5.5' cy='18.5' r='2'/%3E%3Ccircle cx='18.5' cy='18.5' r='2'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
 .product-card-pending {
   display: inline-block;
   margin-left: 6px;
@@ -1680,12 +1698,40 @@ main {
 .pd-meta {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   font-size: 13px;
   color: var(--text-secondary);
   padding-top: 10px;
   border-top: 1px solid var(--border);
 }
+/* Each meta row gets a clean line-art icon instead of the emoji it
+   used to ship with — keeps the PDP looking like a deliberate UI
+   rather than a chat thread. */
+.pd-meta-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.pd-meta-row::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.78;
+}
+.pd-meta-cat::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233F4855' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'/%3E%3C/svg%3E");
+}
+.pd-meta-weight::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233F4855' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6.5 6.5h11l1.4 13.5a1 1 0 0 1-1 1.1H6.1a1 1 0 0 1-1-1.1z'/%3E%3Ccircle cx='12' cy='4.5' r='2.5'/%3E%3C/svg%3E");
+}
+.pd-meta-ship::before {
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230F766E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='1' y='4' width='14' height='12' rx='1'/%3E%3Cpath d='M15 8h4l4 4v4h-8z'/%3E%3Ccircle cx='5.5' cy='18.5' r='2'/%3E%3Ccircle cx='18.5' cy='18.5' r='2'/%3E%3C/svg%3E");
+}
+.pd-meta-ship { color: var(--shop-teal); font-weight: 600; }
 
 .pd-description {
   background: #fff;

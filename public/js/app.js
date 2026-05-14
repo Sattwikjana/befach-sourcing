@@ -3258,9 +3258,9 @@ async function renderProduct(pid) {
         </div>
 
         <div class="pd-meta">
-          ${category ? `<div>📁 ${esc(category)}</div>` : ''}
-          ${weight ? `<div>⚖️ ${esc(weight)} g</div>` : ''}
-          <div>🚚 Ships to India · delivery in 10–15 days</div>
+          ${category ? `<div class="pd-meta-row pd-meta-cat">${esc(category)}</div>` : ''}
+          ${weight ? `<div class="pd-meta-row pd-meta-weight">${esc(weight)} g</div>` : ''}
+          <div class="pd-meta-row pd-meta-ship">Ships to India · delivery in 10–15 days</div>
         </div>
       </div>
     </div>
