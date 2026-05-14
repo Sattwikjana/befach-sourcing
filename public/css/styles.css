@@ -1903,29 +1903,51 @@ main {
   pointer-events: none;
 }
 
-/* Subcategory chips on category pages — let users drill down from a broad
-   parent like "Women's Clothing" into "Tops / Dresses / Accessories" etc. */
+/* Subcategory chips on category pages — single horizontal-scroll row
+   (Flipkart / Amazon pattern). Customer drags or swipes the pill bar
+   left/right to drill down from a parent like "Women's Clothing" into
+   "Tops / Dresses / Accessories" etc. Takes ~50px of vertical space
+   regardless of how many subcategories there are — previously this
+   wrapped into 3-4 rows on mobile. */
 .subcategory-strip {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
-  margin: 0 0 22px;
+  margin: 0 0 16px;
+  padding: 4px 2px 8px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.subcategory-strip::-webkit-scrollbar { display: none; }
+
 .subcat-chip {
-  padding: 8px 14px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  white-space: nowrap;
+  padding: 7px 14px;
   border-radius: 999px;
-  background: #f3f4f7;
+  background: #fff;
   color: var(--text);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: none;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.subcat-chip:hover {
-  background: var(--brand);
+.subcat-chip:hover,
+.subcat-chip:focus-visible {
+  background: #F5F3FF;
+  color: #4C1D95;
+  border-color: #DDD6FE;
+  outline: none;
+}
+.subcat-chip.is-active,
+.subcat-chip[aria-current="page"] {
+  background: #2E1065;
   color: #fff;
-  border-color: var(--brand);
+  border-color: #2E1065;
 }
 .subcategory-visual-strip {
   display: grid;
