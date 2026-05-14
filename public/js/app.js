@@ -2225,100 +2225,41 @@ async function renderHome() {
           </div>
         </section>
 
-        <!-- FEATURED PRODUCTS -->
-        <section class="section home-product-rail">
+        <!-- FEATURED COLLECTION — admin-curated picks. 2-col grid on
+             mobile (same as category page), 3-4 col on desktop. -->
+        <section class="section home-products-block">
           <div class="section-head">
             <div>
-              <span class="section-kicker">Fresh today</span>
-              <h2 class="section-title">Global finds picked for you</h2>
+              <span class="section-kicker">Hand-picked</span>
+              <h2 class="section-title">Featured collection</h2>
             </div>
             <a href="/search?q=trending" class="section-link" id="featuredMore">View all →</a>
           </div>
-          <div class="products-grid" id="featuredGrid">${productSkeleton(10)}</div>
+          <div class="products-grid products-grid-2col" id="featuredGrid">${productSkeleton(8)}</div>
         </section>
 
-        <!-- EYE-CATCHING FASHION -->
-        <section class="section home-product-rail">
-          <div class="section-head">
-            <div>
-              <span class="section-kicker">Looks people notice</span>
-              <h2 class="section-title">Top fashionable picks</h2>
-            </div>
-            <a href="/search?q=co ord set" class="section-link" id="fashionFindsMore">View all →</a>
-          </div>
-          <div class="products-grid" id="fashionFindsGrid">${productSkeleton(10)}</div>
-        </section>
-
-        <!-- MEN'S FASHION -->
-        <section class="section home-product-rail">
-          <div class="section-head">
-            <div>
-              <span class="section-kicker">Everyday style</span>
-              <h2 class="section-title">Men's clothing picks</h2>
-            </div>
-            <a href="/search?q=men shirt" class="section-link" id="menMore">View all →</a>
-          </div>
-          <div class="products-grid" id="menGrid">${productSkeleton(8)}</div>
-        </section>
-
-        <!-- TRENDING TECH & GADGETS -->
-        <section class="section home-product-rail">
-          <div class="section-head">
-            <div>
-              <span class="section-kicker">Fast-moving tech</span>
-              <h2 class="section-title">Electronics & accessories</h2>
-            </div>
-            <a href="/search?q=headphones" class="section-link" id="trendingMore">View all →</a>
-          </div>
-          <div class="products-grid" id="trendingGrid">${productSkeleton(10)}</div>
-        </section>
-
-        <!-- HARD TO FIND IN INDIA -->
-        <section class="section home-product-rail">
-          <div class="section-head">
-            <div>
-              <span class="section-kicker">Not everywhere locally</span>
-              <h2 class="section-title">Hard-to-find global gadgets</h2>
-            </div>
-            <a href="/search?q=mini projector" class="section-link" id="rareFindsMore">View all →</a>
-          </div>
-          <div class="products-grid" id="rareFindsGrid">${productSkeleton(10)}</div>
-        </section>
-
-        <!-- WOMEN'S FASHION -->
-        <section class="section home-product-rail">
+        <!-- TRENDING FASHION — women + men picks blended. -->
+        <section class="section home-products-block">
           <div class="section-head">
             <div>
               <span class="section-kicker">Style picks</span>
-              <h2 class="section-title">Women's clothing picks</h2>
+              <h2 class="section-title">Trending fashion</h2>
             </div>
-            <a href="/search?q=women dress" class="section-link" id="womenMore">View all →</a>
+            <a href="/search?q=co ord set" class="section-link" id="fashionFindsMore">View all →</a>
           </div>
-          <div class="products-grid" id="womenGrid">${productSkeleton(8)}</div>
+          <div class="products-grid products-grid-2col" id="fashionFindsGrid">${productSkeleton(8)}</div>
         </section>
 
-        <!-- SMART GADGETS -->
-        <section class="section home-product-rail">
+        <!-- SMART PICKS — gadgets that are hard to find locally. -->
+        <section class="section home-products-block">
           <div class="section-head">
             <div>
-              <span class="section-kicker">Clever upgrades</span>
-              <h2 class="section-title">Smart gadgets</h2>
+              <span class="section-kicker">Hard to find locally</span>
+              <h2 class="section-title">Smart picks from around the world</h2>
             </div>
             <a href="/search?q=smart" class="section-link" id="smartMore">View all →</a>
           </div>
-          <div class="products-grid" id="smartGrid">${productSkeleton(10)}</div>
-        </section>
-
-        <!-- HOME & LIFESTYLE -->
-        <section class="section home-product-rail">
-          <div class="section-head">
-            <div>
-              <span class="section-kicker">Useful imports</span>
-              <h2 class="section-title">Home, tools & lifestyle</h2>
-            </div>
-            <a href="/search?q=power tool" class="section-link" id="homeLifestyleMore">View all →</a>
-          </div>
-          <div class="products-grid" id="homeLifestyleGrid">${productSkeleton(10)}</div>
+          <div class="products-grid products-grid-2col" id="smartGrid">${productSkeleton(8)}</div>
         </section>
       </div>
 
@@ -2631,15 +2572,13 @@ function hideSidebarFlyout() {
 }
 
 async function loadHomeProducts() {
+  // Slimmed from 8 rails -> 3 sections (Featured / Fashion / Smart picks)
+  // rendered as a 2-column grid (same as a category page) instead of
+  // horizontal-scroll rails. Less to fetch + scan, more premium look.
   const grids = {
     featured:      document.getElementById('featuredGrid'),
     fashionFinds:  document.getElementById('fashionFindsGrid'),
-    men:           document.getElementById('menGrid'),
-    women:         document.getElementById('womenGrid'),
-    trending:      document.getElementById('trendingGrid'),
-    rareFinds:     document.getElementById('rareFindsGrid'),
     smart:         document.getElementById('smartGrid'),
-    homeLifestyle: document.getElementById('homeLifestyleGrid'),
   };
   const showErr = (el, msg) => { if (el) el.innerHTML = `<p class="muted">${esc(msg)}</p>`; };
 
@@ -2649,33 +2588,27 @@ async function loadHomeProducts() {
   const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 86400000);
   const pick = (arr) => arr[dayOfYear % arr.length];
 
+  // Curated keyword pools — rotated by day-of-year so the page refreshes.
   const featuredPool = [
-    'trending', 'best seller', 'gift set', 'premium',
-    'editor pick', 'limited edition', 'top rated', 'new arrival',
+    'best seller', 'premium', 'gift set', 'editor pick',
+    'limited edition', 'top rated', 'new arrival', 'trending',
   ];
+  // Fashion blends women + men picks so a single section reads as
+  // "trending fashion" instead of two separate gendered rails.
   const fashionFindsPool = [
-    'co ord set', 'women dress', 'statement earrings', 'handbag',
-    'platform sandals', 'oversized jacket', 'party dress', 'streetwear',
+    'co ord set', 'women dress', 'oversized jacket', 'party dress',
+    'streetwear', 'mens shirt', 'mens jacket', 'mens hoodie',
+    'platform sandals', 'statement earrings', 'handbag',
   ];
-  const trendingPool = [
-    'headphones', 'tv', 'monitor', 'tablet', 'camera',
-    'soundbar', 'home theater', 'projector', 'laptop stand',
-    'webcam', 'usb hub', 'docking station', 'wireless charger', 'streaming stick',
-  ];
-  const rareFindsPool = [
-    'mini projector', 'smart glasses', 'portable printer', 'car vacuum',
-    'key finder', 'wireless microscope', 'translator device', 'label maker',
-    'portable blender', 'usb c dock', 'led mask', 'neck massager',
-  ];
+  // Smart-picks blend: gadgets that are hard to find in India locally —
+  // smart plant pots, handheld steam iron, neck fan, mini projector etc.
+  // Merged the old "smart gadgets" + "rare finds" pools into one.
   const smartPool = [
-    'smart bulb', 'smart plug', 'smart light', 'smart band',
-    'smart sensor', 'smart camera', 'smart watch', 'smart scale',
-    'smart fan', 'smart lock', 'smart key finder', 'smart speaker',
-  ];
-  const homePool = [
-    'power tool', 'drill', 'tool kit', 'tape measure', 'screwdriver set',
-    'hardware', 'door lock', 'led work light', 'cordless drill',
-    'utility knife', 'wrench set', 'storage rack', 'cable organizer', 'led strip',
+    'smart plant pot', 'handheld steam iron', 'neck fan', 'mini projector',
+    'portable blender', 'wireless microscope', 'translator device',
+    'led mask', 'neck massager', 'smart watch', 'smart bulb',
+    'smart camera', 'key finder', 'usb c dock', 'portable printer',
+    'car vacuum', 'label maker', 'smart speaker', 'cooling fan',
   ];
 
   // Make sure we have the CJ category tree before fetching fashion rows.
@@ -2698,8 +2631,10 @@ async function loadHomeProducts() {
     const el = document.getElementById(id);
     if (el) el.href = categoryHref(cat);
   };
-  setHref('menMore',    menCat);
-  setHref('womenMore',  womenCat);
+  // Fashion "View all" goes to women's clothing by default (largest
+  // catalogue overlap); men's clothing is still one tap away in the
+  // category sidebar.
+  setHref('fashionFindsMore', womenCat);
 
   const mobileStrip = document.getElementById('mobileShopStrip');
   if (mobileStrip) mobileStrip.innerHTML = renderMobileCategoryShortcuts();
@@ -2731,18 +2666,14 @@ async function loadHomeProducts() {
   const candidates = (pool, count = 3) =>
     Array.from({ length: count }, (_, i) => pool[(dayOfYear + i) % pool.length]);
 
-  // 6 sections — restored Smart Gadgets now that Prime gives us 4 req/sec
-  // (was dropped at 1 req/sec because each section adds ~280ms to the
-  // listV2 queue, vs 900ms before — even cold loads stay under 2s).
+  // 3 sections. Each fetches 8 products (matches what's visible in the
+  // 2-col grid at the size cap before scroll). All run in parallel.
+  // The fashion section uses a keyword pool that blends women + men
+  // results so the page reads as "trending fashion" without two rails.
   const sections = [
-    { grid: grids.featured,      kind: 'kw',  keywords: candidates(featuredPool),      size: 10, moreId: 'featuredMore',      label: 'featured products' },
-    { grid: grids.fashionFinds,  kind: 'kw',  keywords: candidates(fashionFindsPool),  size: 10, moreId: 'fashionFindsMore',  label: 'fashion finds' },
-    { grid: grids.men,           kind: 'cat', cat: menChild   || menCat,               size: 8,  moreId: null,                label: "men's fashion" },
-    { grid: grids.trending,      kind: 'kw',  keywords: candidates(trendingPool),      size: 10, moreId: 'trendingMore',      label: 'consumer electronics' },
-    { grid: grids.rareFinds,     kind: 'kw',  keywords: candidates(rareFindsPool),     size: 10, moreId: 'rareFindsMore',     label: 'hard-to-find gadgets' },
-    { grid: grids.women,         kind: 'cat', cat: womenChild || womenCat,             size: 8,  moreId: null,                label: "women's fashion" },
-    { grid: grids.smart,         kind: 'kw',  keywords: candidates(smartPool),         size: 10, moreId: 'smartMore',         label: 'smart gadgets' },
-    { grid: grids.homeLifestyle, kind: 'kw',  keywords: candidates(homePool),          size: 10, moreId: 'homeLifestyleMore', label: 'home improvement' },
+    { grid: grids.featured,     kind: 'kw', keywords: candidates(featuredPool),     size: 8, moreId: 'featuredMore',     label: 'featured products' },
+    { grid: grids.fashionFinds, kind: 'kw', keywords: candidates(fashionFindsPool), size: 8, moreId: 'fashionFindsMore', label: 'trending fashion'  },
+    { grid: grids.smart,        kind: 'kw', keywords: candidates(smartPool),        size: 8, moreId: 'smartMore',        label: 'smart picks'        },
   ];
 
   // Point keyword-based section "View all →" links at the keyword we
