@@ -1,0 +1,36 @@
+/* ═══════════════════════════════════════════════════════════════
+   Main layout
+   ═══════════════════════════════════════════════════════════════ */
+main {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 24px;
+  min-height: calc(100vh - 260px);
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+}
+.breadcrumb a:hover { color: var(--brand); }
+.breadcrumb .current { color: var(--text); font-weight: 500; }
+
+.page-title {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 4px 0;
+  letter-spacing: 0;
+  cursor: default;
+}
+
+.pd-title,
+.home-hero-title,
+.section-title,
+.section-title-plain {
+  cursor: default;
+}
+

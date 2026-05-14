@@ -1,0 +1,199 @@
+/* ═══════════════════════════════════════════════════════════════
+   Product grid + card
+   ═══════════════════════════════════════════════════════════════ */
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+.product-card-body { min-height: 96px; }
+.product-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: box-shadow 0.15s, transform 0.15s, border-color 0.15s;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+}
+.product-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-3px);
+  border-color: var(--border-strong);
+}
+.product-card-img-wrap {
+  aspect-ratio: 1;
+  background: var(--surface-alt);
+  overflow: hidden;
+  position: relative;
+}
+.product-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s;
+}
+.product-card:hover .product-card-img { transform: scale(1.03); }
+.product-card-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+.product-card-body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.product-card-title {
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--text);
+  font-weight: 500;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 38px;
+}
+.product-card-prices { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.product-price-now { font-size: 17px; font-weight: 800; color: var(--text); }
+/* "Calculating…" placeholder shown until backfill returns the true
+   price for that card. Prevents the bait-and-switch UX of showing a
+   low estimate that visibly jumps up a second later. Subtle pulse so
+   the user knows something is happening. */
+.product-price-calc {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-style: italic;
+  display: inline-flex;
+  align-items: center;
+  animation: priceCalcPulse 1.4s ease-in-out infinite;
+}
+@keyframes priceCalcPulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.product-price-old { font-size: 12px; color: var(--text-muted); text-decoration: line-through; }
+.product-price-mrp {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+  font-weight: 500;
+}
+.product-price-save {
+  font-size: 12px;
+  color: #137333;
+  font-weight: 700;
+}
+/* Heart-shaped wishlist toggle, top-right corner. Outlined when off,
+   fills brand-red when on. Sits above the discount badge if both
+   are present — discount badge moves left in that case via CSS. */
+.product-card-wish {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s, color 0.12s, background 0.12s, border-color 0.12s;
+  z-index: 2;
+  -webkit-tap-highlight-color: transparent;
+}
+.product-card-wish:hover {
+  color: #d6336c;
+  border-color: #d6336c;
+  transform: scale(1.06);
+}
+.product-card-wish.on {
+  background: #fff;
+  color: #d6336c;
+  border-color: #d6336c;
+}
+.product-card-wish.on svg { fill: #d6336c; }
+.product-card-wish:active { transform: scale(0.94); }
+
+/* When the heart button is present, push the discount badge to the
+   left so the two don't collide. */
+.product-card-img-wrap:has(.product-card-wish) .product-card-discount {
+  right: 50px;
+}
+
+/* Discount badge in top-right corner of card image — champagne gold,
+   reads "exclusive offer" rather than "marketplace clearance" */
+.product-card-discount {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--accent);
+  color: var(--brand);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 6px rgba(15,23,42,0.18);
+}
+.product-card-sku { font-size: 11px; color: var(--text-muted); }
+.product-card-ship {
+  font-size: 11px;
+  color: var(--success);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.product-card-ship::before { content: '🚚'; font-size: 11px; }
+.product-card-pending {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.product-price-loading {
+  display: inline-block;
+  height: 22px;
+  width: 90px;
+}
+.price-skeleton {
+  display: block;
+  height: 18px;
+  width: 100%;
+  background: #e9ebef;
+  border-radius: 4px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+/* Banners */
+.banner-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.banner {
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  min-height: 180px;
+  display: flex;
+  align-items: flex-end;
+}
+.banner-a { background: linear-gradient(135deg, #fef3c7, #fde68a); }
+.banner-b { background: linear-gradient(135deg, #ede9fe, #bfdbfe); }
+.banner h3 { margin: 0 0 6px 0; font-size: 26px; letter-spacing: 0; }
+.banner p { margin: 0 0 12px 0; color: var(--text-secondary); }
+.banner-cta { font-weight: 600; color: var(--text); border-bottom: 2px solid var(--text); padding-bottom: 2px; }
+

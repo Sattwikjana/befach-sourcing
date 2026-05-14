@@ -1,0 +1,503 @@
+/* ═══════════════════════════════════════════════════════════════
+   Home layout — CJ-style left sidebar + main content
+   ═══════════════════════════════════════════════════════════════ */
+.home-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 20px;
+  position: relative;
+  align-items: start;
+}
+
+.home-sidebar {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+  position: sticky;
+  top: calc(var(--header-h) + 16px);
+  max-height: calc(100vh - var(--header-h) - 32px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.home-sidebar::-webkit-scrollbar { width: 6px; }
+.home-sidebar::-webkit-scrollbar-thumb { background: #dfe3e8; border-radius: 3px; }
+
+/* Sidebar cat row: ~42px tall so all 14 top-level categories fit on a
+   single page even at ~768p, while not feeling cramped. Padding 6/9 +
+   icon 28 + font 13 lands at ~42-44px per row → 14 × 43 ≈ 600px, which
+   fits inside the sidebar's max-height (100vh − header − 32) on every
+   common desktop viewport. */
+.sidebar-cat {
+  display: grid;
+  grid-template-columns: 28px 1fr 12px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+}
+.sidebar-cat:hover,
+.sidebar-cat.active {
+  background: var(--accent-soft);
+  color: var(--brand-dark);
+}
+.sidebar-cat.active .sidebar-cat-chev { color: var(--brand); }
+.sidebar-cat-icon {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  background: #f4f6f9;
+  border-radius: 50%;
+  font-size: 15px;
+}
+.sidebar-cat:hover .sidebar-cat-icon,
+.sidebar-cat.active .sidebar-cat-icon {
+  background: var(--brand-light);
+}
+.sidebar-cat-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-cat-chev {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* Flyout — absolutely positioned inside .home-layout, overlays the main area.
+   The [hidden] selector is critical: without it, our `display: grid` would
+   override the HTML `hidden` attribute and the empty white panel would
+   show on page load, before the user has hovered any category. */
+.sidebar-flyout {
+  position: absolute;
+  width: 720px;
+  max-width: calc(100% - 248px);
+  max-height: 540px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 24px 28px;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px 32px;
+  align-content: start;
+}
+.sidebar-flyout[hidden] { display: none !important; }
+
+/* Invisible "hover bridge" extending 28px to the left of the flyout —
+   covers the .home-layout grid-gap so a cursor moving from a sidebar
+   item into the flyout never enters a no-hover dead zone. Without
+   this, slow mouse moves used to trigger hideSidebarFlyout()
+   mid-traversal. */
+.sidebar-flyout::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -28px;
+  width: 28px;
+  background: transparent;
+  pointer-events: auto;
+}
+.flyout-group { min-width: 0; }
+.flyout-group-head {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--brand);
+  margin-bottom: 8px;
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s;
+}
+.flyout-group-head:hover {
+  color: var(--brand);                /* near-black — keeps headers calm */
+}
+.flyout-group-items { display: flex; flex-direction: column; gap: 2px; }
+.flyout-group-items a {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 3px 0;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: color 0.12s, font-weight 0.12s;
+}
+.flyout-group-items a:hover {
+  color: var(--brand);                /* near-black */
+  font-weight: 700;                   /* bold so the hovered item is unmistakable */
+}
+.flyout-more { color: var(--text-muted) !important; font-size: 12px !important; font-style: italic; }
+.flyout-empty {
+  grid-column: 1 / -1;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 20px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Hero
+   ═══════════════════════════════════════════════════════════════ */
+.hero {
+  background: linear-gradient(180deg, #fff8f1 0%, #ffecd4 100%);
+  border-radius: var(--radius-lg);
+  padding: 72px 40px;
+  margin-bottom: 40px;
+  overflow: hidden;
+  position: relative;
+}
+/* Subtle background accents — not distracting product imagery, just polish */
+.hero::before,
+.hero::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 169, 97, 0.10), transparent 70%);
+  pointer-events: none;
+}
+.hero::before {
+  width: 420px; height: 420px;
+  top: -140px; right: -80px;
+}
+.hero::after {
+  width: 320px; height: 320px;
+  bottom: -120px; left: -60px;
+}
+
+.hero-inner {
+  max-width: 760px;
+  margin: 0 auto;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+.hero-copy { display: flex; flex-direction: column; align-items: center; }
+.hero-title {
+  font-size: 52px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0;
+  margin: 0 0 16px 0;
+  color: #1a1a1a;
+}
+.hero-sub {
+  font-size: 17px;
+  color: var(--text-secondary);
+  margin: 0 0 30px 0;
+  max-width: 560px;
+}
+.hero-search {
+  display: flex;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px;
+  box-shadow: 0 10px 36px rgba(15, 23, 42, 0.1);
+  width: 100%;
+  max-width: 620px;
+}
+.hero-search input {
+  flex: 1; border: none;
+  padding: 14px 22px;
+  font-size: 15px;
+  outline: none;
+  background: transparent;
+}
+.hero-search button {
+  background: var(--text);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 30px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.15s, transform 0.05s;
+}
+.hero-search button:hover { background: var(--brand); }
+.hero-search button:active { transform: translateY(1px); }
+.hero-trust {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Sections
+   ═══════════════════════════════════════════════════════════════ */
+.section { margin: 40px 0; }
+.section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.section-head h2 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0; }
+.section-link { font-size: 14px; font-weight: 600; color: var(--brand); }
+.section-title-plain { font-size: 20px; margin: 0 0 16px 0; font-weight: 700; }
+
+/* ───────── Mega-menu category browser (home page) ───────── */
+.mega-cats {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 520px;
+  overflow: hidden;
+}
+.mega-cats-left {
+  background: #fff;
+  border-right: 1px solid var(--border);
+  padding: 10px 8px;
+  overflow-y: auto;
+  max-height: 560px;
+}
+.mega-cats-left::-webkit-scrollbar { width: 6px; }
+.mega-cats-left::-webkit-scrollbar-thumb { background: #dfe3e8; border-radius: 4px; }
+
+.mega-cat-item {
+  display: grid;
+  grid-template-columns: 40px 1fr 14px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.mega-cat-item:hover,
+.mega-cat-item.active {
+  background: var(--accent-soft);
+  color: var(--brand);
+}
+.mega-cat-item.active .mega-cat-name { color: var(--brand); font-weight: 600; }
+.mega-cat-icon {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  background: #f4f6f9;
+  border-radius: 50%;
+  font-size: 20px;
+}
+.mega-cat-item.active .mega-cat-icon,
+.mega-cat-item:hover .mega-cat-icon {
+  background: var(--brand-light);
+}
+.mega-cat-name { font-size: 14px; color: var(--text); }
+.mega-cat-chev { color: var(--text-muted); font-size: 16px; }
+
+/* Right pane */
+.mega-cats-right {
+  padding: 24px 28px;
+  overflow-y: auto;
+  max-height: 560px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px 36px;
+  align-content: start;
+}
+.mega-cats-right::-webkit-scrollbar { width: 6px; }
+.mega-cats-right::-webkit-scrollbar-thumb { background: #dfe3e8; border-radius: 4px; }
+
+.mega-group { min-width: 0; }
+.mega-group-head {
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--brand);
+  margin-bottom: 10px;
+}
+.mega-group-head:hover { color: var(--brand); }
+.mega-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mega-group-items a {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  padding: 3px 0;
+  line-height: 1.4;
+}
+.mega-group-items a:hover { color: var(--brand); }
+.mega-more { color: var(--text-muted) !important; font-size: 12.5px !important; font-style: italic; }
+
+.mega-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+}
+
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 14px;
+}
+.categories-grid-full {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+.category-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 14px;
+  text-align: center;
+  transition: box-shadow 0.15s, transform 0.15s, border-color 0.15s;
+  cursor: pointer;
+}
+.category-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+  border-color: var(--brand);
+}
+.category-icon { font-size: 36px; margin-bottom: 6px; }
+.category-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.category-count { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+.cat-block {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.cat-block-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+.cat-block-action {
+  margin-left: auto;
+  color: var(--shop-blue);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.cat-block-icon {
+  font-size: 26px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+/* When catIcon() returns a product photo (top-level categories), fill the
+   parent circle and clip. The container's gray hover background still
+   fires on the 1-2px ring around the rounded corners. */
+.sidebar-cat-icon img.cat-img,
+.drawer-cat-icon img.cat-img,
+.mega-cat-icon img.cat-img,
+.cat-block-icon img.cat-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+.cat-dropdown-item img.cat-img {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
+}
+.cat-block-subs { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.cat-block-subs a { color: var(--text-secondary); padding: 2px 0; }
+.cat-block-subs a:hover { color: var(--brand); }
+
+/* All-Categories page: nested second/third-level groups under each top
+   category. Mirrors CJ's own dashboard (Outerwear & Jackets > Blazers, ...)
+   so customers see the full catalog tree without slicing. */
+.cat-block-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 12px;
+}
+.cat-block-group { font-size: 13px; }
+.cat-block-group-head {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.cat-block-group-head:hover { color: var(--brand); }
+.cat-block-group-items { display: flex; flex-direction: column; gap: 3px; }
+.cat-block-group-items a {
+  color: var(--text-secondary);
+  padding: 1px 0;
+  font-size: 12.5px;
+}
+.cat-block-group-items a:hover { color: var(--brand); }
+.cat-sub-card {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: center;
+  gap: 10px;
+  min-height: 66px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff 0%, #F8FAFC 100%);
+  color: var(--text);
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+.cat-sub-card:hover {
+  transform: translateY(-2px);
+  border-color: #DDD6FE;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+  color: var(--shop-blue);
+}
+.cat-sub-card-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #F5F3FF;
+}
+.cat-sub-card-img img.cat-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cat-sub-card-name {
+  display: block;
+  overflow: visible;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.cat-sub-card-meta {
+  grid-column: 2;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1;
+}
+

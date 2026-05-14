@@ -1,0 +1,126 @@
+/* ═══════════════════════════════════════════════════════════════
+   FAQ
+   ═══════════════════════════════════════════════════════════════ */
+.faq { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.faq details {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+}
+.faq summary {
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.faq summary::after { content: '+'; font-weight: 400; font-size: 22px; color: var(--text-muted); }
+.faq details[open] summary::after { content: '−'; }
+.faq p { margin: 10px 0 0 0; color: var(--text-secondary); font-size: 14px; line-height: 1.7; }
+.faq a { color: var(--brand); text-decoration: underline; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Admin
+   ═══════════════════════════════════════════════════════════════ */
+.admin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.stat-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+.stat-value { font-size: 24px; font-weight: 800; margin-top: 4px; }
+.stat-profit { background: linear-gradient(135deg, var(--accent-soft), #EDE3CF); border-color: var(--accent); }
+.stat-profit .stat-value { color: var(--brand-dark); }
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+.admin-grid > :last-child { grid-column: 2 / 3; }
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.admin-table th {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
+}
+.admin-table td {
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.admin-table code { font-size: 12px; background: var(--surface-alt); padding: 2px 6px; border-radius: 4px; }
+
+/* Card-head row for the Customers panel: lets the section title and a
+   live-counter sit on the same line. */
+.card-head-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.card-head-row h2 { margin: 0; }
+
+/* Customers admin table: live-status dot column, mailto links etc. */
+.admin-users-table th:first-child,
+.admin-users-table td:first-child { width: 28px; padding-right: 0; }
+.user-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  vertical-align: middle;
+}
+.user-dot-live {
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(15,81,50,0.15);
+}
+
+.admin-pricing-row { margin-bottom: 10px; }
+.admin-pricing-row label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; }
+.markup-row { display: flex; align-items: center; gap: 6px; }
+.markup-row input {
+  width: 80px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+
+.login-box {
+  max-width: 420px;
+  margin: 60px auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  text-align: center;
+}
+.login-box h1 { margin: 0 0 8px 0; font-size: 24px; }
+.login-box form { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+.login-box input {
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+}
+

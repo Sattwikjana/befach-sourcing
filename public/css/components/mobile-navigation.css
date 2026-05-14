@@ -1,0 +1,181 @@
+/* ═══════════════════════════════════════════════════════════════
+   Sticky bottom CTA bar (product detail, cart) — mobile-only
+   ═══════════════════════════════════════════════════════════════ */
+.mobile-cta-bar {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  padding: 8px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.mobile-cta-price {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.mobile-cta-price strong {
+  font-size: 18px;
+  color: var(--brand-dark);
+  font-weight: 800;
+}
+.mobile-cta-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.mobile-cta-actions.single {
+  grid-template-columns: 1fr;
+}
+.mobile-cta-btn {
+  width: 100%;
+  background: #111827;
+  color: #fff;
+  border: none;
+  padding: 14px 12px;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: 15px;
+  cursor: pointer;
+  min-height: 48px;
+  letter-spacing: 0;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
+}
+.mobile-cta-btn:hover { background: #0B1220; }
+.mobile-cta-btn-buy {
+  background: #FDBA00;
+  color: #111827;
+  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.24);
+}
+.mobile-cta-btn-buy:hover { background: #F59E0B; }
+.mobile-cta-btn-cart {
+  background: #111827;
+}
+.mobile-cta-btn:disabled {
+  background: #CBD5E1;
+  color: #64748B;
+  box-shadow: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Persistent mobile bottom nav — phones/tablets ≤860px wide
+   ═══════════════════════════════════════════════════════════════ */
+.mobile-bottom-nav { display: none; }
+
+@media (max-width: 860px) {
+  .drawer { display: flex; }
+
+  .mobile-bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-top: 1px solid var(--border);
+    padding: 6px 0;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+    z-index: 49;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
+  }
+  .mbn-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 4px;
+    text-decoration: none;
+    color: #6b7280;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    position: relative;
+    min-height: 52px;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    isolation: isolate;
+  }
+  .mbn-item::before {
+    content: "";
+    position: absolute;
+    top: 5px;
+    width: 42px;
+    height: 30px;
+    border-radius: 16px;
+    background: transparent;
+    z-index: 0;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .mbn-item svg,
+  .mbn-item > span:not(.mbn-badge) {
+    position: relative;
+    z-index: 1;
+  }
+  .mbn-item svg { stroke: currentColor; }
+  /* Active page — highlight the matching nav item using body.page-X class */
+  body.page-home    .mbn-item[data-page="home"],
+  body.page-category .mbn-item[data-page="category"],
+  body.page-search .mbn-item[data-page="category"],
+  body.page-wishlist .mbn-item[data-page="wishlist"],
+  body.page-cart    .mbn-item[data-page="cart"],
+  body.page-account .mbn-item[data-page="account"],
+  body.page-login .mbn-item[data-page="account"],
+  body.page-register .mbn-item[data-page="account"],
+  body.page-orders .mbn-item[data-page="account"],
+  body.page-returns .mbn-item[data-page="account"] {
+    color: var(--shop-blue);
+  }
+  body.page-home    .mbn-item[data-page="home"]::before,
+  body.page-category .mbn-item[data-page="category"]::before,
+  body.page-search .mbn-item[data-page="category"]::before,
+  body.page-wishlist .mbn-item[data-page="wishlist"]::before,
+  body.page-cart    .mbn-item[data-page="cart"]::before,
+  body.page-account .mbn-item[data-page="account"]::before,
+  body.page-login .mbn-item[data-page="account"]::before,
+  body.page-register .mbn-item[data-page="account"]::before,
+  body.page-orders .mbn-item[data-page="account"]::before,
+  body.page-returns .mbn-item[data-page="account"]::before {
+    background: #EDE9FE;
+  }
+  .mbn-item:active { color: var(--shop-blue); }
+  /* Cart count badge — hidden when 0 (data-empty="true") */
+  .mbn-badge {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    margin-left: 4px;
+    background: var(--accent, #B89456);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 9px;
+    min-width: 16px;
+    text-align: center;
+    line-height: 1.4;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .mbn-badge[data-empty="true"] { display: none; }
+
+  /* Reserve room at the bottom of every page so content doesn't hide
+     behind the fixed nav. 60px = nav height + padding + safe-area. */
+  main { padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Product and checkout use focused action flows. Cart keeps the nav
+     visible so the Cart tab can highlight like a standard marketplace app. */
+  body.page-product .mobile-bottom-nav,
+  body.page-checkout .mobile-bottom-nav { display: none; }
+}
+

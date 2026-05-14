@@ -20,7 +20,7 @@ import { WebView, WebViewNavigation } from 'react-native-webview';
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const DEFAULT_SITE_URL = 'https://www.globalshopper.in';
-const SITE_URL = String(Constants.expoConfig?.extra?.siteUrl || DEFAULT_SITE_URL).replace(/\/+$/, '');
+const SITE_URL = String(process.env.EXPO_PUBLIC_SITE_URL || Constants.expoConfig?.extra?.siteUrl || DEFAULT_SITE_URL).replace(/\/+$/, '');
 const HOME_URL = `${SITE_URL}/`;
 
 const APP_VERSION = '0.1.2';
@@ -53,7 +53,10 @@ function toAppUrl(url: string | null | undefined) {
 function isGlobalShopperUrl(url: string) {
   try {
     const parsed = new URL(url);
-    return parsed.hostname === 'www.globalshopper.in' || parsed.hostname === 'globalshopper.in';
+    const configured = new URL(SITE_URL);
+    return parsed.hostname === configured.hostname
+      || parsed.hostname === 'www.globalshopper.in'
+      || parsed.hostname === 'globalshopper.in';
   } catch {
     return false;
   }

@@ -21,6 +21,16 @@ npm start
 
 Then press `a` to open on an Android emulator, or scan the Expo QR in Expo Go.
 
+To point the Android emulator at a backend running on your computer:
+
+```bash
+cd mobile
+$env:EXPO_PUBLIC_SITE_URL="http://10.0.2.2:3001"
+npm start
+```
+
+Use `http://localhost:3001` for a web/iOS simulator target on the same machine.
+
 ## Build Android APK For Testing
 
 ```bash

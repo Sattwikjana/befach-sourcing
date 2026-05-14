@@ -1,0 +1,89 @@
+/* ═══════════════════════════════════════════════════════════════
+   Global Shopper — global stylesheet
+   "One World. Endless Choices."
+   Modern premium: true black + warm gold + ivory. Inspired by
+   Aesop, Apple, Tesla — geometric, confident, brand-forward.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Brand — premium royal purple + warm gold accent for a luxurious
+     "purple velvet + champagne" palette. Purple replaces the previous
+     marketplace blue everywhere; gold stays as the premium accent. */
+  --brand:         #111827;        /* deep marketplace ink — text + dark surfaces */
+  --brand-dark:    #020617;        /* hover/pressed dark */
+  --brand-light:   #F5F3FF;        /* purple-tinted surface (was blue tinted) */
+  --accent:        #F7B500;        /* shopping gold — premium accent */
+  --accent-dark:   #A35D00;        /* gold hover state */
+  --accent-soft:   #FFF4CF;        /* gold-tinted surface fill */
+  --shop-blue:     #7C3AED;        /* royal violet for search / primary actions (legacy var name kept) */
+  --shop-purple:   #7C3AED;        /* alias — new code should reference this */
+  --shop-purple-deep: #6D28D9;     /* hover / pressed */
+  --shop-purple-darkest: #3B0764;  /* deep velvet — used in gradients */
+  --shop-teal:     #0F766E;        /* trust/availability */
+  --shop-rose:     #DB2777;        /* fashion accent */
+
+  /* Text */
+  --text:          #1A1A1A;        /* primary copy on light surfaces */
+  --text-secondary:#3F4855;        /* sub-headings, descriptions */
+  --text-muted:    #707682;        /* meta info, footnotes */
+  --text-on-brand: #FAF8F2;        /* body copy on black backgrounds */
+
+  /* Surfaces — barely-perceptible purple tint for a premium "violet
+     velvet" undertone without overpowering the cards and content. */
+  --bg:            #F8F5FE;        /* marketplace app background */
+  --surface:       #FFFFFF;        /* cards, panels */
+  --surface-alt:   #F1ECFA;        /* alt sections, banners */
+  --border:        #E6E1F0;        /* dividers */
+  --border-strong: #C2B8D6;        /* hover/focus borders */
+
+  /* Status */
+  --success:       #0F5132;        /* deep forest — "Shipping included" check */
+  --warning:       #B45309;        /* warm amber — never used for primary actions */
+  --danger:        #991B1B;        /* deep crimson — only for destructive ops */
+
+  /* Layout */
+  --radius:        6px;            /* tighter — premium minimal feel */
+  --radius-sm:     3px;
+  --radius-lg:     12px;
+  --shadow-sm:     0 1px 2px rgba(0,0,0,0.05);
+  --shadow:        0 4px 14px rgba(0,0,0,0.06);
+  --shadow-lg:     0 12px 32px rgba(0,0,0,0.10);
+  --container:     1600px;
+  --header-h:      64px;
+
+  /* Type system:
+       --font-wordmark = Archivo Black, ONLY for the GCOM wordmark.
+                         Heavy geometric letterforms that match the logo.
+       --font-display  = Outfit, for hero headlines, section titles,
+                         banner h2s. Modern geometric premium sans.
+       --font-body     = Inter, for everything else (UI, body copy).
+     Cormorant Garamond was dropped — too magazine-y for the
+     tech-forward GCOM positioning. */
+  --font-wordmark: 'Archivo Black', 'Inter', -apple-system, sans-serif;
+  --font-display:  'Outfit', 'Inter', -apple-system, sans-serif;
+  --font-body:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: normal;
+}
+
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--brand); }
+button { font-family: inherit; cursor: pointer; }
+img { max-width: 100%; display: block; }
+hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+.muted { color: var(--text-muted); }
+.small { font-size: 12px; }
+.accent { color: var(--brand); }
+

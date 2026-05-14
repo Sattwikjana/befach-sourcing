@@ -1,0 +1,429 @@
+/* ═══════════════════════════════════════════════════════════════
+   Mobile app shell — Flipkart-style blue commerce header
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 860px) {
+  body {
+    background:
+      linear-gradient(180deg, #F5F3FF 0%, #FAF7FF 360px, var(--bg) 100%),
+      var(--bg);
+  }
+
+  .header {
+    /* Premium velvet-night header — same deep gradient as desktop so
+       mobile and desktop feel like one continuous brand. Two stops
+       travel from aubergine to near-black indigo, with a soft lavender
+       highlight glow at the top-left corner. */
+    background:
+      radial-gradient(circle at 14% 0%, rgba(167, 139, 250, 0.22), transparent 30%),
+      linear-gradient(180deg, #2E1065 0%, #1A0B36 100%);
+    border-bottom: 0;
+    box-shadow: 0 12px 32px rgba(15, 6, 40, 0.45);
+    /* Constant top padding for browser views — the OS status bar sits
+       above the viewport in normal mobile browsing, so no safe-area
+       inset is needed here. The previous max(8px, env(safe-area-inset-top))
+       combined with the page's viewport-fit=cover meta tag was making
+       Android Chrome / Samsung Internet on some phones report a 40-60px
+       inset, producing the inconsistent tall-header bug. The Expo
+       native app overrides this rule below (and React Native's
+       SafeAreaView already handles the device safe area at the shell). */
+    padding-top: 8px;
+  }
+
+  html.global-shopper-native-app .header {
+    padding-top: 30px;
+  }
+
+  .header-inner {
+    max-width: none;
+    min-height: 64px;
+    padding: 5px 12px 6px;
+    gap: 8px;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .header-hamburger {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    padding: 0;
+    border-radius: 14px;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .header-hamburger:hover,
+  .header-hamburger:active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Mobile brand: logo + compact wordmark visible on the blue header.
+     No white card behind anything — the transparent logo PNG and the
+     drop-shadow on the IMG give enough lift. The wordmark text is set to
+     white + gold so it reads against the blue gradient. */
+  .brand {
+    width: auto;
+    max-width: none;
+    min-height: 0;
+    justify-self: start;
+    gap: 8px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: #fff;
+  }
+
+  .brand-logo-img {
+    height: 52px;
+    width: auto;
+    flex: 0 0 auto;
+    filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.30));
+  }
+
+  .brand-wordmark {
+    line-height: 0.95;
+    gap: 0;
+  }
+  .brand-wordmark-global,
+  .brand-wordmark-shopper { font-size: 15px; }
+  .brand-wordmark-sub     { font-size: 9px; letter-spacing: 0.14em; margin-top: 2px; }
+
+  /* Mobile palette on the blue header — white + gold. Scope to .header
+     so the white drawer panel keeps its on-light navy + blue palette. */
+  .header .brand-wordmark-global  { color: #FFFFFF; }
+  .header .brand-wordmark-shopper { color: #FFD766; }
+  .header .brand-wordmark-sub     { color: rgba(255, 255, 255, 0.82); }
+
+  .header-nav {
+    justify-self: end;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  /* "Hi, Sattwik" pill is redundant on mobile — Account already lives in
+     the bottom nav. Hide the auth slot entirely on mobile; the desktop
+     account dropdown still works on ≥861px. */
+  .auth-slot {
+    display: none;
+  }
+
+  /* Mobile search icon — sits between the (hidden) nav links and the cart
+     link, styled to match the cart-link's white-on-blue chip. Tapping
+     routes to /search, replacing the wrap-around .header-search row. */
+  .nav-search-icon {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    padding: 0;
+    border-radius: 14px;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nav-search-icon:hover,
+  .nav-search-icon:active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.2);
+  }
+  .nav-search-icon svg { width: 22px; height: 22px; }
+
+  .nav-account {
+    min-height: 44px;
+    max-width: 148px;
+    padding: 4px 10px 4px 4px !important;
+    background: rgba(255, 255, 255, 0.94);
+    color: #0B1220;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+  }
+
+  .nav-account:hover,
+  .nav-account:active {
+    background: #fff;
+    color: #0B1220;
+  }
+
+  .nav-account .nav-label {
+    display: inline-block;
+    max-width: 82px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nav-avatar {
+    width: 34px;
+    height: 34px;
+    background: #0B1220;
+    color: #fff;
+    font-size: 14px;
+  }
+
+  .cart-link {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    justify-content: center;
+    padding: 0;
+    border-radius: 14px;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .cart-link:hover,
+  .cart-link:active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .cart-link svg {
+    width: 23px;
+    height: 23px;
+  }
+
+  .cart-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    display: grid;
+    place-items: center;
+    background: #0B1220;
+    color: #fff;
+    border: 2px solid #7C3AED;
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  /* Mobile: inline .header-search bar is hidden by default — the
+     .nav-search-icon button in the top-right reveals it. The icon toggles
+     a .header-search-open class on .header, and the rule further down
+     un-hides .header-search as a second row beneath the top strip. */
+  .header-search,
+  html[data-page="home"] .header-search,
+  body.page-home .header-search {
+    display: none !important;
+  }
+  .header-cat-btn { display: none; }
+
+  /* When the search icon has been tapped: reveal the search input bar as
+     a second row, full-width. JS toggles .header-search-open on .header
+     and focuses #headerSearchInput. Submitting the form (Enter / tap the
+     blue submit button) navigates to /search?q=... — same flow as the
+     desktop inline bar. */
+  .header.header-search-open .header-search,
+  .header.header-search-open html[data-page="home"] .header-search,
+  .header.header-search-open body.page-home .header-search {
+    display: flex !important;
+    grid-column: 1 / -1;
+    order: 3;
+    height: 50px;
+    margin-top: 4px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 14px;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.18);
+  }
+  .header.header-search-open .header-search input {
+    flex: 1;
+    min-width: 0;
+    padding: 0 14px;
+    font-size: 16px;
+    background: #fff;
+    color: #0F172A;
+  }
+  .header.header-search-open .header-search-btn {
+    min-width: 56px;
+    padding: 0;
+    background: #7C3AED;
+    color: #fff;
+  }
+  .header.header-search-open .header-photo-btn {
+    min-width: 50px;
+    padding: 0;
+    border-left: 1px solid #E2E8F0;
+    background: #fff;
+    color: #475569;
+  }
+  /* Active state on the search icon itself when the bar is revealed */
+  .nav-search-icon[aria-expanded="true"] {
+    background: rgba(255, 255, 255, 0.28);
+    color: #fff;
+  }
+
+  body.page-home main {
+    padding-top: 12px;
+  }
+
+  .home-hero-compact {
+    margin: 0 0 16px;
+    border-radius: 22px;
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 18px 38px rgba(109, 40, 217, 0.24);
+  }
+
+  .home-hero {
+    background:
+      linear-gradient(135deg, rgba(15, 6, 40, 0.98) 0%, rgba(46, 16, 101, 0.96) 42%, rgba(76, 29, 149, 0.92) 100%),
+      radial-gradient(circle at 88% 18%, rgba(255, 215, 106, 0.34), transparent 32%);
+  }
+
+  .home-hero-chips a {
+    min-height: 36px;
+    padding: 7px 13px;
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+
+  .home-hero-stats > div {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .mobile-shop-strip {
+    margin: 0 0 18px;
+    padding: 10px 6px 9px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(203, 213, 225, 0.62);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  }
+
+  .mobile-shop-strip a {
+    min-height: 94px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-shop-strip img {
+    width: 68px;
+    height: 68px;
+    border-radius: 22px;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+  }
+
+  .mobile-shop-strip a span {
+    color: #111827;
+    font-size: 10.2px;
+    font-weight: 900;
+    letter-spacing: 0;
+  }
+
+  .trust-item {
+    border-radius: 18px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  }
+
+  .trust-icon {
+    background: #F5F3FF;
+    border-color: #DDD6FE;
+    color: #7C3AED;
+  }
+
+  .mobile-bottom-nav {
+    border-top: 1px solid rgba(203, 213, 225, 0.7);
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 30px rgba(15, 23, 42, 0.14);
+  }
+
+  .mbn-item {
+    min-height: 58px;
+    color: #6B7280;
+    font-size: 11px;
+  }
+
+  .mbn-item::before {
+    top: 3px;
+    width: 46px;
+    height: 34px;
+    border-radius: 18px;
+  }
+
+  body.page-home .mbn-item[data-page="home"],
+  body.page-category .mbn-item[data-page="category"],
+  body.page-search .mbn-item[data-page="category"],
+  body.page-wishlist .mbn-item[data-page="wishlist"],
+  body.page-cart .mbn-item[data-page="cart"],
+  body.page-account .mbn-item[data-page="account"],
+  body.page-login .mbn-item[data-page="account"],
+  body.page-register .mbn-item[data-page="account"],
+  body.page-orders .mbn-item[data-page="account"],
+  body.page-returns .mbn-item[data-page="account"] {
+    color: #7C3AED;
+  }
+
+  body.page-home .mbn-item[data-page="home"]::before,
+  body.page-category .mbn-item[data-page="category"]::before,
+  body.page-search .mbn-item[data-page="category"]::before,
+  body.page-wishlist .mbn-item[data-page="wishlist"]::before,
+  body.page-cart .mbn-item[data-page="cart"]::before,
+  body.page-account .mbn-item[data-page="account"]::before,
+  body.page-login .mbn-item[data-page="account"]::before,
+  body.page-register .mbn-item[data-page="account"]::before,
+  body.page-orders .mbn-item[data-page="account"]::before,
+  body.page-returns .mbn-item[data-page="account"]::before {
+    background: #EDE9FE;
+  }
+
+  .mbn-badge {
+    background: #FDBA00;
+    color: #111827;
+    border: 2px solid #fff;
+  }
+}
+
+@media (max-width: 380px) {
+  .header-inner {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .header-hamburger,
+  .cart-link,
+  .nav-search-icon {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+  }
+
+  /* Tiny phone: tighter logo so the compact header fits everything. */
+  .brand {
+    max-width: none;
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    gap: 6px;
+  }
+
+  .brand-logo-img {
+    height: 40px;
+    width: auto;
+    flex-basis: auto;
+  }
+
+  .nav-account {
+    padding: 4px !important;
+  }
+
+  .nav-account .nav-label,
+  .nav-account-chev {
+    display: none !important;
+  }
+
+  .header-search {
+    height: 54px;
+  }
+}
+

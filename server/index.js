@@ -7,7 +7,7 @@
  *   /api/raw/*     → raw CJ pass-through for debugging (admin-only)
  */
 
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const express = require('express');
 const cors = require('cors');

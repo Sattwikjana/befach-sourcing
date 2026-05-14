@@ -1,0 +1,196 @@
+/* ── Customer auth pages (login / register) ── */
+.auth-page {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 36px;
+  box-shadow: var(--shadow-sm);
+}
+.auth-card h1 {
+  margin: 0 0 6px 0;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+.auth-card p { margin: 0 0 18px 0; }
+.auth-card a { color: var(--brand); font-weight: 500; }
+.auth-form { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.auth-form input {
+  padding: 11px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-family: inherit;
+}
+.auth-form input:focus {
+  outline: 2px solid var(--brand);
+  border-color: var(--brand);
+}
+.auth-error {
+  color: var(--danger);
+  font-size: 13px;
+  min-height: 18px;
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* ── Account / dashboard ── */
+.account-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 22px;
+  margin-top: 16px;
+  /* Without min-width: 0 the grid column can blow out wider than the
+     viewport when a child has long content (email, button) — known
+     CSS grid quirk. This prevents the mobile menu pills from extending
+     off the right edge of the screen. */
+  min-width: 0;
+}
+.account-side {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  text-align: center;
+  position: sticky;
+  top: calc(var(--header-h) + 32px);
+  align-self: start;
+  /* Defensive: keep all interactive children inside the card on every
+     viewport (including the wide pill backgrounds of .account-menu-link
+     and the full-width Sign-out button). */
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.account-avatar {
+  width: 72px; height: 72px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand), #f48c42);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.18);
+}
+.account-name { font-weight: 700; font-size: 16px; margin-bottom: 4px; }
+.account-email { word-break: break-all; margin-bottom: 16px; }
+.account-side .btn { margin-top: 8px; }
+.account-main { display: flex; flex-direction: column; gap: 16px; }
+.account-main .card h2 {
+  margin: 0 0 14px 0;
+  font-size: 18px;
+}
+.account-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 16px 0;
+  text-align: left;
+  min-width: 0;
+}
+.account-menu-link {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-weight: 700;
+  border: 1px solid transparent;
+  /* Box-sizing + max-width guarantee the pill background never exceeds
+     its parent column — fixes the "menu items cut off the right edge"
+     bug seen on mobile. */
+  box-sizing: border-box;
+  max-width: 100%;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-menu-link:hover,
+.account-menu-link.active {
+  background: #F5F3FF;
+  border-color: #DDD6FE;
+  color: var(--shop-blue);
+}
+.account-signout-btn {
+  color: var(--danger);
+  border-color: #FECACA;
+}
+.account-hub {
+  max-width: 980px;
+  margin: 10px auto 0;
+}
+.account-guest-hub {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 18px;
+  align-items: stretch;
+}
+.account-guest-card,
+.account-action-card {
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+.account-guest-card {
+  padding: 26px;
+}
+.account-avatar-guest {
+  margin: 0 0 14px;
+  background: linear-gradient(135deg, var(--shop-blue), #0F172A);
+}
+.account-guest-card h1 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.1;
+}
+.account-guest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+.account-action-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.account-action-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 84px;
+  padding: 14px 16px;
+}
+.account-action-card span {
+  color: var(--text);
+  font-weight: 850;
+}
+.account-action-card small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.account-action-card:hover {
+  border-color: #DDD6FE;
+  color: var(--shop-blue);
+}
+

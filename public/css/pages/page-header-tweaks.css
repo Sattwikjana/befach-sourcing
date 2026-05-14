@@ -1,0 +1,10 @@
+/* ═══════════════════════════════════════════════════════════════
+   Page-specific header tweaks
+   ═══════════════════════════════════════════════════════════════ */
+/* Home page on desktop: keep the inline search bar visible. The previous
+   hero-with-search has been replaced by a banner carousel, so customers
+   need a header-level search on home too — otherwise there is literally
+   nowhere to type a query on the landing page. Mobile still hides the
+   inline bar (it's revealed by the search-icon toggle — see the
+   .header-search-open rule in the mobile block). */
+

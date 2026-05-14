@@ -1,0 +1,530 @@
+/* ═══════════════════════════════════════════════════════════════
+   Header
+   ═══════════════════════════════════════════════════════════════ */
+.header {
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: var(--shadow-sm);
+}
+.header-inner {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 8px 24px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 24px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+/* Logo image — cart-and-globe + "GLOBAL SHOPPER by Befach" wordmark
+   baked into a single image at ~2.7:1 aspect ratio. We size by HEIGHT
+   and let width auto-scale so the wordmark text stays readable at
+   every breakpoint. Drop-shadow gives the (transparent-edged) image
+   contrast against the dark velvet header. */
+.brand-logo-img {
+  height: 60px;
+  width: auto;
+  max-width: 100%;
+  flex: 0 0 auto;
+  display: block;
+  object-fit: contain;
+  object-position: left center;
+  filter: drop-shadow(0 4px 10px rgba(2, 6, 23, 0.18));
+}
+
+/* Wordmark — "GLOBAL / SHOPPER / by Befach" stacked next to the logo.
+   "GLOBAL" and "SHOPPER" use Archivo Black (a heavy geometric sans) to
+   match the brand reference; "by Befach" is small body copy as a parent-
+   brand trust signal. Colours are context-dependent — see the desktop-
+   blue and mobile-blue header rules later in this file for white+gold,
+   and `.brand-wordmark-on-light` for navy+blue on white surfaces. */
+.brand-wordmark {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-transform: uppercase;
+  gap: 1px;
+  /* No left border / divider — keeps the mark and wordmark visually unified. */
+}
+.brand-wordmark-global,
+.brand-wordmark-shopper {
+  font-family: var(--font-wordmark);
+  font-weight: 900;
+  font-size: 22px;
+  line-height: 1;
+}
+.brand-wordmark-sub {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  margin-top: 3px;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+/* On-light variant (used in the white hamburger drawer). Colours mirror the
+   reference image the user provided: deep navy GLOBAL + brand blue SHOPPER. */
+.brand-wordmark-on-light .brand-wordmark-global { color: #0B1F4D; }
+.brand-wordmark-on-light .brand-wordmark-shopper { color: #7C3AED; }
+.brand-wordmark-on-light .brand-wordmark-sub    { color: #6B7280; }
+
+/* Legacy tagline classes — kept (no-op) in case any embedded surface still
+   uses them. New markup uses .brand-wordmark instead. */
+.brand-tagline-side {
+  display: none;
+}
+.brand-tagline-black { color: var(--brand); }
+.brand-tagline-gold { color: var(--accent-dark); }
+
+/* Text-only brand mark — replaces the GCOM image logo. "BEFACH" in
+   bold orange wordmark, "GLOBAL STORE" smaller below in dark grey. */
+.brand-text { gap: 0; }
+.brand-text-wrap {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  gap: 4px;
+}
+.brand-text-main {
+  font-family: 'Outfit', 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 32px;
+  letter-spacing: 0.04em;
+  color: #FF6B00;
+  text-transform: uppercase;
+}
+.brand-text-sub {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.header-search {
+  display: flex;
+  background: #fff;
+  border: 2px solid var(--text);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.header-cat-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 14px;
+  background: #fafafa;
+  border: none;
+  border-right: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.header-cat-btn:hover { background: #f0f1f4; }
+.header-search input {
+  flex: 1;
+  border: none;
+  padding: 12px 16px;
+  font-size: 14px;
+  outline: none;
+}
+.header-search-btn {
+  background: var(--text);
+  color: #fff;
+  border: none;
+  padding: 0 22px;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s;
+}
+.header-search-btn:hover { background: var(--brand); }
+.header-photo-btn {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.header-photo-btn:hover {
+  background: #F5F3FF;
+  color: var(--shop-blue, #7C3AED);
+}
+.header-photo-btn:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+  white-space: nowrap;
+}
+.nav-link:hover { background: #f3f4f7; color: var(--text); }
+.nav-link.active { color: var(--brand); }
+
+/* Subtle vertical separator between nav sections — standard e-commerce pattern */
+.nav-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.cart-link { position: relative; }
+
+/* Mobile-only search icon in the header (≤860px). Replaces the wrap-around
+   .header-search row that used to take ~70px of vertical space. Hidden on
+   desktop where the inline .header-search bar still serves search.
+   Mobile-specific look (44×44 white-on-blue chip) lives in the Flipkart-
+   style mobile header rules later in this file. */
+.nav-search-icon { display: none; }
+
+.cart-badge {
+  background: var(--brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* ── Auth nav (login / register / account) ──
+   The slot is an inline-flex container so its two children — Sign in
+   link and Create account button — sit side by side. Without this they
+   stacked vertically because each .nav-link is itself display:inline-flex. */
+.auth-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-signin { font-weight: 600; color: var(--text); }
+.nav-signin:hover { color: var(--brand); }
+.nav-register-btn {
+  background: var(--brand);
+  color: #fff !important;
+  padding: 8px 16px !important;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 13.5px;
+  transition: background 0.15s, transform 0.05s;
+}
+.nav-register-btn:hover {
+  background: var(--brand-dark);
+  color: #fff !important;
+}
+.nav-register-btn:active { transform: translateY(1px); }
+.nav-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--brand-light);
+  padding: 6px 12px 6px 6px !important;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--brand-dark);
+  border: 0;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.nav-account:hover { background: var(--accent); color: var(--brand-dark); }
+.nav-account-chev { opacity: 0.6; transition: transform 0.15s; }
+.nav-account[aria-expanded="true"] .nav-account-chev { transform: rotate(180deg); }
+
+/* Icon-only avatar variant — used by updateAuthSlot() when signed in.
+   No "Hi, X" text, no chevron — just a circle with the first initial.
+   Cleaner and matches Flipkart / Amazon mobile-style headers. */
+.nav-account-icon {
+  padding: 2px !important;
+  background: transparent;
+  border-radius: 999px;
+  min-width: 40px;
+  min-height: 40px;
+  display: grid;
+  place-items: center;
+}
+.nav-account-icon:hover { background: rgba(255, 255, 255, 0.18); color: inherit; }
+.nav-account-icon .nav-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 13px;
+}
+
+/* Wishlist link in the header — heart icon with label, treated like
+   the Track link visually. Hidden on phone breakpoint where the
+   drawer covers wishlist navigation. */
+.nav-wishlist svg { color: var(--text-secondary); }
+.nav-wishlist:hover svg { color: #d6336c; }
+
+/* Account dropdown panel — appears under the "Hi, Name" pill when
+   clicked. Positioned absolute via JS (top/right). */
+.account-dropdown {
+  position: fixed;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: 240px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+.account-dropdown[hidden] { display: none; }
+.account-dropdown-head {
+  padding: 10px 16px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.account-dropdown-greeting {
+  display: block;
+  font-weight: 700;
+  color: var(--text);
+  font-size: 14px;
+}
+.account-dropdown-email {
+  display: block;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-dropdown-link {
+  display: block;
+  width: 100%;
+  padding: 9px 16px;
+  font-size: 14px;
+  color: var(--text);
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.account-dropdown-link:hover { background: var(--surface-alt); color: var(--brand); }
+.account-dropdown-divider { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+.account-dropdown-signout { color: var(--danger); font-weight: 600; }
+.account-dropdown-signout:hover { background: #fceeee; color: var(--danger); }
+.nav-avatar {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Desktop premium velvet header — deep night-violet gradient that
+   matches the hero banner background. Three stops go from indigo-black
+   to royal violet to a quieter aubergine highlight, giving the bar a
+   3D "rich plum" look instead of a flat colour. */
+@media (min-width: 861px) {
+  /* Deep velvet-night header — matches the hero banner depth. Three
+     stops from near-black indigo to royal violet, with a soft lavender
+     highlight glow at the top-right corner. */
+  .header {
+    background:
+      radial-gradient(circle at 88% 0%, rgba(167, 139, 250, 0.22), transparent 32%),
+      linear-gradient(135deg, #1A0B36 0%, #2E1065 38%, #4C1D95 100%);
+    border-bottom: 0;
+    box-shadow: 0 18px 38px rgba(15, 6, 40, 0.42);
+  }
+
+  .header-inner {
+    min-height: 72px;
+    padding: 8px 24px;
+  }
+
+  .brand {
+    color: #fff;
+    gap: 16px;
+  }
+
+  /* Desktop: compact wordmark — the image carries the full
+     "GLOBAL SHOPPER by Befach" brand, no separate text needed. */
+  .brand-logo-img {
+    height: 60px;
+    width: auto;
+    flex-basis: auto;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    filter: drop-shadow(0 6px 14px rgba(2, 6, 23, 0.30));
+  }
+
+  /* Wordmark colours on the blue header. "GLOBAL" reads white, "SHOPPER"
+     reads gold to match the existing brand-accent gold used elsewhere in
+     the header (search button, drawer header, etc.). Scoped to .header
+     so the white drawer keeps its on-light navy + blue palette. */
+  .header .brand-wordmark-global  { color: #FFFFFF; }
+  .header .brand-wordmark-shopper { color: #FFD766; }
+  .header .brand-wordmark-sub     { color: rgba(255, 255, 255, 0.82); }
+
+  .header-search {
+    border-color: rgba(255, 255, 255, 0.42);
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.18);
+  }
+
+  .header-cat-btn {
+    background: #F8FAFC;
+    color: #0F172A;
+    border-right-color: #DCE4EF;
+  }
+
+  .header-cat-btn:hover {
+    background: #EEF4FF;
+    color: #6D28D9;
+  }
+
+  .header-photo-btn {
+    color: #475569;
+    border-left-color: #DCE4EF;
+  }
+
+  .header-photo-btn:hover {
+    background: #F5F3FF;
+    color: #6D28D9;
+  }
+
+  .header-search-btn {
+    background: var(--accent);
+    color: #3B0764;
+  }
+
+  .header-search-btn:hover {
+    background: #FFC533;
+    color: #3B0764;
+  }
+
+  .header-nav {
+    color: #fff;
+  }
+
+  .nav-link {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .nav-link:hover,
+  .nav-link.active {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+  }
+
+  .nav-wishlist svg,
+  .nav-link svg {
+    color: currentColor;
+    stroke: currentColor;
+  }
+
+  .nav-divider {
+    background: rgba(255, 255, 255, 0.28);
+  }
+
+  .nav-signin {
+    color: #fff;
+  }
+
+  .nav-signin:hover {
+    color: #FFD766;
+  }
+
+  .nav-register-btn {
+    background: #fff;
+    color: #3B0764 !important;
+    box-shadow: 0 10px 24px rgba(2, 6, 23, 0.18);
+  }
+
+  .nav-register-btn:hover {
+    background: #FFD766;
+    color: #3B0764 !important;
+  }
+
+  .nav-account {
+    background: rgba(255, 255, 255, 0.94);
+    color: #3B0764;
+    box-shadow: 0 10px 24px rgba(2, 6, 23, 0.16);
+  }
+
+  .nav-account:hover {
+    background: #fff;
+    color: #6D28D9;
+  }
+
+  .nav-avatar,
+  .cart-badge {
+    background: #3B0764;
+    color: #fff;
+  }
+
+  .cart-badge {
+    border: 1px solid rgba(255, 255, 255, 0.36);
+  }
+}
+
+/* Developer-only API status indicator — kept in DOM for app.js but
+   hidden from customers. Uncomment the display rule to show it again. */
+.status-pill { display: none !important; }
+
+.cat-dropdown {
+  position: fixed;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  z-index: 100;
+  min-width: 220px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.cat-dropdown[hidden] { display: none !important; }
+.cat-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+.cat-dropdown-item:hover { background: var(--brand-light); color: var(--brand-dark); }
+

@@ -1,0 +1,79 @@
+/* ═══════════════════════════════════════════════════════════════
+   Footer
+   ═══════════════════════════════════════════════════════════════ */
+.footer {
+  background: #111418;
+  color: #cbd5e1;
+  margin-top: 60px;
+  padding: 40px 0 20px;
+}
+.footer-top {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 24px 24px;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: 30px;
+}
+.footer-col h4 {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #fff;
+}
+.footer-col a {
+  display: block;
+  padding: 4px 0;
+  font-size: 14px;
+  color: #cbd5e1;
+}
+.footer-col a:hover { color: #fff; }
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.1;
+  margin-bottom: 10px;
+}
+.footer-brand-name {
+  font-family: var(--font-wordmark);
+  font-weight: 900;
+  font-size: 26px;
+  color: #fff;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+.footer-brand-tag {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+.footer-brand-tag .accent { color: var(--accent); font-weight: 600; }
+.footer-about { font-size: 13.5px; line-height: 1.6; color: #94a3b8; }
+
+/* Befach International footer column — registered office, GSTIN, IEC, CIN */
+.footer-company .footer-line {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #94a3b8;
+  margin: 0 0 10px;
+}
+.footer-company .footer-line strong {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+.footer-company a {
+  color: #94a3b8;
+  text-decoration: none;
+}
+.footer-company a:hover { color: #fff; }
+
+@media (max-width: 860px) {
+  .footer {
+    display: none;
+  }
+}
+
