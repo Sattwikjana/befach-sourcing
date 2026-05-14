@@ -83,7 +83,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260513-stale-render-guard" />
+  <link rel="stylesheet" href="/css/styles.css?v=20260514-white-logo" />
   <script>
     // 1) MIGRATE OLD HASH URLs — anyone hitting /#/cart from a stale
     //    bookmark or shared link is silently redirected to /cart so
@@ -130,7 +130,7 @@
         <!-- Logo file already contains the icon + "GLOBAL SHOPPER by Befach"
              wordmark baked into the artwork, so the separate CSS wordmark
              span was removed to avoid duplication. -->
-        <img src="/img/globalshopper.png?v=20260513-purple-logo" alt="Global Shopper by Befach" class="brand-logo-img" />
+        <img src="/img/globalshopper.png?v=20260514-white-velvet" alt="Global Shopper by Befach" class="brand-logo-img" />
       </a>
 
       <form class="header-search" id="headerSearchForm" role="search">
@@ -209,7 +209,7 @@
     <div class="drawer-head">
       <a href="/" class="drawer-brand-link" id="drawerBrandLink">
         <!-- Same single-image logo (icon + wordmark baked in). -->
-        <img src="/img/globalshopper.png?v=20260513-purple-logo" alt="Global Shopper by Befach" class="brand-logo-img" />
+        <img src="/img/globalshopper.png?v=20260514-white-velvet" alt="Global Shopper by Befach" class="brand-logo-img" />
       </a>
       <button class="drawer-close" id="drawerClose" aria-label="Close menu">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -359,8 +359,8 @@
   <!-- Razorpay Checkout — loaded async so it doesn't block the page;
        only used on the checkout page when the customer hits "Pay & Place order". -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
-  <script src="/js/app.js?v=20260513-stale-render-guard"></script>
-  <script src="/js/app-store.js?v=20260513-stale-render-guard"></script>
+  <script src="/js/app.js?v=20260514-white-logo"></script>
+  <script src="/js/app-store.js?v=20260514-white-logo"></script>
   <!-- Surface any uncaught JS error in the page so we can debug from
        the browser without DevTools. Goes to console.error and shows
        a discreet banner if anything blows up. -->
