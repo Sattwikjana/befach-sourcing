@@ -2676,10 +2676,6 @@ async function loadHomeProducts() {
     { grid: grids.smart,        kind: 'kw', keywords: candidates(smartPool),        size: 8, moreId: 'smartMore',        label: 'smart picks'        },
   ];
 
-  // Point keyword-based section "View all →" links at the keyword we
-  // ended up *displaying* (set further down once a candidate succeeds).
-  // The fashion sections have hard-coded hrefs already.
-
   // Hide a section's container outright when nothing is available — empty
   // "No X products available right now" copy looks like a broken site.
   // We walk up to the .section / .fashion-section ancestor and remove it.
@@ -2689,6 +2685,45 @@ async function loadHomeProducts() {
     if (sec) sec.remove();
   }
 
+  // ── Daily cache keyed by today's date ──
+  // The home rails were refetching on every page load, so identical
+  // refreshes were surfacing different products each time. Cache the
+  // resolved products per section in localStorage with today's date as
+  // part of the key — the row stays stable until midnight, then the
+  // date changes and the next visitor triggers a fresh fetch (which
+  // also picks up any new "trending" rotation from CJ).
+  function todayKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function cacheKey(label) {
+    return `gs_home_${label.replace(/\s+/g, '_')}_${todayKey()}`;
+  }
+  function readCache(label) {
+    try {
+      const raw = localStorage.getItem(cacheKey(label));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.products) || !parsed.products.length) return null;
+      return parsed;
+    } catch { return null; }
+  }
+  function writeCache(label, payload) {
+    try { localStorage.setItem(cacheKey(label), JSON.stringify(payload)); }
+    catch { /* quota — silently fail; cache is best-effort */ }
+  }
+  // Sweep any home-cache entries that aren't from today so localStorage
+  // doesn't grow without bound. Cheap to run on every home load.
+  try {
+    const today = todayKey();
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('gs_home_') && !k.endsWith(`_${today}`)) {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch {}
+
   // Fire all sections in parallel.
   await Promise.all(sections.map(async (s) => {
     if (!s.grid) return;
@@ -2696,39 +2731,47 @@ async function loadHomeProducts() {
       let products = [];
       let chosenKeyword = null;
 
-      if (s.kind === 'cat') {
-        if (!s.cat) { hideSectionGracefully(s.grid); return; }
-        const id = s.cat.categoryId || s.cat.categorySecondId || s.cat.categoryFirstId || '';
-        const res = await apiGet(`/api/store/products?categoryId=${encodeURIComponent(id)}&size=${s.size}&page=1`);
-        products = res.products || [];
+      // 1. Try the daily cache first — same products all day across
+      //    refreshes / multiple visits.
+      const cached = readCache(s.label);
+      if (cached) {
+        products = cached.products;
+        chosenKeyword = cached.keyword || null;
       } else {
-        // Try each candidate keyword in order, stop at the first that
-        // returns at least 4 products (gives us a populated row).
-        for (const kw of s.keywords) {
-          const res = await apiGet(`/api/store/products?keyWord=${encodeURIComponent(kw)}&size=${s.size}&page=1`);
-          const got = res.products || [];
-          if (got.length >= 4) { products = got; chosenKeyword = kw; break; }
-          if (got.length > products.length) { products = got; chosenKeyword = kw; }
+        // 2. Cache miss — go to the API (keyword pool already rotates
+        //    by day-of-year, so each fresh day picks a new theme).
+        if (s.kind === 'cat') {
+          if (!s.cat) { hideSectionGracefully(s.grid); return; }
+          const id = s.cat.categoryId || s.cat.categorySecondId || s.cat.categoryFirstId || '';
+          const res = await apiGet(`/api/store/products?categoryId=${encodeURIComponent(id)}&size=${s.size}&page=1`);
+          products = res.products || [];
+        } else {
+          for (const kw of s.keywords) {
+            const res = await apiGet(`/api/store/products?keyWord=${encodeURIComponent(kw)}&size=${s.size}&page=1`);
+            const got = res.products || [];
+            if (got.length >= 4) { products = got; chosenKeyword = kw; break; }
+            if (got.length > products.length) { products = got; chosenKeyword = kw; }
+          }
         }
-        // Update the "View all →" link to point at the keyword we
-        // actually displayed.
-        if (chosenKeyword && s.moreId) {
-          const link = document.getElementById(s.moreId);
-          if (link) link.href = `/search?q=${encodeURIComponent(chosenKeyword)}`;
-        }
+        // Write the day's pick back so the next refresh is instant +
+        // shows the same set.
+        if (products.length) writeCache(s.label, { products, keyword: chosenKeyword });
+      }
+
+      // Update the "View all →" link to point at the keyword we
+      // actually displayed.
+      if (chosenKeyword && s.moreId) {
+        const link = document.getElementById(s.moreId);
+        if (link) link.href = `/search?q=${encodeURIComponent(chosenKeyword)}`;
       }
 
       if (!products.length) {
-        // All candidates empty — pull the section so the home page
-        // doesn't show a sad "No X available" notice.
         hideSectionGracefully(s.grid);
         return;
       }
       s.grid.innerHTML = products.map(productCard).join('');
       backfillCardShipping(s.grid);
     } catch (err) {
-      // Network error or unexpected response — keep the section visible
-      // but show a short message so the user knows it's not their fault.
       showErr(s.grid, `Couldn't load ${s.label} — refresh the page.`);
     }
   }));
