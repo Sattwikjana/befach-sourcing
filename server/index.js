@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.45';
+const APP_VERSION = '8.46';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -4007,11 +4007,16 @@ app.get('/api/admin/catalog/status', adminAuth, (req, res) => {
 });
 
 app.post('/api/admin/catalog/sync', adminAuth, (req, res) => {
+  // `force: true` lets the admin override CATALOG_SYNC_DISABLED for a
+  // one-off catch-up run. The env-level kill-switch still blocks the
+  // automatic background sync — this only opens the door for an
+  // explicit operator request.
   const opts = {
     targetProducts: req.body?.targetProducts,
     maxCalls: req.body?.maxCalls,
     pageSize: req.body?.pageSize,
     minDelayMs: req.body?.minDelayMs,
+    force: req.body?.force === true,
   };
   res.json(catalog.startSync(cj, opts));
 });

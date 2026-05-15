@@ -947,11 +947,17 @@ async function loadAdminCatalogStatus() {
 async function adminStartCatalogSync() {
   const syncBtn = document.getElementById('adminCatalogSyncBtn');
   if (!syncBtn || syncBtn.disabled) return;
-  if (!confirm('Start a catalog sync now? Runs in the background (~10–20 min) and pulls fresh CJ pages into the local SQLite catalog.')) return;
+  if (!confirm('Start a catalog sync now? Runs in the background (~10–20 min) and pulls fresh CJ pages into the local SQLite catalog. Will force-run even if CATALOG_SYNC_DISABLED is on.')) return;
   syncBtn.disabled = true;
   syncBtn.textContent = 'Starting…';
   try {
-    await adminPost('/api/admin/catalog/sync', {});
+    // force:true bypasses the CATALOG_SYNC_DISABLED kill-switch for this
+    // one-off operator-initiated run. The env still blocks auto-syncs.
+    const r = await adminPost('/api/admin/catalog/sync', { force: true });
+    if (r && r.started === false) {
+      const why = r.disabled ? 'still blocked by server' : (r.job?.running ? 'already running' : 'unknown');
+      alert(`Sync did not start (${why}). Status: ${JSON.stringify(r).slice(0, 200)}`);
+    }
     loadAdminCatalogStatus();
   } catch (err) {
     alert('Sync failed to start: ' + err.message);

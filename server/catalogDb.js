@@ -782,7 +782,9 @@ function syncErrorMessage(err) {
 
 async function runCatalogSync(cj, opts = {}) {
   if (!isEnabled()) return getStatus();
-  if (syncDisabled()) {
+  // Honor the kill-switch for auto syncs but let an explicit { force: true }
+  // admin trigger override it (see startSync for the same gate).
+  if (syncDisabled() && !opts.force) {
     syncJob = {
       ...syncJob,
       running: false,
@@ -863,12 +865,16 @@ async function runCatalogSync(cj, opts = {}) {
 }
 
 function startSync(cj, opts = {}) {
-  if (syncDisabled()) return { started: false, disabled: true, job: { ...syncJob } };
+  // CATALOG_SYNC_DISABLED is a global kill-switch for the background
+  // auto-sync. An explicit admin trigger with { force: true } bypasses
+  // it (we still respect "already running"). This is the safe pattern:
+  // routine drift stays off, ad-hoc operator catch-ups still possible.
+  if (syncDisabled() && !opts.force) return { started: false, disabled: true, job: { ...syncJob } };
   if (syncJob.running) return { started: false, job: { ...syncJob } };
   runCatalogSync(cj, opts).catch(err => {
     console.error('[catalog] sync failed:', err.message);
   });
-  return { started: true, job: { ...syncJob } };
+  return { started: true, forced: !!(syncDisabled() && opts.force), job: { ...syncJob } };
 }
 
 function stopSync() {
