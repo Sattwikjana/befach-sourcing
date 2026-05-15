@@ -687,6 +687,30 @@ async function apiGet(path, timeoutMs = 25000) {
     clearTimeout(timer);
   }
 }
+
+// ── Product-list stale-while-revalidate cache ──
+// Category / search responses live in sessionStorage for 10 minutes so
+// repeat visits to the same category (or back-button after opening a
+// product) render INSTANTLY from cache while a background fetch keeps
+// the data fresh. CJ's listV2 endpoint takes 800-2000ms cold; this
+// saves users that wait on every re-entry.
+const PRODUCT_LIST_TTL_MS = 10 * 60 * 1000;
+function productListCacheRead(path) {
+  try {
+    const raw = sessionStorage.getItem('gs_plist_v1_' + path);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.ts || (Date.now() - parsed.ts) > PRODUCT_LIST_TTL_MS) return null;
+    return parsed.data;
+  } catch { return null; }
+}
+function productListCacheWrite(path, data) {
+  try {
+    sessionStorage.setItem('gs_plist_v1_' + path, JSON.stringify({ ts: Date.now(), data }));
+  } catch {
+    // Quota — silently drop. Cache is best-effort.
+  }
+}
 async function apiPost(path, body, extraHeaders = {}) {
   const res = await fetch(`${API}${path}`, {
     method: 'POST',
@@ -3076,29 +3100,47 @@ async function renderSearch(query, page = 1, opts = {}) {
   }
   document.getElementById('searchSort').onchange = applySort;
 
+  // Capture the route generation at start of the renderer so we can
+  // bail before any DOM write if the user navigates away mid-fetch.
+  const myGen = (typeof currentRouteGen === 'function') ? currentRouteGen() : null;
+
   try {
-    // Use the smart search endpoint when there's a free-text query (and no
-    // categoryId — for category browse the simpler /api/store/products is
-    // fine since the category itself is the filter). Smart endpoint runs
-    // the query through Gemini Flash to extract intent, then searches CJ
-    // with cleaned keywords. Falls back to plain search internally if AI
-    // is unavailable.
-    let res;
-    // size=40 is CJ's per-page max — bumped from 20 so category browse
-    // and search results show twice as many products per page. Pairs
-    // with the deep-walk prewarm so even page 5 loads instantly from
-    // cache. Customer can paginate further; deep pages hit CJ live.
+    // Build the fetch path up front so we can also use it as a cache key.
+    let fetchPath = '';
     const photoPayload = page === 1 ? getPhotoSearchPayload(opts.photoKey, query) : null;
+    if (!photoPayload) {
+      if (query && !opts.categoryId) {
+        const smartQs = new URLSearchParams({ q: query, page: String(page), size: '40' });
+        fetchPath = '/api/store/search/smart?' + smartQs.toString();
+      } else {
+        const qs = new URLSearchParams({ page: String(page), size: '40' });
+        if (query) qs.set('keyWord', query);
+        if (opts.categoryId) qs.set('categoryId', opts.categoryId);
+        fetchPath = '/api/store/products?' + qs.toString();
+      }
+    }
+
+    // ── Stale-while-revalidate ──
+    // If we have a cached response for this exact category/search/page,
+    // paint it into the grid IMMEDIATELY (no skeleton wait) and refetch
+    // in the background. Repeat visits feel instant; the silent
+    // revalidate keeps prices / stock fresh.
+    const cached = fetchPath ? productListCacheRead(fetchPath) : null;
+    if (cached && !photoPayload && Array.isArray(cached.products) && cached.products.length) {
+      const earlyGrid = document.getElementById('searchGrid');
+      if (earlyGrid) {
+        earlyGrid.innerHTML = cached.products.map(productCard).join('');
+        backfillCardShipping(earlyGrid);
+      }
+    }
+
+    let res;
     if (photoPayload) {
       res = photoPayload;
-    } else if (query && !opts.categoryId) {
-      const smartQs = new URLSearchParams({ q: query, page: String(page), size: '40' });
-      res = await apiGet('/api/store/search/smart?' + smartQs.toString());
     } else {
-      const qs = new URLSearchParams({ page: String(page), size: '40' });
-      if (query) qs.set('keyWord', query);
-      if (opts.categoryId) qs.set('categoryId', opts.categoryId);
-      res = await apiGet('/api/store/products?' + qs.toString());
+      res = await apiGet(fetchPath);
+      if (typeof isStaleRouteGen === 'function' && isStaleRouteGen(myGen)) return;
+      productListCacheWrite(fetchPath, res);
     }
 
     // Persist to recent searches whenever a free-text search runs
