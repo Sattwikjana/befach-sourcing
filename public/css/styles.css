@@ -2403,6 +2403,20 @@ main {
 }
 .admin-grid > :last-child { grid-column: 2 / 3; }
 
+/* Catalog & Shipping ops tile — 4-column responsive stats grid (matches
+   the top dashboard stats but in-card, with smaller paddings). */
+.admin-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.admin-catalog-grid .stat-card { padding: 14px; }
+.admin-catalog-grid .stat-value { font-size: 20px; word-break: break-word; }
+.admin-catalog-grid .stat-label { font-size: 11px; }
+@media (max-width: 860px) {
+  .admin-catalog-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 .admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .admin-table th {
   text-align: left;

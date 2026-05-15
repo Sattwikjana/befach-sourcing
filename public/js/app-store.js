@@ -866,6 +866,114 @@ async function adminPost(path, body) {
   return data;
 }
 
+// ── Admin: Catalog & Shipping ops tile ──────────────────────────────
+// Pulls /api/admin/catalog/status (single call, also includes shipping
+// cache stats + app version). While a sync is running we poll every
+// 4 s so the admin sees `phase` / `seen` advance in real time.
+let __adminCatalogPollTimer = null;
+
+function fmtAdminDuration(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '—';
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const days = Math.floor(hr / 24);
+  return `${days}d ago`;
+}
+
+function fmtAdminBytes(n) {
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  if (n >= 1024 * 1024 * 1024) return (n / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+  if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+
+async function loadAdminCatalogStatus() {
+  const statsEl = document.getElementById('adminCatalogStats');
+  const jobEl = document.getElementById('adminCatalogJob');
+  const verEl = document.getElementById('adminCatalogVersion');
+  const syncBtn = document.getElementById('adminCatalogSyncBtn');
+  const stopBtn = document.getElementById('adminCatalogStopBtn');
+  if (!statsEl) return;
+  try {
+    const s = await adminFetch('/api/admin/catalog/status');
+    if (verEl) verEl.textContent = s.appVersion ? `v${s.appVersion}` : '';
+    const ship = s.shippingCache || {};
+    const products = (typeof s.products === 'number')
+      ? s.products.toLocaleString('en-IN')
+      : '~' + Math.round((s.sizeBytes || 0) / 1700).toLocaleString('en-IN');
+    const lastSync = s.lastSyncAt
+      ? fmtAdminDuration(Date.now() - new Date(s.lastSyncAt).getTime())
+      : 'never';
+    statsEl.innerHTML = `
+      <div class="stat-card"><div class="stat-label">Local catalog</div><div class="stat-value">${esc(products)}</div><div class="stat-label">products on disk</div></div>
+      <div class="stat-card"><div class="stat-label">Disk size</div><div class="stat-value">${esc(fmtAdminBytes(s.sizeBytes))}</div><div class="stat-label">${esc(s.dbPath || '')}</div></div>
+      <div class="stat-card"><div class="stat-label">Last sync</div><div class="stat-value">${esc(lastSync)}</div><div class="stat-label">global p${s.globalPage || 0} · cat ${s.categoryIndex || 0}/p${s.categoryPage || 0}</div></div>
+      <div class="stat-card"><div class="stat-label">Shipping cache</div><div class="stat-value">${esc((ship.priced || 0).toLocaleString('en-IN'))} <span class="muted small">/ ${esc((ship.total || 0).toLocaleString('en-IN'))}</span></div><div class="stat-label">priced / total · ${esc(fmtAdminBytes(ship.sizeBytes || 0))}</div></div>
+    `;
+    const j = s.job || {};
+    const running = !!j.running;
+    if (jobEl) {
+      if (running) {
+        jobEl.innerHTML = `<strong>Sync running</strong> · phase <code>${esc(j.phase || '—')}</code> · ${j.calls || 0} API calls · ${j.seen || 0} seen · ${j.upserted || 0} upserted${j.skipped ? ` · ${j.skipped} skipped` : ''}${j.lastWarning ? ` · last warning: ${esc(j.lastWarning)}` : ''}`;
+      } else if (j.phase === 'done' || j.phase === 'stopped' || j.phase === 'failed') {
+        jobEl.innerHTML = `Last run: <code>${esc(j.phase)}</code> · ${j.calls || 0} calls · ${j.upserted || 0} upserted${j.error ? ` · error: ${esc(j.error)}` : ''}`;
+      } else if (j.phase === 'disabled') {
+        jobEl.textContent = 'Catalog sync disabled (CATALOG_SYNC_DISABLED env).';
+      } else {
+        jobEl.textContent = 'Sync idle.';
+      }
+    }
+    if (syncBtn) {
+      syncBtn.disabled = running;
+      syncBtn.textContent = running ? 'Syncing…' : 'Sync now';
+    }
+    if (stopBtn) stopBtn.hidden = !running;
+    // Poll while running so progress numbers advance live.
+    if (__adminCatalogPollTimer) { clearTimeout(__adminCatalogPollTimer); __adminCatalogPollTimer = null; }
+    if (running) {
+      __adminCatalogPollTimer = setTimeout(loadAdminCatalogStatus, 4000);
+    }
+  } catch (err) {
+    if (err.message === 'Unauthorized') return renderAdminLogin();
+    statsEl.innerHTML = `<p class="muted">Failed to load: ${esc(err.message)}</p>`;
+  }
+}
+
+async function adminStartCatalogSync() {
+  const syncBtn = document.getElementById('adminCatalogSyncBtn');
+  if (!syncBtn || syncBtn.disabled) return;
+  if (!confirm('Start a catalog sync now? Runs in the background (~10–20 min) and pulls fresh CJ pages into the local SQLite catalog.')) return;
+  syncBtn.disabled = true;
+  syncBtn.textContent = 'Starting…';
+  try {
+    await adminPost('/api/admin/catalog/sync', {});
+    loadAdminCatalogStatus();
+  } catch (err) {
+    alert('Sync failed to start: ' + err.message);
+    syncBtn.disabled = false;
+    syncBtn.textContent = 'Sync now';
+  }
+}
+
+async function adminStopCatalogSync() {
+  const stopBtn = document.getElementById('adminCatalogStopBtn');
+  if (!stopBtn) return;
+  stopBtn.disabled = true;
+  try {
+    await adminPost('/api/admin/catalog/sync/stop', {});
+    loadAdminCatalogStatus();
+  } catch (err) {
+    alert('Stop request failed: ' + err.message);
+  } finally {
+    stopBtn.disabled = false;
+  }
+}
+
 async function renderAdmin() {
   if (!getAdminPw()) return renderAdminLogin();
 
@@ -890,6 +998,25 @@ async function renderAdmin() {
         <div id="adminBalance">Loading…</div>
       </section>
     </div>
+
+    <!-- Catalog & Shipping ops tile.
+         Sourced from /api/admin/catalog/status (single call also includes
+         shipping cache stats + app version). The "Sync now" button is a
+         POST to /api/admin/catalog/sync which kicks off a background
+         pagination through CJ to refresh the local SQLite catalog.
+         While a sync is running we auto-poll the status every 4 s. -->
+    <section class="card" style="margin-top:18px">
+      <div class="card-head-row">
+        <h2>Catalog &amp; Shipping <span class="muted small" id="adminCatalogVersion"></span></h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button id="adminCatalogRefreshBtn" class="btn btn-ghost btn-sm" type="button">Refresh</button>
+          <button id="adminCatalogSyncBtn" class="btn btn-primary btn-sm" type="button">Sync now</button>
+          <button id="adminCatalogStopBtn" class="btn btn-ghost btn-sm" type="button" hidden>Stop sync</button>
+        </div>
+      </div>
+      <div id="adminCatalogStats" class="admin-catalog-grid">Loading…</div>
+      <div id="adminCatalogJob" class="muted small" style="margin-top:10px"></div>
+    </section>
 
     <!-- Customer feedback — moved up to sit right after Recent orders /
          dashboard cards so the team sees customer sentiment alongside
@@ -1000,6 +1127,14 @@ async function renderAdmin() {
   } catch (err) {
     document.getElementById('adminBalance').innerHTML = `<p class="muted">${esc(err.message)}</p>`;
   }
+
+  // Catalog & Shipping ops tile. Boots the first load then wires the
+  // Refresh / Sync / Stop buttons. While a sync is running we poll
+  // every 4s so the admin sees progress without manual refreshes.
+  loadAdminCatalogStatus();
+  document.getElementById('adminCatalogRefreshBtn')?.addEventListener('click', () => loadAdminCatalogStatus());
+  document.getElementById('adminCatalogSyncBtn')?.addEventListener('click', () => adminStartCatalogSync());
+  document.getElementById('adminCatalogStopBtn')?.addEventListener('click', () => adminStopCatalogSync());
 
   // Customers panel — registered users with order rollup. Live-session
   // dot tells admin who's currently signed in.

@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.43';
+const APP_VERSION = '8.44';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -3995,7 +3995,15 @@ app.get('/api/admin/dashboard', adminAuth, (req, res) => {
 });
 
 app.get('/api/admin/catalog/status', adminAuth, (req, res) => {
-  res.json(catalog.getStatus());
+  // Bundle shipping-cache stats alongside catalog status so the admin
+  // dashboard's "Catalog & Shipping" tile can render from a single
+  // request — keeps the panel snappy and avoids two parallel admin
+  // round-trips.
+  res.json({
+    ...catalog.getStatus(),
+    shippingCache: getShippingCacheStats(),
+    appVersion: APP_VERSION,
+  });
 });
 
 app.post('/api/admin/catalog/sync', adminAuth, (req, res) => {
