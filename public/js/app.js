@@ -1430,7 +1430,7 @@ if (headerSearchInput) {
 // Top-level CJ categories get a real product photo. Match by ALL keywords
 // being present (case-insensitive substring) — first rule wins, so list
 // the more-specific rules above the catch-alls.
-const CATEGORY_IMAGE_VERSION = '20260515-sports-auto';
+const CATEGORY_IMAGE_VERSION = '20260515-home-improvement';
 const CAT_IMAGE_RULES = [
   [['men', 'bag'],              '/img/subcat-bags-men-bags.png', ['bag']],
   [['men', 'backpack'],         '/img/subcat-bags-men-bags.png', ['bag']],
@@ -1640,6 +1640,34 @@ const CAT_IMAGE_RULES = [
   [['accessor'],                    '/img/subcat-auto-car-accessories.png',    ['auto']],
   [['travel', 'roadway'],           '/img/subcat-auto-car-accessories.png',   ['auto']],
   [['car'],                         '/img/subcat-auto-car-accessories.png',   ['auto']],
+
+  // ── Home Improvement subcategories (parent must mention both
+  //    "home" and "improvement"). Most-specific keyword first so
+  //    'bulb' wins on Light Bulbs before the generic 'lighting'
+  //    rule below catches Lighting Fixtures, etc. ──
+  [['bulb'],                        '/img/subcat-home-light-bulbs.png',       ['home', 'improvement']],
+  [['led', 'strip'],                '/img/subcat-home-light-bulbs.png',       ['home', 'improvement']],
+  [['solar'],                       '/img/subcat-home-outdoor-lighting.png',  ['home', 'improvement']],
+  [['outdoor', 'light'],            '/img/subcat-home-outdoor-lighting.png',  ['home', 'improvement']],
+  [['garden', 'light'],             '/img/subcat-home-outdoor-lighting.png',  ['home', 'improvement']],
+  [['landscape'],                   '/img/subcat-home-outdoor-lighting.png',  ['home', 'improvement']],
+  [['power', 'tool'],               '/img/subcat-home-tools.png',             ['home', 'improvement']],
+  [['hand', 'tool'],                '/img/subcat-home-tools.png',             ['home', 'improvement']],
+  [['drill'],                       '/img/subcat-home-tools.png',             ['home', 'improvement']],
+  [['hardware'],                    '/img/subcat-home-tools.png',             ['home', 'improvement']],
+  [['tool'],                        '/img/subcat-home-tools.png',             ['home', 'improvement']],
+  [['appliance'],                   '/img/subcat-home-appliances.png',        ['home', 'improvement']],
+  [['major', 'appliance'],          '/img/subcat-home-appliances.png',        ['home', 'improvement']],
+  [['kitchen', 'appliance'],        '/img/subcat-home-appliances.png',        ['home', 'improvement']],
+  [['home', 'appliance'],           '/img/subcat-home-appliances.png',        ['home', 'improvement']],
+  [['lighting', 'fixture'],         '/img/subcat-home-lighting-fixtures.png', ['home', 'improvement']],
+  [['ceiling', 'fan'],              '/img/subcat-home-lighting-fixtures.png', ['home', 'improvement']],
+  [['ceiling', 'light'],            '/img/subcat-home-lighting-fixtures.png', ['home', 'improvement']],
+  [['pendant'],                     '/img/subcat-home-lighting-fixtures.png', ['home', 'improvement']],
+  [['chandelier'],                  '/img/subcat-home-lighting-fixtures.png', ['home', 'improvement']],
+  [['lamp'],                        '/img/subcat-home-lighting-fixtures.png', ['home', 'improvement']],
+  [['lighting'],                    '/img/subcat-home-lighting-fixtures.png', ['home', 'improvement']],
+  [['light'],                       '/img/subcat-home-lighting-fixtures.png', ['home', 'improvement']],
 
   [['home', 'improvement'],     '/img/cat-home-improvement.png'],
   [['audio'],                   '/img/cat-electronics.png'],
