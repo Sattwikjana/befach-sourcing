@@ -1004,14 +1004,17 @@ async function renderAdmin() {
          shipping cache stats + app version). The "Sync now" button is a
          POST to /api/admin/catalog/sync which kicks off a background
          pagination through CJ to refresh the local SQLite catalog.
-         While a sync is running we auto-poll the status every 4 s. -->
+         While a sync is running we auto-poll the status every 4 s.
+         Buttons use inline onclick to match the rest of the admin panel
+         (window.adminStartCatalogSync etc) — bulletproof against any
+         render-order edge case where addEventListener might miss. -->
     <section class="card" style="margin-top:18px">
       <div class="card-head-row">
         <h2>Catalog &amp; Shipping <span class="muted small" id="adminCatalogVersion"></span></h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button id="adminCatalogRefreshBtn" class="btn btn-ghost btn-sm" type="button">Refresh</button>
-          <button id="adminCatalogSyncBtn" class="btn btn-primary btn-sm" type="button">Sync now</button>
-          <button id="adminCatalogStopBtn" class="btn btn-ghost btn-sm" type="button" hidden>Stop sync</button>
+          <button id="adminCatalogRefreshBtn" class="btn btn-ghost btn-sm" type="button" onclick="loadAdminCatalogStatus()">Refresh</button>
+          <button id="adminCatalogSyncBtn" class="btn btn-primary btn-sm" type="button" onclick="adminStartCatalogSync()">Sync now</button>
+          <button id="adminCatalogStopBtn" class="btn btn-ghost btn-sm" type="button" onclick="adminStopCatalogSync()" hidden>Stop sync</button>
         </div>
       </div>
       <div id="adminCatalogStats" class="admin-catalog-grid">Loading…</div>
@@ -1128,13 +1131,11 @@ async function renderAdmin() {
     document.getElementById('adminBalance').innerHTML = `<p class="muted">${esc(err.message)}</p>`;
   }
 
-  // Catalog & Shipping ops tile. Boots the first load then wires the
-  // Refresh / Sync / Stop buttons. While a sync is running we poll
-  // every 4s so the admin sees progress without manual refreshes.
+  // Catalog & Shipping ops tile. Boots the first load — the buttons
+  // themselves use inline onclick (window.adminStartCatalogSync etc)
+  // so they always wire up regardless of DOM-ready timing.
+  console.log('[Catalog] tile ready (v8.45) — calling loadAdminCatalogStatus');
   loadAdminCatalogStatus();
-  document.getElementById('adminCatalogRefreshBtn')?.addEventListener('click', () => loadAdminCatalogStatus());
-  document.getElementById('adminCatalogSyncBtn')?.addEventListener('click', () => adminStartCatalogSync());
-  document.getElementById('adminCatalogStopBtn')?.addEventListener('click', () => adminStopCatalogSync());
 
   // Customers panel — registered users with order rollup. Live-session
   // dot tells admin who's currently signed in.
@@ -1389,6 +1390,11 @@ window.adminSaveMarkup = async function() {
     showToast(`✅ Global markup set to ${v}%`);
   } catch (err) { showToast('Failed: ' + err.message); }
 };
+// Catalog ops — exposed globally so the tile's inline onclick handlers
+// resolve regardless of script load order or DOM-ready edge cases.
+window.loadAdminCatalogStatus = loadAdminCatalogStatus;
+window.adminStartCatalogSync = adminStartCatalogSync;
+window.adminStopCatalogSync  = adminStopCatalogSync;
 
 // ══════════════════════════════════════════════════════════════
 //  AUTH — login / register / account / logout
