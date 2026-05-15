@@ -1034,14 +1034,26 @@ async function loadConfig() {
 }
 
 async function checkHealth() {
+  // Lighter `/api/live` endpoint (just returns { status: 'ok' }) instead
+  // of `/api/health` (which also pings CJ token). Render returns 502
+  // for a few seconds during cold start / scale; logging that every 30s
+  // floods the console for no benefit since the .status-pill is hidden
+  // by CSS anyway.
+  if (!serverStatus) return;
   try {
-    const res = await fetch(`${API}/api/health`, { signal: AbortSignal.timeout(5000) });
+    const res = await fetch(`${API}/api/live`, { signal: AbortSignal.timeout(4000) });
     if (res.ok) {
-      const data = await res.json();
-      serverStatus.className = 'status-pill ' + (data.status === 'ok' ? 'online' : 'degraded');
-      serverStatus.title = data.status === 'ok' ? 'Connected to CJ' : 'Degraded: ' + (data.cjError || 'unknown');
-    } else throw new Error();
+      serverStatus.className = 'status-pill online';
+      serverStatus.title = 'Server online';
+    } else {
+      // 502 / 503 from Cloudflare/Render upstream = transient — don't
+      // throw (would surface to console.error from the parent catch).
+      serverStatus.className = 'status-pill degraded';
+      serverStatus.title = 'Server warming up';
+    }
   } catch {
+    // AbortError or network failure — silently degrade the (hidden)
+    // status pill, no console noise.
     serverStatus.className = 'status-pill offline';
     serverStatus.title = 'Server offline';
   }

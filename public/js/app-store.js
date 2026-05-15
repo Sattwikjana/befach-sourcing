@@ -1832,7 +1832,10 @@ window.renderAccount = renderAccount;
     console.warn('boot: config/user load failed', e);
   }
   checkHealth();
-  setInterval(checkHealth, 30000);
+  // Was every 30s — bumped to 5 min. The .status-pill is hidden by CSS
+  // so frequent polling burns mobile data and floods the console with
+  // transient Render-cold-start 502s with no user-visible benefit.
+  setInterval(checkHealth, 300000);
   loadCategories();
   handleRoute();
 })();
