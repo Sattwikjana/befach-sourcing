@@ -2706,11 +2706,15 @@ async function loadHomeProducts() {
   const pick = (arr) => arr[dayOfYear % arr.length];
 
   // Smart-picks gadgets — items that are hard to find in India.
-  // Very specific keywords so CJ returns the actual gadget, not a
-  // random "new arrival" match. Day-of-year rotation = fresh each day.
+  // Front-loaded with the products the customer specifically wants to
+  // showcase (smart plant pot, portable garment steamer, neck fan,
+  // mini projector). Day-of-year rotation cycles the whole pool but
+  // the first ~7 entries get top priority on day 0 / 1 / 2 / etc.
   const smartPool = [
-    'mini projector', 'portable blender', 'smart plant pot', 'self watering planter',
-    'handheld steam iron', 'portable garment steamer', 'neck fan', 'portable cooling fan',
+    'smart plant pot', 'self watering planter',
+    'portable garment steamer', 'handheld steam iron',
+    'neck fan', 'portable cooling fan',
+    'mini projector', 'portable blender',
     'wireless microscope', 'translator device', 'led face mask', 'neck massager',
     'smart key finder', 'portable label maker', 'wireless charger', 'usb c hub',
     'mini car vacuum', 'smart bulb', 'pet feeder camera', 'mini cordless drill',
@@ -2749,17 +2753,28 @@ async function loadHomeProducts() {
   // surfaces a different slice (Dresses one day, Tops the next, etc.)
   // rather than always landing on whatever CJ orders first.
   //
-  // Skip narrow accessory subcategories (Hats, Belts, Ties, Socks,
-  // Underwear...) — landing on "Hats & Caps" filled the Men's Fashion
-  // row with only baseball caps and beanies, which doesn't read as
-  // "men's clothing" at a glance. Stays inside actual garment subs.
-  const ACCESSORY_RE = /(hat|cap|beanie|belt|tie|scarf|glove|sock|stocking|underwear|sleepwear|nightwear|swimwear|swimsuit|lingerie|jewel|watch|bag|wallet|sunglass|eyewear|accessor)/i;
+  // SKIP regex was tuned in two passes:
+  //   - v1 only skipped Hats/Belts/Ties/Socks/Underwear so they
+  //     wouldn't dominate the row.
+  //   - v2 (this) also skips Couple & Parent-Child, Weddings & Events,
+  //     and Maternity. Today's pick landed on Couple & Parent-Child
+  //     which filled "Trending women's fashion" with red & green
+  //     Christmas family pajamas — not the dress / co-ord / outerwear
+  //     vibe we want for the row title.
+  const ACCESSORY_RE = /(hat|cap|beanie|belt|tie|scarf|glove|sock|stocking|underwear|sleepwear|nightwear|swimwear|swimsuit|lingerie|jewel|watch|bag|wallet|sunglass|eyewear|accessor|couple|parent|child|wedding|event|maternity|pregnan|bridal|funeral|costume)/i;
+  // Inclusion-style guard: prefer subcategory names that LOOK like
+  // mainstream fashion (tops / dresses / outerwear / bottoms / co-ord).
+  // Falls back to "everything not excluded" if nothing matches the
+  // preferred set (e.g. CJ renames a subcategory tomorrow).
+  const FASHION_PREFER_RE = /(dress|top|outerwear|jacket|coat|co.?ord|bottom|pant|skirt|blouse|shirt|hood|knit|denim|cardigan)/i;
   const childPick = (cat) => {
-    const subs = (cat?.categoryFirstList || []).filter(s => {
+    const all = (cat?.categoryFirstList || []).filter(s => {
       const name = s.categorySecondName || '';
       return !ACCESSORY_RE.test(name);
     });
-    return subs.length ? subs[dayOfYear % subs.length] : null;
+    const preferred = all.filter(s => FASHION_PREFER_RE.test(s.categorySecondName || ''));
+    const pool = preferred.length ? preferred : all;
+    return pool.length ? pool[dayOfYear % pool.length] : null;
   };
   const womenChild = childPick(womenCat);
   const menChild   = childPick(menCat);
@@ -2804,11 +2819,12 @@ async function loadHomeProducts() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
-  // _v2 prefix invalidates yesterday's cache entries that were
-  // populated by the looser keyword-based logic (which had returned
-  // random "new arrival briefs" etc. for the Featured row).
+  // Bumped to v3 to invalidate cached "Couple & Parent-Child" Christmas
+  // family pajamas rows from earlier today before the FASHION_PREFER_RE
+  // filter started forcing the rotation to land on Dresses / Tops /
+  // Outerwear / Bottoms.
   function cacheKey(label) {
-    return `gs_home_v2_${label.replace(/\s+/g, '_')}_${todayKey()}`;
+    return `gs_home_v3_${label.replace(/\s+/g, '_')}_${todayKey()}`;
   }
   function readCache(label) {
     try {
@@ -2823,17 +2839,16 @@ async function loadHomeProducts() {
     try { localStorage.setItem(cacheKey(label), JSON.stringify(payload)); }
     catch { /* quota — silently fail; cache is best-effort */ }
   }
-  // Sweep any home-cache entries that aren't from today so localStorage
-  // doesn't grow without bound. Cheap to run on every home load. Also
-  // removes any legacy gs_home_ entries (pre-v2 prefix) so cached
-  // "new arrival briefs" from the old logic doesn't keep rendering.
+  // Sweep any home-cache entries that aren't from today's v3 schema.
+  // - Drops everything before v3 (pre-v3 cached the wrong subcategories
+  //   like Couple & Parent-Child, Weddings, etc.)
+  // - Drops any v3 key whose date isn't today's.
   try {
     const today = todayKey();
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
       if (!k || !k.startsWith('gs_home_')) continue;
-      // Drop pre-v2 keys entirely + drop any v2 key not from today.
-      if (!k.startsWith('gs_home_v2_') || !k.endsWith(`_${today}`)) {
+      if (!k.startsWith('gs_home_v3_') || !k.endsWith(`_${today}`)) {
         localStorage.removeItem(k);
       }
     }
