@@ -83,7 +83,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260515-fashion-pool-fix" />
+  <link rel="stylesheet" href="/css/styles.css?v=20260515-feedback-sliders" />
   <script>
     // 1) MIGRATE OLD HASH URLs — anyone hitting /#/cart from a stale
     //    bookmark or shared link is silently redirected to /cart so
@@ -311,30 +311,102 @@
       <h2 id="feedbackTitle" class="feedback-title">How would you rate Global Shopper?</h2>
       <p class="feedback-sub">Your honest feedback helps us shape what's next. Takes ~30 seconds.</p>
       <form class="feedback-form" id="feedbackForm">
+        <!-- Every rating question uses a 1-5 range slider (replaces
+             the older star widgets) so the form reads as a coherent
+             sliding-scale survey end-to-end. JS reads input.value
+             directly, no widget glue needed. -->
         <div class="feedback-row" data-q="lookFeel">
-          <label class="feedback-q">Look &amp; feel of the website</label>
-          <div class="star-row" data-rating="0"></div>
+          <label class="feedback-q" for="fbLookFeel">Look &amp; feel of the website</label>
+          <div class="range-row">
+            <input type="range" id="fbLookFeel" min="1" max="5" step="1" value="3" />
+            <span class="range-value" data-bound-for="fbLookFeel">3</span>
+          </div>
+          <div class="range-legend"><span>Poor</span><span>Excellent</span></div>
         </div>
         <div class="feedback-row" data-q="variety">
-          <label class="feedback-q">Product variety</label>
-          <div class="star-row" data-rating="0"></div>
+          <label class="feedback-q" for="fbVariety">Product variety</label>
+          <div class="range-row">
+            <input type="range" id="fbVariety" min="1" max="5" step="1" value="3" />
+            <span class="range-value" data-bound-for="fbVariety">3</span>
+          </div>
+          <div class="range-legend"><span>Very limited</span><span>Endless</span></div>
         </div>
         <div class="feedback-row" data-q="easeNav">
-          <label class="feedback-q">Ease of navigation</label>
-          <div class="star-row" data-rating="0"></div>
+          <label class="feedback-q" for="fbEaseNav">Ease of navigation</label>
+          <div class="range-row">
+            <input type="range" id="fbEaseNav" min="1" max="5" step="1" value="3" />
+            <span class="range-value" data-bound-for="fbEaseNav">3</span>
+          </div>
+          <div class="range-legend"><span>Hard</span><span>Effortless</span></div>
         </div>
         <div class="feedback-row" data-q="willUseAgain">
-          <label class="feedback-q">Will you surf Global Shopper in your free time?</label>
-          <div class="star-row" data-rating="0"></div>
+          <label class="feedback-q" for="fbWillUseAgain">Will you surf Global Shopper in your free time?</label>
+          <div class="range-row">
+            <input type="range" id="fbWillUseAgain" min="1" max="5" step="1" value="3" />
+            <span class="range-value" data-bound-for="fbWillUseAgain">3</span>
+          </div>
+          <div class="range-legend"><span>Unlikely</span><span>Very likely</span></div>
         </div>
         <div class="feedback-row" data-q="willRecommend">
-          <label class="feedback-q">Will you recommend us to friends?</label>
-          <div class="star-row" data-rating="0"></div>
+          <label class="feedback-q" for="fbWillRecommend">Will you recommend us to friends?</label>
+          <div class="range-row">
+            <input type="range" id="fbWillRecommend" min="1" max="5" step="1" value="3" />
+            <span class="range-value" data-bound-for="fbWillRecommend">3</span>
+          </div>
+          <div class="range-legend"><span>Unlikely</span><span>Definitely</span></div>
         </div>
         <div class="feedback-row" data-q="willBuy">
-          <label class="feedback-q">What is the likelihood of you buying products on this app?</label>
-          <div class="star-row" data-rating="0"></div>
+          <label class="feedback-q" for="fbWillBuy">What is the likelihood of you buying products on this app?</label>
+          <div class="range-row">
+            <input type="range" id="fbWillBuy" min="1" max="5" step="1" value="3" />
+            <span class="range-value" data-bound-for="fbWillBuy">3</span>
+          </div>
+          <div class="range-legend"><span>Unlikely</span><span>Very likely</span></div>
         </div>
+
+        <!-- New questions (Round 2): global interest, money-back trust,
+             pricing transparency, 15-day-delivery value prop. -->
+        <div class="feedback-row" data-q="globalUsEu">
+          <label class="feedback-q" for="fbGlobalUsEu">How interested are you in buying global products sold in the US and Europe?</label>
+          <div class="range-row">
+            <input type="range" id="fbGlobalUsEu" min="1" max="5" step="1" value="3" />
+            <span class="range-value" data-bound-for="fbGlobalUsEu">3</span>
+          </div>
+          <div class="range-legend"><span>Not interested</span><span>Very interested</span></div>
+        </div>
+        <div class="feedback-row" data-q="trendyTech">
+          <label class="feedback-q" for="fbTrendyTech">How interested are you in buying trendy, tech, and innovative products not easily available in India?</label>
+          <div class="range-row">
+            <input type="range" id="fbTrendyTech" min="1" max="5" step="1" value="3" />
+            <span class="range-value" data-bound-for="fbTrendyTech">3</span>
+          </div>
+          <div class="range-legend"><span>Not interested</span><span>Very interested</span></div>
+        </div>
+        <div class="feedback-row" data-q="moneyBackTrust">
+          <label class="feedback-q" for="fbMoneyBackTrust">How much would a 100% money-back policy increase your trust?</label>
+          <div class="range-row">
+            <input type="range" id="fbMoneyBackTrust" min="1" max="5" step="1" value="3" />
+            <span class="range-value" data-bound-for="fbMoneyBackTrust">3</span>
+          </div>
+          <div class="range-legend"><span>Not at all</span><span>A lot</span></div>
+        </div>
+        <div class="feedback-row" data-q="inclusivePricing">
+          <label class="feedback-q" for="fbInclusivePricing">How useful is all-inclusive pricing with shipping, customs duties, and taxes included?</label>
+          <div class="range-row">
+            <input type="range" id="fbInclusivePricing" min="1" max="5" step="1" value="3" />
+            <span class="range-value" data-bound-for="fbInclusivePricing">3</span>
+          </div>
+          <div class="range-legend"><span>Not useful</span><span>Very useful</span></div>
+        </div>
+        <div class="feedback-row" data-q="delivery15Day">
+          <label class="feedback-q" for="fbDelivery15Day">How likely are you to buy if you get 15-day delivery and access to 2M+ products across 100+ categories?</label>
+          <div class="range-row">
+            <input type="range" id="fbDelivery15Day" min="1" max="5" step="1" value="3" />
+            <span class="range-value" data-bound-for="fbDelivery15Day">3</span>
+          </div>
+          <div class="range-legend"><span>Unlikely</span><span>Very likely</span></div>
+        </div>
+
         <div class="feedback-row feedback-row-comments">
           <label class="feedback-q" for="feedbackEmail">Email (optional)</label>
           <input type="email" id="feedbackEmail" placeholder="you@example.com" maxlength="200" autocomplete="email" />
@@ -359,8 +431,8 @@
   <!-- Razorpay Checkout — loaded async so it doesn't block the page;
        only used on the checkout page when the customer hits "Pay & Place order". -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
-  <script src="/js/app.js?v=20260515-fashion-pool-fix"></script>
-  <script src="/js/app-store.js?v=20260515-fashion-pool-fix"></script>
+  <script src="/js/app.js?v=20260515-feedback-sliders"></script>
+  <script src="/js/app-store.js?v=20260515-feedback-sliders"></script>
   <!-- Surface any uncaught JS error in the page so we can debug from
        the browser without DevTools. Goes to console.error and shows
        a discreet banner if anything blows up. -->

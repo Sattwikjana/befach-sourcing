@@ -829,6 +829,12 @@ app.post('/api/feedback', (req, res) => {
     willUseAgain:  clampRating(b.willUseAgain),
     willRecommend: clampRating(b.willRecommend),
     willBuy:       clampRating(b.willBuy),
+    // Round 2: market-validation questions added to the slider form
+    globalUsEu:       clampRating(b.globalUsEu),
+    trendyTech:       clampRating(b.trendyTech),
+    moneyBackTrust:   clampRating(b.moneyBackTrust),
+    inclusivePricing: clampRating(b.inclusivePricing),
+    delivery15Day:    clampRating(b.delivery15Day),
     comments: typeof b.comments === 'string' ? b.comments.slice(0, 1000).trim() : '',
     contactEmail: validContactEmail,
     user: req.user ? { id: req.user.id, name: req.user.name, email: req.user.email } : null,
@@ -837,7 +843,9 @@ app.post('/api/feedback', (req, res) => {
 
   // Require at least one rating > 0 so we don't store empty submissions
   const ratingsSum = entry.lookFeel + entry.variety + entry.easeNav
-                   + entry.willUseAgain + entry.willRecommend + entry.willBuy;
+                   + entry.willUseAgain + entry.willRecommend + entry.willBuy
+                   + entry.globalUsEu + entry.trendyTech + entry.moneyBackTrust
+                   + entry.inclusivePricing + entry.delivery15Day;
   if (ratingsSum === 0 && !entry.comments) {
     return res.status(400).json({ error: 'Please rate at least one question or leave a comment.' });
   }
@@ -862,7 +870,11 @@ app.get('/api/admin/feedback', adminAuth, (req, res) => {
   const total    = sorted.length;
 
   // Aggregate averages across all submissions (not just this page).
-  const fields = ['lookFeel', 'variety', 'easeNav', 'willUseAgain', 'willRecommend', 'willBuy'];
+  const fields = [
+    'lookFeel', 'variety', 'easeNav',
+    'willUseAgain', 'willRecommend', 'willBuy',
+    'globalUsEu', 'trendyTech', 'moneyBackTrust', 'inclusivePricing', 'delivery15Day',
+  ];
   const averages = {};
   fields.forEach(f => {
     const vals = sorted.map(e => e[f]).filter(v => v > 0);

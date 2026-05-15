@@ -1102,12 +1102,18 @@ async function loadAdminFeedback() {
 
     // Aggregate averages row — short labels for the dashboard tiles.
     const labels = {
-      lookFeel:      'Look & feel',
-      variety:       'Product variety',
-      easeNav:       'Ease of nav.',
-      willUseAgain:  'Surfs in free time',
-      willRecommend: 'Will recommend',
-      willBuy:       'Likely to buy',
+      lookFeel:         'Look & feel',
+      variety:          'Product variety',
+      easeNav:          'Ease of nav.',
+      willUseAgain:     'Surfs in free time',
+      willRecommend:    'Will recommend',
+      willBuy:          'Likely to buy',
+      // Round 2 — market-validation questions
+      globalUsEu:       'Interest: US/EU goods',
+      trendyTech:       'Interest: trendy tech',
+      moneyBackTrust:   '100% money-back trust',
+      inclusivePricing: 'All-inclusive pricing',
+      delivery15Day:    '15-day delivery × 2M+ catalog',
     };
     if (averagesEl) {
       averagesEl.innerHTML = data.total
@@ -1135,12 +1141,17 @@ async function loadAdminFeedback() {
         <thead><tr>
           <th>When</th>
           <th>Customer</th>
-          <th>Look</th>
-          <th>Variety</th>
-          <th>Nav</th>
-          <th>Surfs</th>
-          <th>Recomm</th>
-          <th>Buy</th>
+          <th title="Look & feel">Look</th>
+          <th title="Product variety">Variety</th>
+          <th title="Ease of navigation">Nav</th>
+          <th title="Surfs in free time">Surfs</th>
+          <th title="Will recommend">Recomm</th>
+          <th title="Likely to buy">Buy</th>
+          <th title="Interest in US/EU goods">US/EU</th>
+          <th title="Interest in trendy tech">Tech</th>
+          <th title="100% money-back trust uplift">Refund</th>
+          <th title="All-inclusive pricing usefulness">Pricing</th>
+          <th title="Likelihood to buy with 15-day delivery + 2M catalog">15-day</th>
           <th>Comments</th>
         </tr></thead>
         <tbody>
@@ -1161,6 +1172,11 @@ async function loadAdminFeedback() {
               <td>${e.willUseAgain || '—'}</td>
               <td>${e.willRecommend || '—'}</td>
               <td>${e.willBuy || '—'}</td>
+              <td>${e.globalUsEu || '—'}</td>
+              <td>${e.trendyTech || '—'}</td>
+              <td>${e.moneyBackTrust || '—'}</td>
+              <td>${e.inclusivePricing || '—'}</td>
+              <td>${e.delivery15Day || '—'}</td>
               <td style="max-width:280px;white-space:normal">${e.comments ? esc(e.comments) : '<span class="muted small">—</span>'}</td>
             </tr>
           `;

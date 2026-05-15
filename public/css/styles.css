@@ -6215,7 +6215,8 @@ body.page-home .feedback-fab {
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.16);
 }
 
-/* Star widget */
+/* Star widget — legacy, kept so any embedded surface still works.
+   The form now uses .range-row sliders below. */
 .star-row {
   display: inline-flex;
   gap: 6px;
@@ -6238,6 +6239,74 @@ body.page-home .feedback-fab {
 .star-row button svg {
   width: 26px;
   height: 26px;
+}
+
+/* Range slider widget — 1-to-5 rating in slider form. The chip on
+   the right displays the live value so the customer can see what
+   they're rating without counting tick marks. */
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.range-row input[type="range"] {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #DDD6FE, #C4B5FD);
+  outline: none;
+  margin: 6px 0;
+  cursor: pointer;
+}
+.range-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #6D28D9;
+  border: 3px solid #fff;
+  box-shadow: 0 4px 10px rgba(46, 16, 101, 0.32);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.range-row input[type="range"]::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #6D28D9;
+  border: 3px solid #fff;
+  box-shadow: 0 4px 10px rgba(46, 16, 101, 0.32);
+  cursor: pointer;
+}
+.range-row input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.10);
+}
+.range-row input[type="range"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.16);
+}
+.range-value {
+  display: inline-grid;
+  place-items: center;
+  min-width: 36px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #2E1065;
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.range-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 
 .feedback-submit {

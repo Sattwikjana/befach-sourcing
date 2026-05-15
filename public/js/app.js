@@ -3807,33 +3807,27 @@ async function checkVariantStock(vid) {
 // ══════════════════════════════════════════════════════════════
 //  FEEDBACK MODAL — floating button (home page only) → review form
 // ══════════════════════════════════════════════════════════════
-// Star icon used inside each rating button. Inline SVG keeps the
-// payload tiny and dodges a network request for an extra asset.
-const FB_STAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l3.09 6.26 6.91 1-5 4.87 1.18 6.87L12 18.27 5.82 21.5 7 14.63l-5-4.87 6.91-1z"/></svg>';
+// Form now uses 1-5 range sliders for every rating question (the
+// older star-row widgets are gone). Reading the value is direct
+// input.value — no widget glue, no setup pass needed.
 
-function fbBuildStarRow(rowEl) {
-  // Render 5 buttons. Each button toggles all stars ≤ it on.
-  rowEl.innerHTML = '';
-  for (let i = 1; i <= 5; i++) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'star-btn';
-    btn.dataset.value = String(i);
-    btn.setAttribute('aria-label', `${i} of 5`);
-    btn.dataset.on = 'false';
-    btn.innerHTML = FB_STAR_SVG;
-    btn.addEventListener('click', () => fbSetRating(rowEl, i));
-    rowEl.appendChild(btn);
-  }
+function fbBindRangeRow(input) {
+  // Show live numeric value next to the slider as the user drags.
+  const id = input.id;
+  const chip = document.querySelector(`.range-value[data-bound-for="${id}"]`);
+  if (!chip) return;
+  const sync = () => { chip.textContent = input.value; };
+  input.addEventListener('input', sync);
+  sync();
 }
-function fbSetRating(rowEl, value) {
-  rowEl.dataset.rating = String(value);
-  rowEl.querySelectorAll('button').forEach((b, idx) => {
-    b.dataset.on = (idx + 1) <= value ? 'true' : 'false';
-  });
-}
+
 function fbResetForm() {
-  document.querySelectorAll('#feedbackForm .star-row').forEach(r => fbSetRating(r, 0));
+  // Reset every range slider back to the neutral midpoint (3).
+  document.querySelectorAll('#feedbackForm input[type="range"]').forEach(r => {
+    r.value = '3';
+    r.dispatchEvent(new Event('input', { bubbles: true }));
+    r.dataset.touched = '';     // user hasn't intentionally rated yet
+  });
   const ta = document.getElementById('feedbackComments');
   if (ta) ta.value = '';
   const email = document.getElementById('feedbackEmail');
@@ -3845,18 +3839,22 @@ function fbResetForm() {
 }
 
 function fbOpen() {
-  // Build star widgets lazily the first time the modal is opened.
   const overlay = document.getElementById('feedbackOverlay');
   if (!overlay) return;
+  // First open of the modal: wire the value-chip + "user touched"
+  // tracking onto every slider. Once each.
   if (!overlay.dataset.built) {
-    document.querySelectorAll('#feedbackForm .star-row').forEach(fbBuildStarRow);
+    document.querySelectorAll('#feedbackForm input[type="range"]').forEach(input => {
+      fbBindRangeRow(input);
+      input.addEventListener('input', () => { input.dataset.touched = '1'; }, { once: true });
+    });
     overlay.dataset.built = '1';
   }
   fbResetForm();
   overlay.hidden = false;
   document.body.style.overflow = 'hidden';
-  // Focus the first star for keyboard users
-  overlay.querySelector('.star-row button')?.focus();
+  // Focus the first slider for keyboard users
+  overlay.querySelector('input[type="range"]')?.focus();
 }
 function fbClose() {
   const overlay = document.getElementById('feedbackOverlay');
@@ -3871,8 +3869,17 @@ async function fbSubmit(e) {
   const status = document.getElementById('feedbackStatus');
   const rows = document.querySelectorAll('#feedbackForm .feedback-row[data-q]');
 
+  // Payload from sliders — only include questions the user actually
+  // touched (the slider's `touched` flag flips true on the first
+  // `input` event). Untouched sliders sit at the default 3 and would
+  // otherwise pollute the averages with a fake "neutral" vote.
   const payload = {};
-  rows.forEach(r => { payload[r.dataset.q] = parseInt(r.querySelector('.star-row')?.dataset.rating || '0', 10) || 0; });
+  rows.forEach(r => {
+    const input = r.querySelector('input[type="range"]');
+    if (!input) return;
+    const val = parseInt(input.value, 10) || 0;
+    payload[r.dataset.q] = input.dataset.touched ? val : 0;
+  });
   payload.comments = (document.getElementById('feedbackComments')?.value || '').trim();
   const emailRaw = (document.getElementById('feedbackEmail')?.value || '').trim();
   if (emailRaw) {
@@ -3888,7 +3895,7 @@ async function fbSubmit(e) {
 
   const ratedAny = Object.entries(payload).some(([k, v]) => typeof v === 'number' && v > 0);
   if (!ratedAny && !payload.comments) {
-    status.textContent = 'Please rate at least one question, or leave a comment.';
+    status.textContent = 'Please move at least one slider, or leave a comment.';
     status.className = 'feedback-status is-error';
     return;
   }
