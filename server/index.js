@@ -4268,10 +4268,54 @@ app.get('/api/img', async (req, res) => {
 
 // ══════════════════════════════════════════════════════════════════
 //  SPA FALLBACK
-// ══════════════════════════════════════════════════════════════════
+//  Search Console was reporting ~52 "Duplicate without user-selected
+//  canonical" + 290 "Crawled - currently not indexed" entries because
+//  the SPA's catch-all was serving 200 OK + the same body for any URL
+//  Google crawled, even bogus ones. Google saw lots of unique URLs
+//  with identical body content — the textbook duplicate-content
+//  scenario — and either rolled them up under the home canonical or
+//  declined to index any of them.
+//
+//  Fix: only serve 200 for paths the SPA actually owns (and for product
+//  / category routes only when the underlying item exists). Everything
+//  else gets a real 404 so Google removes it from the crawl set.
+//
+//  Update this regex whenever a new top-level SPA route is added.
+const SPA_ROUTE_RE = /^\/(?:|index\.html|category(?:\/.*)?|search(?:\/.*)?|product\/[^/]+|p\/[^/]+|cart|checkout|wishlist|orders|order\/[^/]+|returns|account|profile|login|register|track(?:\/.*)?|faq|legal|privacy|about|admin(?:\/.*)?)\/?$/i;
+
+function spaRouteExists(req) {
+  const pathname = req.path || '/';
+  if (pathname === '/' || pathname === '/index.html') return true;
+  if (!SPA_ROUTE_RE.test(pathname)) return false;
+
+  // For product pages, additionally check that the product is in the
+  // catalogue. /product/this-is-not-a-real-id should 404.
+  const productMatch = pathname.match(/^\/product\/([^/?#]+)/i);
+  if (productMatch) {
+    const pid = safeDecodeUrlPart(productMatch[1]);
+    const product = catalog.getProductById ? catalog.getProductById(pid) : null;
+    if (!product || isBlocked(pid)) return false;
+  }
+
+  // For category pages, additionally check that the category id is in
+  // the tree. /category/bogus-id should 404 too.
+  const categoryMatch = pathname.match(/^\/category\/([^/?#]+)/i);
+  if (categoryMatch) {
+    const id = safeDecodeUrlPart(categoryMatch[1]);
+    if (id && typeof categoryNameForId === 'function' && !categoryNameForId(id)) return false;
+  }
+
+  return true;
+}
+
 app.get('*', (req, res) => {
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', 'no-cache');
+  const valid = spaRouteExists(req);
+  if (!valid) {
+    res.status(404);
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+  }
   res.send(renderSeoHtml(req));
 });
 
