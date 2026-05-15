@@ -98,6 +98,27 @@ export default function App() {
   const injectedJavaScript = useMemo(() => `
     window.__GLOBAL_SHOPPER_APP__ = true;
     document.documentElement.classList.add('global-shopper-native-app');
+    (function lockViewport() {
+      var content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover';
+      function apply() {
+        var meta = document.querySelector('meta[name="viewport"]');
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.setAttribute('name', 'viewport');
+          (document.head || document.documentElement).appendChild(meta);
+        }
+        if (meta.getAttribute('content') !== content) meta.setAttribute('content', content);
+      }
+      apply();
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', apply);
+      }
+      try {
+        var observer = new MutationObserver(apply);
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      } catch (e) {}
+      document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+    })();
     true;
   `, []);
 
@@ -207,6 +228,10 @@ export default function App() {
             domStorageEnabled
             allowsBackForwardNavigationGestures
             mediaPlaybackRequiresUserAction={false}
+            scalesPageToFit={false}
+            setBuiltInZoomControls={false}
+            setDisplayZoomControls={false}
+            minimumFontSize={0}
             injectedJavaScriptBeforeContentLoaded={injectedJavaScript}
             pullToRefreshEnabled
             onNavigationStateChange={handleNavChange}
