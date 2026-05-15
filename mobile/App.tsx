@@ -100,6 +100,7 @@ export default function App() {
     document.documentElement.classList.add('global-shopper-native-app');
     (function lockViewport() {
       var content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover';
+      var styleId = 'global-shopper-native-viewport-lock';
       function apply() {
         var meta = document.querySelector('meta[name="viewport"]');
         if (!meta) {
@@ -108,6 +109,16 @@ export default function App() {
           (document.head || document.documentElement).appendChild(meta);
         }
         if (meta.getAttribute('content') !== content) meta.setAttribute('content', content);
+        var style = document.getElementById(styleId);
+        if (!style) {
+          style = document.createElement('style');
+          style.id = styleId;
+          style.textContent = 'html.global-shopper-native-app, html.global-shopper-native-app body { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }';
+          (document.head || document.documentElement).appendChild(style);
+        }
+      }
+      function preventZoomGesture(event) {
+        if (event.touches && event.touches.length > 1) event.preventDefault();
       }
       apply();
       if (document.readyState === 'loading') {
@@ -117,7 +128,11 @@ export default function App() {
         var observer = new MutationObserver(apply);
         observer.observe(document.documentElement, { childList: true, subtree: true });
       } catch (e) {}
+      document.addEventListener('touchstart', preventZoomGesture, { passive: false });
+      document.addEventListener('touchmove', preventZoomGesture, { passive: false });
       document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+      document.addEventListener('gesturechange', function (e) { e.preventDefault(); }, { passive: false });
+      document.addEventListener('gestureend', function (e) { e.preventDefault(); }, { passive: false });
     })();
     true;
   `, []);
@@ -231,7 +246,9 @@ export default function App() {
             scalesPageToFit={false}
             setBuiltInZoomControls={false}
             setDisplayZoomControls={false}
+            textZoom={100}
             minimumFontSize={0}
+            injectedJavaScript={injectedJavaScript}
             injectedJavaScriptBeforeContentLoaded={injectedJavaScript}
             pullToRefreshEnabled
             onNavigationStateChange={handleNavChange}
