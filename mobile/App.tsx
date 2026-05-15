@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   BackHandler,
+  GestureResponderEvent,
   Platform,
   StatusBar as NativeStatusBar,
   StyleSheet,
@@ -57,6 +58,10 @@ function isGlobalShopperUrl(url: string) {
   } catch {
     return false;
   }
+}
+
+function hasMultipleTouches(event: GestureResponderEvent) {
+  return (event.nativeEvent.touches?.length || 0) > 1;
 }
 
 async function registerForPushNotificationsAsync() {
@@ -231,7 +236,11 @@ export default function App() {
     <SafeAreaProvider>
       <NativeStatusBar backgroundColor="#0B5FFF" barStyle="light-content" translucent={false} />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <View style={styles.webViewWrap}>
+        <View
+          style={styles.webViewWrap}
+          onStartShouldSetResponderCapture={hasMultipleTouches}
+          onMoveShouldSetResponderCapture={hasMultipleTouches}
+        >
           <WebView
             ref={webViewRef}
             source={{ uri: currentUrl }}
