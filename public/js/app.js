@@ -1430,7 +1430,7 @@ if (headerSearchInput) {
 // Top-level CJ categories get a real product photo. Match by ALL keywords
 // being present (case-insensitive substring) — first rule wins, so list
 // the more-specific rules above the catch-alls.
-const CATEGORY_IMAGE_VERSION = '20260510a';
+const CATEGORY_IMAGE_VERSION = '20260515-sports-auto';
 const CAT_IMAGE_RULES = [
   [['men', 'bag'],              '/img/subcat-bags-men-bags.png', ['bag']],
   [['men', 'backpack'],         '/img/subcat-bags-men-bags.png', ['bag']],
@@ -1587,6 +1587,60 @@ const CAT_IMAGE_RULES = [
   [['women', 'wedding'],            '/img/subcat-women-weddings-events.png'],
   [['women', 'event'],              '/img/subcat-women-weddings-events.png'],
   [['women', 'accessor'],           '/img/subcat-women-accessories.png'],
+
+  // ── Sports & Outdoors subcategories (parent must mention "sport" or
+  //    "outdoor"; ordered most-specific first so generic ['outdoor']
+  //    on the women's / pet rows doesn't accidentally win). ──
+  [['fishing'],                     '/img/subcat-sports-fishing.png',     ['sport']],
+  [['fish', 'tackle'],              '/img/subcat-sports-fishing.png',     ['sport']],
+  [['swim'],                        '/img/subcat-sports-swimming.png',    ['sport']],
+  [['water', 'sport'],              '/img/subcat-sports-swimming.png',    ['sport']],
+  [['cycling'],                     '/img/subcat-sports-cycling.png',     ['sport']],
+  [['cycle'],                       '/img/subcat-sports-cycling.png',     ['sport']],
+  [['bicycle'],                     '/img/subcat-sports-cycling.png',     ['sport']],
+  [['fitness'],                     '/img/subcat-sports-fitness.png',     ['sport']],
+  [['gym'],                         '/img/subcat-sports-fitness.png',     ['sport']],
+  [['body', 'building'],            '/img/subcat-sports-fitness.png',     ['sport']],
+  [['yoga'],                        '/img/subcat-sports-fitness.png',     ['sport']],
+  [['weight'],                      '/img/subcat-sports-fitness.png',     ['sport']],
+  [['sportswear'],                  '/img/subcat-sports-sportswear.png',  ['sport']],
+  [['sport', 'cloth'],              '/img/subcat-sports-sportswear.png',  ['sport']],
+  [['athletic', 'wear'],            '/img/subcat-sports-sportswear.png',  ['sport']],
+  [['activewear'],                  '/img/subcat-sports-sportswear.png',  ['sport']],
+  [['athletic', 'shoe'],            '/img/subcat-sports-shoes.png',       ['sport']],
+  [['sport', 'shoe'],               '/img/subcat-sports-shoes.png',       ['sport']],
+  [['running', 'shoe'],             '/img/subcat-sports-shoes.png',       ['sport']],
+  [['sport', 'footwear'],           '/img/subcat-sports-shoes.png',       ['sport']],
+
+  // ── Automobiles & Motorcycles subcategories (parent must mention
+  //    "auto" or "motor"). Motorcycle row first so it wins when the
+  //    sub itself mentions "motorcycle". ──
+  [['motorcycle'],                  '/img/subcat-auto-motorcycle.png',         ['auto']],
+  [['motorbike'],                   '/img/subcat-auto-motorcycle.png',         ['auto']],
+  [['motorcycle', 'part'],          '/img/subcat-auto-motorcycle.png',         ['auto']],
+  [['auto', 'electronic'],          '/img/subcat-auto-electronics.png',        ['auto']],
+  [['car', 'electronic'],           '/img/subcat-auto-electronics.png',        ['auto']],
+  [['car', 'audio'],                '/img/subcat-auto-electronics.png',        ['auto']],
+  [['car', 'video'],                '/img/subcat-auto-electronics.png',        ['auto']],
+  [['dash', 'cam'],                 '/img/subcat-auto-electronics.png',        ['auto']],
+  [['tool'],                        '/img/subcat-auto-tools.png',              ['auto']],
+  [['repair'],                      '/img/subcat-auto-tools.png',              ['auto']],
+  [['wash'],                        '/img/subcat-auto-tools.png',              ['auto']],
+  [['maintenance'],                 '/img/subcat-auto-tools.png',              ['auto']],
+  [['interior'],                    '/img/subcat-auto-interior.png',           ['auto']],
+  [['floor', 'mat'],                '/img/subcat-auto-interior.png',           ['auto']],
+  [['mat'],                         '/img/subcat-auto-interior.png',           ['auto']],
+  [['part'],                        '/img/subcat-auto-parts.png',              ['auto']],
+  [['brake'],                       '/img/subcat-auto-parts.png',              ['auto']],
+  [['engine'],                      '/img/subcat-auto-parts.png',              ['auto']],
+  [['battery'],                     '/img/subcat-auto-parts.png',              ['auto']],
+  [['tire'],                        '/img/subcat-auto-parts.png',              ['auto']],
+  [['wheel'],                       '/img/subcat-auto-parts.png',              ['auto']],
+  [['exterior'],                    '/img/subcat-auto-parts.png',              ['auto']],
+  [['accessor'],                    '/img/subcat-auto-car-accessories.png',    ['auto']],
+  [['travel', 'roadway'],           '/img/subcat-auto-car-accessories.png',   ['auto']],
+  [['car'],                         '/img/subcat-auto-car-accessories.png',   ['auto']],
+
   [['home', 'improvement'],     '/img/cat-home-improvement.png'],
   [['audio'],                   '/img/cat-electronics.png'],
   [['gadget'],                  '/img/cat-electronics.png'],
