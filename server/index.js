@@ -1391,17 +1391,37 @@ function getRouteSeo(req) {
     const name = productNameForSeo(product);
     const canonical = absoluteUrl(`/product/${encodeUrlPart(pid)}`);
     const image = productImageForSeo(product);
-    const description = truncateText(`Buy ${name} online in India with shipping included. Curated global products delivered in 10-15 days.`);
+    const sku = product.productSku || product.sku || pid;
+    const category = (product.categoryName || product.threeCategoryName || '').trim();
+    const weight = product.productWeight || product.weight || '';
     const priceInr = productPriceInrForSeo(product);
+
+    // Per-product, keyword-varied meta description so Google doesn't see
+    // all 290 product pages as near-duplicates of each other (previously
+    // every product had "Buy X online in India with shipping included.
+    // Curated global products delivered in 10-15 days." — the same 18
+    // words trailing a different name. Variant inclusion of SKU, the
+    // category, and the price gives each page enough distinct content
+    // for Google to index it as a standalone entity.)
+    const descBits = [
+      `Buy ${name}${category ? ` (${category})` : ''} online in India at Global Shopper.`,
+      priceInr ? `Priced at Rs ${priceInr}, shipping included to your doorstep in 10-15 days.` : 'Shipping included to your doorstep in 10-15 days.',
+      sku && sku !== pid ? `SKU ${sku}.` : '',
+      'Hand-picked global pick — authentic, tracked end-to-end, secure Razorpay checkout.',
+    ].filter(Boolean).join(' ');
+    const description = truncateText(descBits);
+
     const productSchema = {
       '@context': 'https://schema.org',
       '@type': 'Product',
       name,
       image: [image],
       description,
-      sku: product.productSku || product.sku || pid,
+      sku,
       brand: { '@type': 'Brand', name: SITE_NAME },
       url: canonical,
+      category: category || undefined,
+      weight: weight ? { '@type': 'QuantitativeValue', value: String(weight), unitCode: 'GRM' } : undefined,
     };
     if (priceInr) {
       productSchema.offers = {
@@ -1410,10 +1430,34 @@ function getRouteSeo(req) {
         price: String(priceInr),
         availability: 'https://schema.org/InStock',
         url: canonical,
+        seller: { '@type': 'Organization', name: SITE_NAME },
+        shippingDetails: {
+          '@type': 'OfferShippingDetails',
+          shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'IN' },
+          deliveryTime: {
+            '@type': 'ShippingDeliveryTime',
+            handlingTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 2, unitCode: 'DAY' },
+            transitTime:  { '@type': 'QuantitativeValue', minValue: 8, maxValue: 14, unitCode: 'DAY' },
+          },
+        },
       };
     }
+
+    // Beef up the noscript fallback so crawlers without JS see real
+    // body content (name + category + price + key selling points)
+    // instead of just the meta description echoed back.
+    const fallbackHtml = [
+      `<h1>${htmlEscape(name)}</h1>`,
+      category ? `<p><strong>Category:</strong> ${htmlEscape(category)}</p>` : '',
+      priceInr ? `<p><strong>Price:</strong> Rs ${priceInr} (shipping included)</p>` : '',
+      sku && sku !== pid ? `<p><strong>SKU:</strong> ${htmlEscape(sku)}</p>` : '',
+      weight ? `<p><strong>Weight:</strong> ${htmlEscape(String(weight))} g</p>` : '',
+      `<p>${htmlEscape(description)}</p>`,
+      `<p>Delivery to India in 10-15 days. Shipping is always included in the listed price. Secure Razorpay-backed payments and end-to-end tracking on every order.</p>`,
+    ].filter(Boolean).join('\n    ');
+
     return {
-      title: truncateText(`${name} | Global Shopper`, 65),
+      title: truncateText(`${name} - Buy Online in India | Global Shopper`, 65),
       description,
       canonical,
       image,
@@ -1423,16 +1467,19 @@ function getRouteSeo(req) {
         heading: name,
         description,
         image,
+        bodyHtml: fallbackHtml,
         links: [
           { href: canonical, label: 'View product' },
+          { href: category ? `${SITE_URL}/search?q=${encodeURIComponent(category)}` : SITE_URL, label: category ? `More in ${category}` : 'Continue shopping' },
           { href: SITE_URL, label: 'Continue shopping' },
         ],
       },
       schemas: [
         breadcrumbSchema([
           { name: 'Home', url: SITE_URL },
+          category ? { name: category, url: `${SITE_URL}/search?q=${encodeURIComponent(category)}` } : null,
           { name, url: canonical },
-        ]),
+        ].filter(Boolean)),
         productSchema,
       ],
     };
@@ -1605,11 +1652,19 @@ function buildSeoFallback(seo) {
     .map(link => `<a href="${htmlEscape(link.href)}" style="display:inline-block;margin:8px 12px 0 0;color:#0f172a;font-weight:700;">${htmlEscape(link.label)}</a>`)
     .join('');
 
+  // bodyHtml is opt-in rich-content for routes that want substantive
+  // crawler-visible content (product pages get name + category + price
+  // + key selling points). Falls back to the simple heading + description
+  // shape if not provided. The bodyHtml is HTML-string-escaped by the
+  // caller before reaching here — only the page builder generates it.
+  const bodyHtml = fallback.bodyHtml ? `    ${fallback.bodyHtml}` : '';
+
   return [
     '<noscript>',
     '  <main style="max-width:1120px;margin:32px auto;padding:0 20px;font-family:Arial,sans-serif;color:#111827;line-height:1.55;">',
-    `    <h1 style="font-size:32px;line-height:1.15;margin:0 0 12px;">${htmlEscape(fallback.heading || seo.title || SITE_NAME)}</h1>`,
-    `    <p style="max-width:720px;font-size:17px;color:#4b5563;margin:0 0 8px;">${htmlEscape(fallback.description || seo.description || DEFAULT_META_DESCRIPTION)}</p>`,
+    bodyHtml
+      ? bodyHtml
+      : `    <h1 style="font-size:32px;line-height:1.15;margin:0 0 12px;">${htmlEscape(fallback.heading || seo.title || SITE_NAME)}</h1>\n    <p style="max-width:720px;font-size:17px;color:#4b5563;margin:0 0 8px;">${htmlEscape(fallback.description || seo.description || DEFAULT_META_DESCRIPTION)}</p>`,
     image ? `    ${image}` : '',
     links ? `    <p style="margin:8px 0 0;">${links}</p>` : '',
     '  </main>',
