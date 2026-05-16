@@ -947,13 +947,19 @@ async function loadAdminCatalogStatus() {
 async function adminStartCatalogSync() {
   const syncBtn = document.getElementById('adminCatalogSyncBtn');
   if (!syncBtn || syncBtn.disabled) return;
-  if (!confirm('Start a catalog sync now? Runs in the background (~10–20 min) and pulls fresh CJ pages into the local SQLite catalog. Will force-run even if CATALOG_SYNC_DISABLED is on.')) return;
+  if (!confirm('Start a CONTINUOUS catalog sync? It will keep crawling CJ pages (~3,000 calls/hour) until you click Stop sync, or the entire catalog is up-to-date. Bypasses CATALOG_SYNC_DISABLED for this operator-initiated run.')) return;
   syncBtn.disabled = true;
   syncBtn.textContent = 'Starting…';
   try {
-    // force:true bypasses the CATALOG_SYNC_DISABLED kill-switch for this
-    // one-off operator-initiated run. The env still blocks auto-syncs.
-    const r = await adminPost('/api/admin/catalog/sync', { force: true });
+    // force:true bypasses the CATALOG_SYNC_DISABLED kill-switch.
+    // targetProducts / maxCalls set to effectively unlimited so the
+    // sync only ends when the operator hits Stop sync, or when every
+    // category rotation comes back dry (catalog fully fresh).
+    const r = await adminPost('/api/admin/catalog/sync', {
+      force: true,
+      targetProducts: 100000000,
+      maxCalls: 100000000,
+    });
     if (r && r.started === false) {
       const why = r.disabled ? 'still blocked by server' : (r.job?.running ? 'already running' : 'unknown');
       alert(`Sync did not start (${why}). Status: ${JSON.stringify(r).slice(0, 200)}`);
