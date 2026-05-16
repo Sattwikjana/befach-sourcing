@@ -900,15 +900,59 @@ function startSync(cj, opts = {}) {
   // routine drift stays off, ad-hoc operator catch-ups still possible.
   if (syncDisabled() && !opts.force) return { started: false, disabled: true, job: { ...syncJob } };
   if (syncJob.running) return { started: false, job: { ...syncJob } };
+  // Persist operator intent — if the server restarts (Render free tier
+  // recycles services), tryResumeContinuousSync() on boot will see this
+  // flag and re-kick the run automatically. Cleared by stopSync().
+  if (opts.continuous || isContinuousByLimits(opts)) {
+    setState('continuousSyncWanted', '1');
+    setState('continuousSyncOpts', JSON.stringify({
+      targetProducts: opts.targetProducts,
+      maxCalls: opts.maxCalls,
+      pageSize: opts.pageSize,
+      minDelayMs: opts.minDelayMs,
+      force: opts.force,
+    }));
+  }
   runCatalogSync(cj, opts).catch(err => {
     console.error('[catalog] sync failed:', err.message);
   });
-  return { started: true, forced: !!(syncDisabled() && opts.force), job: { ...syncJob } };
+  return { started: true, forced: !!(syncDisabled() && opts.force), continuous: getState('continuousSyncWanted', '0') === '1', job: { ...syncJob } };
 }
 
 function stopSync() {
+  // Clearing the continuous flag is what makes Stop sticky across a
+  // server restart — otherwise the next boot would re-kick the sync.
+  setState('continuousSyncWanted', '0');
   if (syncJob.running) syncJob.stopRequested = true;
   return { job: { ...syncJob } };
+}
+
+// Heuristic: limits in the millions = operator wants it to keep going.
+// Matches what the admin Sync now button posts (1e8 / 1e8).
+function isContinuousByLimits(opts) {
+  const target = parseInt(opts.targetProducts || 0, 10);
+  const calls = parseInt(opts.maxCalls || 0, 10);
+  return target >= 1000000 || calls >= 100000;
+}
+
+// Called once on server boot. If the operator's last action was "start
+// continuous sync" and the server restarted (Render free tier recycles
+// every ~30 min idle, plus deploys), automatically re-kick the sync so
+// it picks up where it left off.
+function tryResumeContinuousSync(cj) {
+  if (!isEnabled()) return { resumed: false, reason: 'catalog disabled' };
+  if (getState('continuousSyncWanted', '0') !== '1') return { resumed: false, reason: 'not wanted' };
+  if (syncJob.running) return { resumed: false, reason: 'already running' };
+  let opts = {};
+  try { opts = JSON.parse(getState('continuousSyncOpts', '{}') || '{}'); } catch {}
+  // Re-kick on the next tick so server boot finishes first.
+  setTimeout(() => {
+    console.log('[catalog] auto-resuming continuous sync after server restart');
+    runCatalogSync(cj, opts).catch(err => {
+      console.error('[catalog] resumed sync failed:', err.message);
+    });
+  }, 5000);
+  return { resumed: true, opts };
 }
 
 module.exports = {
@@ -928,4 +972,5 @@ module.exports = {
   runCatalogSync,
   startSync,
   stopSync,
+  tryResumeContinuousSync,
 };

@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.48';
+const APP_VERSION = '8.49';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -4632,6 +4632,20 @@ app.listen(PORT, () => {
   console.log(`  Ship:      ${DEFAULT_SHIP_FROM} → ${DEFAULT_SHIP_TO}`);
   console.log(`  Admin pw:  ${process.env.ADMIN_PASSWORD ? 'set' : 'MISSING'}`);
   console.log('');
+
+  // If the operator left a continuous catalog sync running and Render
+  // (or any other restart) recycled the process, pick up where we left
+  // off. The flag lives in catalog_sync_state on disk, so it survives
+  // deploys, restarts, and crashes. Stop sync clears it.
+  try {
+    const resume = catalog.tryResumeContinuousSync(cj);
+    if (resume?.resumed) {
+      console.log('[catalog] continuous sync flag set on disk — auto-resuming in 5s');
+    }
+  } catch (err) {
+    console.warn('[catalog] resume check failed:', err.message);
+  }
+
   // Fire-and-forget so the server starts accepting requests immediately.
   // After the home page is hot, keep filling the cache with deeper pages
   // so first-click on any category returns warm shipping data faster.
