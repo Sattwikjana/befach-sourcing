@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.50';
+const APP_VERSION = '8.51';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -1807,6 +1807,37 @@ function productSitemapPathForPage(page) {
   }
   return filePath;
 }
+
+// Android App Links / Digital Asset Links.
+// Google fetches this file to verify that the Android app at
+// `in.globalshopper.app` is allowed to handle https://globalshopper.in/*
+// links directly (no browser intermediary, no "Open with" picker).
+//
+// SHA-256 cert fingerprints are loaded from the ANDROID_SHA256_FINGERPRINTS
+// env var (comma-separated for multiple — e.g. Play App Signing key
+// plus the upload key). Returns an empty array (still valid JSON) if
+// the env is missing so the route doesn't 404 — Google's UI shows
+// "domain not verified" but we don't break.
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  const raw = process.env.ANDROID_SHA256_FINGERPRINTS || '';
+  const fingerprints = raw
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const packageName = process.env.ANDROID_PACKAGE_NAME || 'in.globalshopper.app';
+  const payload = fingerprints.length ? [{
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: {
+      namespace: 'android_app',
+      package_name: packageName,
+      sha256_cert_fingerprints: fingerprints,
+    },
+  }] : [];
+  // Must be application/json and no caching issues — Google re-fetches
+  // periodically and a stale cache can lock you out for hours.
+  res.set('Cache-Control', 'public, max-age=300');
+  res.type('application/json').send(JSON.stringify(payload, null, 2));
+});
 
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain').send([
