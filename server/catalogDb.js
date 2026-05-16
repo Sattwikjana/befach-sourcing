@@ -823,8 +823,20 @@ async function runCatalogSync(cj, opts = {}) {
     upsertCategories(categoryData?.data || []);
     const leaves = prepared.leafCategories.all();
 
+    // Once a global page comes back empty, CJ's "global feed" iteration
+    // is exhausted from where our cursor is sitting (we're already 2,648+
+    // pages deep). Flip globalExhausted=true and let the rest of the
+    // budget run through categories — the leaf index has 1,000+ entries
+    // and almost always still has fresh pages. Previously a single empty
+    // global page broke the *entire* loop, which is why the May-16
+    // catch-up sync exited after just 3 calls instead of 600.
+    let globalExhausted = false;
+    let consecutiveEmptyCategoryRotations = 0;
+
     while (!syncJob.stopRequested && syncJob.calls < maxCalls && syncJob.seen < targetProducts) {
-      const useCategory = leaves.length && (syncJob.calls % 3 !== 2);
+      // Prefer categories when global is exhausted. Otherwise keep the
+      // 2-categories-per-1-global rhythm (calls % 3 !== 2).
+      const useCategory = leaves.length && (globalExhausted || syncJob.calls % 3 !== 2);
       syncJob.phase = useCategory ? 'category-pages' : 'global-pages';
       let result;
       try {
@@ -847,7 +859,24 @@ async function runCatalogSync(cj, opts = {}) {
       syncJob.seen += result.products.length;
       syncJob.upserted += result.upserted;
       setState('lastSyncAt', new Date().toISOString());
-      if (!result.products.length && !useCategory) break;
+
+      if (!result.products.length) {
+        if (useCategory) {
+          // One empty category page is normal — we already advance the
+          // cursor inside syncOneCategoryPage. Only break if the full
+          // leaf-rotation comes back dry, which means the whole catalog
+          // truly has nothing new.
+          consecutiveEmptyCategoryRotations += 1;
+          if (consecutiveEmptyCategoryRotations >= Math.max(leaves.length, 50)) break;
+        } else {
+          // Empty global page: don't break the loop. Just stop using
+          // global for the rest of this run and let categories carry it.
+          globalExhausted = true;
+        }
+      } else if (useCategory) {
+        consecutiveEmptyCategoryRotations = 0;
+      }
+
       if (syncJob.calls < maxCalls && syncJob.seen < targetProducts) await sleep(minDelayMs);
     }
 
