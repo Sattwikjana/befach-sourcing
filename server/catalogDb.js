@@ -801,8 +801,17 @@ async function runCatalogSync(cj, opts = {}) {
   }
   const targetProducts = Math.max(1, parseInt(opts.targetProducts || process.env.CATALOG_SYNC_TARGET || 50000, 10));
   const maxCalls = Math.max(1, parseInt(opts.maxCalls || process.env.CATALOG_SYNC_MAX_CALLS || 600, 10));
-  const pageSize = Math.max(20, Math.min(parseInt(opts.pageSize || process.env.CATALOG_SYNC_PAGE_SIZE || 200, 10), 200));
-  const minDelayMs = Math.max(0, parseInt(opts.minDelayMs || process.env.CATALOG_SYNC_MIN_DELAY_MS || 1200, 10));
+  // Smaller page size when running continuously — halves the per-call
+  // JSON memory footprint, which matters on Render free tier (512 MB).
+  const isContinuous = targetProducts >= 1000000 || maxCalls >= 100000;
+  const defaultPageSize = isContinuous ? 100 : 200;
+  const pageSize = Math.max(20, Math.min(parseInt(opts.pageSize || process.env.CATALOG_SYNC_PAGE_SIZE || defaultPageSize, 10), 200));
+  // Continuous mode runs 24/7 on a shared free-tier server, so default
+  // pacing is much gentler (6s/call → ~10 calls/min → ~14K calls/day).
+  // That's enough to refresh the whole catalog daily without crushing
+  // the web service. One-off bursts still default to 1.2s.
+  const defaultDelay = isContinuous ? 6000 : 1200;
+  const minDelayMs = Math.max(0, parseInt(opts.minDelayMs || process.env.CATALOG_SYNC_MIN_DELAY_MS || defaultDelay, 10));
 
   syncJob = {
     running: true,
@@ -939,20 +948,41 @@ function isContinuousByLimits(opts) {
 // continuous sync" and the server restarted (Render free tier recycles
 // every ~30 min idle, plus deploys), automatically re-kick the sync so
 // it picks up where it left off.
+//
+// Anti-thrash guard: if the previous run ended within the last 90 sec,
+// the restart was likely a CRASH (Render health-check timeout / OOM),
+// not a clean operator action. Auto-resuming in that case starts a
+// death loop. We refuse to auto-resume in that window and the operator
+// must explicitly re-fire from /admin → Sync now.
 function tryResumeContinuousSync(cj) {
   if (!isEnabled()) return { resumed: false, reason: 'catalog disabled' };
   if (getState('continuousSyncWanted', '0') !== '1') return { resumed: false, reason: 'not wanted' };
   if (syncJob.running) return { resumed: false, reason: 'already running' };
+
+  const lastSyncAt = getState('lastSyncAt', null);
+  if (lastSyncAt) {
+    const sinceLast = Date.now() - new Date(lastSyncAt).getTime();
+    const THRASH_WINDOW_MS = 90 * 1000;
+    if (sinceLast >= 0 && sinceLast < THRASH_WINDOW_MS) {
+      // Suspected crash loop. Clear the flag so the next boot doesn't
+      // try again either — operator must explicitly restart from UI.
+      console.warn(`[catalog] last sync ended ${Math.round(sinceLast/1000)}s ago — refusing to auto-resume (anti-thrash). Operator must restart from /admin.`);
+      setState('continuousSyncWanted', '0');
+      return { resumed: false, reason: 'anti-thrash', sinceLastSec: Math.round(sinceLast/1000) };
+    }
+  }
+
   let opts = {};
   try { opts = JSON.parse(getState('continuousSyncOpts', '{}') || '{}'); } catch {}
-  // Re-kick on the next tick so server boot finishes first.
+  // Re-kick after a generous boot delay so the web service is fully
+  // warm before we add catalog load.
   setTimeout(() => {
     console.log('[catalog] auto-resuming continuous sync after server restart');
     runCatalogSync(cj, opts).catch(err => {
       console.error('[catalog] resumed sync failed:', err.message);
     });
-  }, 5000);
-  return { resumed: true, opts };
+  }, 30000);
+  return { resumed: true, opts, delayMs: 30000 };
 }
 
 module.exports = {
