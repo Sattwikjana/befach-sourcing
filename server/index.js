@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.57';
+const APP_VERSION = '8.58';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -66,7 +66,7 @@ if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.57'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.58'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -4663,7 +4663,18 @@ app.listen(PORT, () => {
   // Fire-and-forget so the server starts accepting requests immediately.
   // After the home page is hot, keep filling the cache with deeper pages
   // so first-click on any category returns warm shipping data faster.
-  if (process.env.PREWARM_ENABLED !== 'false') {
+  //
+  // v8.58: Default is now OPT-IN. The env-var check flipped: prewarm
+  // only runs if PREWARM_ENABLED is EXPLICITLY 'true'. Previously it
+  // ran by default and only stopped when set to 'false', which
+  // accidentally re-enabled it whenever the env var was missing from
+  // the Render dashboard — and that prewarm flow was causing the
+  // instance-restart loop reported in v8.43-v8.57 production.
+  //
+  // Loud banner logs so it's obvious in the deploy log which branch
+  // ran.
+  const prewarmExplicitlyOn = process.env.PREWARM_ENABLED === 'true';
+  if (prewarmExplicitlyOn) {
     const extendedWarmPages = Math.max(0, parseInt(process.env.WARM_EXTENDED_CATALOG_PAGES || '0', 10));
     const prewarmDelayMs = Math.max(0, parseInt(process.env.PREWARM_DELAY_MS || '60000', 10));
     setTimeout(() => {
@@ -4672,11 +4683,14 @@ app.listen(PORT, () => {
           if (extendedWarmPages > 0) return warmExtendedCatalog(extendedWarmPages);
           return null;
         })
-        .catch(() => {});
+        .catch((err) => {
+          // Don't let a prewarm failure crash the whole service.
+          console.warn('[prewarm] failed (non-fatal):', err && err.message);
+        });
     }, prewarmDelayMs);
-    console.log(`[prewarm] scheduled in ${prewarmDelayMs}ms`);
+    console.log(`[prewarm] ⚠ ENABLED (explicit opt-in) — running in ${prewarmDelayMs}ms`);
   } else {
-    console.log('[prewarm] disabled');
+    console.log('[prewarm] ✓ DISABLED (default in v8.58+). Set PREWARM_ENABLED=true to re-enable.');
   }
   scheduleCatalogSync();
 });
