@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.56';
+const APP_VERSION = '8.57';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -49,6 +49,29 @@ if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
 } else {
   console.warn('[Razorpay] keys not set — payment endpoints will return 503 until they are.');
 }
+
+// ── Early-priority health check ──
+// Render polls /api/live every few seconds with a 5-second timeout.
+// We register this route BEFORE any middleware so the health check
+// bypasses helmet, compression, cors, cookieParser, body parsing,
+// auth, and the trailing-slash redirect. Total time spent in the
+// Node event loop on a /api/live request is then under 1ms even
+// when other routes are doing heavy SQLite reads, JSON parsing
+// of large bodies, etc.
+//
+// If Render's health check still fails, it's because Node itself
+// is unresponsive (true event-loop block, OOM, crash) — NOT because
+// some middleware is slow. That distinction matters when debugging.
+//
+// Payload includes status + version so our deploy-polling tooling
+// can still verify which build is live. Pre-computed once (version
+// is a const) so the GET handler does zero JSON work per request.
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.57'}"}`;
+app.get('/api/live', (req, res) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.end(__HEALTH_PAYLOAD);
+});
 
 // ── Production-grade middleware ──
 // Security headers (CSP relaxed because the SPA inlines handlers)
@@ -708,13 +731,9 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
-app.get('/api/live', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    version: APP_VERSION,
-  });
-});
+// /api/live is now registered earlier in the file (before any
+// middleware) for fastest possible health-check response. Keeping
+// a placeholder here so future searches find the new location.
 
 let mobilePushTokens = [];
 try {
