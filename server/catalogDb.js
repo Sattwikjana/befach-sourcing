@@ -909,23 +909,16 @@ function startSync(cj, opts = {}) {
   // routine drift stays off, ad-hoc operator catch-ups still possible.
   if (syncDisabled() && !opts.force) return { started: false, disabled: true, job: { ...syncJob } };
   if (syncJob.running) return { started: false, job: { ...syncJob } };
-  // Persist operator intent — if the server restarts (Render free tier
-  // recycles services), tryResumeContinuousSync() on boot will see this
-  // flag and re-kick the run automatically. Cleared by stopSync().
-  if (opts.continuous || isContinuousByLimits(opts)) {
-    setState('continuousSyncWanted', '1');
-    setState('continuousSyncOpts', JSON.stringify({
-      targetProducts: opts.targetProducts,
-      maxCalls: opts.maxCalls,
-      pageSize: opts.pageSize,
-      minDelayMs: opts.minDelayMs,
-      force: opts.force,
-    }));
-  }
+  // v8.49 used to persist a "continuousSyncWanted" flag here so the
+  // sync would auto-resume after a Render restart. v8.54 removed that
+  // because the free-tier instance can't sustain the load — auto-resume
+  // turned every restart into the start of a thrash loop. The sync now
+  // only runs for the duration of the current process. If the operator
+  // wants it back after a restart, they re-click /admin → Sync now.
   runCatalogSync(cj, opts).catch(err => {
     console.error('[catalog] sync failed:', err.message);
   });
-  return { started: true, forced: !!(syncDisabled() && opts.force), continuous: getState('continuousSyncWanted', '0') === '1', job: { ...syncJob } };
+  return { started: true, forced: !!(syncDisabled() && opts.force), continuous: false, job: { ...syncJob } };
 }
 
 function stopSync() {
@@ -944,45 +937,35 @@ function isContinuousByLimits(opts) {
   return target >= 1000000 || calls >= 100000;
 }
 
-// Called once on server boot. If the operator's last action was "start
-// continuous sync" and the server restarted (Render free tier recycles
-// every ~30 min idle, plus deploys), automatically re-kick the sync so
-// it picks up where it left off.
+// Called once on server boot.
 //
-// Anti-thrash guard: if the previous run ended within the last 90 sec,
-// the restart was likely a CRASH (Render health-check timeout / OOM),
-// not a clean operator action. Auto-resuming in that case starts a
-// death loop. We refuse to auto-resume in that window and the operator
-// must explicitly re-fire from /admin → Sync now.
+// History:
+//   v8.49 — Introduced this to auto-resume continuous sync after Render
+//           restarts the service (free tier recycles every ~30 min idle).
+//   v8.50 — Added 90s anti-thrash + 30s boot delay + gentler 6s pacing.
+//   v8.54 — DISABLED. Even with all the safeguards, the sync was
+//           overloading the 512 MB free tier in real-world traffic, causing
+//           5s health-check timeouts → Render kills the instance → boot
+//           auto-resumes the sync → repeat. The 90s anti-thrash didn't
+//           fire because `lastSyncAt` updates throughout the run, so by
+//           the time the server actually died, the last-sync timestamp
+//           was still "fresh."
+//
+// New behavior: clear the continuousSyncWanted flag on every boot and do
+// NOT auto-resume. The operator still uses /admin → Sync now for ad-hoc
+// runs, but those runs end when the server next restarts. If the operator
+// wants to keep syncing after a restart, they re-click Sync now manually.
+// This trades a bit of inconvenience for full stability of the web service.
 function tryResumeContinuousSync(cj) {
   if (!isEnabled()) return { resumed: false, reason: 'catalog disabled' };
-  if (getState('continuousSyncWanted', '0') !== '1') return { resumed: false, reason: 'not wanted' };
-  if (syncJob.running) return { resumed: false, reason: 'already running' };
-
-  const lastSyncAt = getState('lastSyncAt', null);
-  if (lastSyncAt) {
-    const sinceLast = Date.now() - new Date(lastSyncAt).getTime();
-    const THRASH_WINDOW_MS = 90 * 1000;
-    if (sinceLast >= 0 && sinceLast < THRASH_WINDOW_MS) {
-      // Suspected crash loop. Clear the flag so the next boot doesn't
-      // try again either — operator must explicitly restart from UI.
-      console.warn(`[catalog] last sync ended ${Math.round(sinceLast/1000)}s ago — refusing to auto-resume (anti-thrash). Operator must restart from /admin.`);
-      setState('continuousSyncWanted', '0');
-      return { resumed: false, reason: 'anti-thrash', sinceLastSec: Math.round(sinceLast/1000) };
-    }
+  // Always clear the persisted "want continuous" flag so old state from
+  // pre-v8.54 deploys doesn't keep triggering auto-resume on subsequent
+  // boots.
+  if (getState('continuousSyncWanted', '0') === '1') {
+    setState('continuousSyncWanted', '0');
+    console.warn('[catalog] cleared stale continuousSyncWanted flag (auto-resume disabled in v8.54)');
   }
-
-  let opts = {};
-  try { opts = JSON.parse(getState('continuousSyncOpts', '{}') || '{}'); } catch {}
-  // Re-kick after a generous boot delay so the web service is fully
-  // warm before we add catalog load.
-  setTimeout(() => {
-    console.log('[catalog] auto-resuming continuous sync after server restart');
-    runCatalogSync(cj, opts).catch(err => {
-      console.error('[catalog] resumed sync failed:', err.message);
-    });
-  }, 30000);
-  return { resumed: true, opts, delayMs: 30000 };
+  return { resumed: false, reason: 'auto-resume disabled (v8.54+)' };
 }
 
 module.exports = {
