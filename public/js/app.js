@@ -3861,26 +3861,18 @@ async function checkVariantStock(vid) {
 // ══════════════════════════════════════════════════════════════
 //  FEEDBACK MODAL — floating button (home page only) → review form
 // ══════════════════════════════════════════════════════════════
-// Form now uses 1-5 range sliders for every rating question (the
-// older star-row widgets are gone). Reading the value is direct
-// input.value — no widget glue, no setup pass needed.
-
-function fbBindRangeRow(input) {
-  // Show live numeric value next to the slider as the user drags.
-  const id = input.id;
-  const chip = document.querySelector(`.range-value[data-bound-for="${id}"]`);
-  if (!chip) return;
-  const sync = () => { chip.textContent = input.value; };
-  input.addEventListener('input', sync);
-  sync();
-}
+// Form uses 1-5 radio button groups for every rating question.
+// Each question is a .feedback-row with data-q="<key>" and inside
+// it 5 <input type="radio" name="fb<Key>" value="1..5">. Reading
+// the rated value is just `form.elements[name].value` (or the
+// checked input). Untouched groups have no selection → omitted from
+// the payload, which keeps the admin averages clean.
 
 function fbResetForm() {
-  // Reset every range slider back to the neutral midpoint (3).
-  document.querySelectorAll('#feedbackForm input[type="range"]').forEach(r => {
-    r.value = '3';
-    r.dispatchEvent(new Event('input', { bubbles: true }));
-    r.dataset.touched = '';     // user hasn't intentionally rated yet
+  // Clear every radio in the form. Radios start unchecked — there's
+  // no fake "neutral" default like the old sliders had.
+  document.querySelectorAll('#feedbackForm input[type="radio"]').forEach(r => {
+    r.checked = false;
   });
   const ta = document.getElementById('feedbackComments');
   if (ta) ta.value = '';
@@ -3895,20 +3887,12 @@ function fbResetForm() {
 function fbOpen() {
   const overlay = document.getElementById('feedbackOverlay');
   if (!overlay) return;
-  // First open of the modal: wire the value-chip + "user touched"
-  // tracking onto every slider. Once each.
-  if (!overlay.dataset.built) {
-    document.querySelectorAll('#feedbackForm input[type="range"]').forEach(input => {
-      fbBindRangeRow(input);
-      input.addEventListener('input', () => { input.dataset.touched = '1'; }, { once: true });
-    });
-    overlay.dataset.built = '1';
-  }
   fbResetForm();
   overlay.hidden = false;
   document.body.style.overflow = 'hidden';
-  // Focus the first slider for keyboard users
-  overlay.querySelector('input[type="range"]')?.focus();
+  // Focus the first radio for keyboard users — they can then use
+  // arrow keys to pick a rating without reaching for the mouse.
+  overlay.querySelector('input[type="radio"]')?.focus();
 }
 function fbClose() {
   const overlay = document.getElementById('feedbackOverlay');
@@ -3923,16 +3907,14 @@ async function fbSubmit(e) {
   const status = document.getElementById('feedbackStatus');
   const rows = document.querySelectorAll('#feedbackForm .feedback-row[data-q]');
 
-  // Payload from sliders — only include questions the user actually
-  // touched (the slider's `touched` flag flips true on the first
-  // `input` event). Untouched sliders sit at the default 3 and would
-  // otherwise pollute the averages with a fake "neutral" vote.
+  // Payload from radio groups — find the checked radio in each row's
+  // group. Untouched groups have nothing checked → we record 0, which
+  // the server / admin treats as "not rated" so it doesn't pollute
+  // averages.
   const payload = {};
   rows.forEach(r => {
-    const input = r.querySelector('input[type="range"]');
-    if (!input) return;
-    const val = parseInt(input.value, 10) || 0;
-    payload[r.dataset.q] = input.dataset.touched ? val : 0;
+    const checked = r.querySelector('input[type="radio"]:checked');
+    payload[r.dataset.q] = checked ? (parseInt(checked.value, 10) || 0) : 0;
   });
   payload.comments = (document.getElementById('feedbackComments')?.value || '').trim();
   const emailRaw = (document.getElementById('feedbackEmail')?.value || '').trim();
@@ -3949,7 +3931,7 @@ async function fbSubmit(e) {
 
   const ratedAny = Object.entries(payload).some(([k, v]) => typeof v === 'number' && v > 0);
   if (!ratedAny && !payload.comments) {
-    status.textContent = 'Please move at least one slider, or leave a comment.';
+    status.textContent = 'Please rate at least one question, or leave a comment.';
     status.className = 'feedback-status is-error';
     return;
   }

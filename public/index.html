@@ -83,7 +83,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260516-sync-continuous" />
+  <link rel="stylesheet" href="/css/styles.css?v=20260517-radio-feedback" />
   <script>
     // 1) MIGRATE OLD HASH URLs — anyone hitting /#/cart from a stale
     //    bookmark or shared link is silently redirected to /cart so
@@ -311,100 +311,135 @@
       <h2 id="feedbackTitle" class="feedback-title">How would you rate Global Shopper?</h2>
       <p class="feedback-sub">Your honest feedback helps us shape what's next. Takes ~30 seconds.</p>
       <form class="feedback-form" id="feedbackForm">
-        <!-- Every rating question uses a 1-5 range slider (replaces
-             the older star widgets) so the form reads as a coherent
-             sliding-scale survey end-to-end. JS reads input.value
-             directly, no widget glue needed. -->
-        <div class="feedback-row" data-q="lookFeel">
-          <label class="feedback-q" for="fbLookFeel">Look &amp; feel of the website</label>
-          <div class="range-row">
-            <input type="range" id="fbLookFeel" min="1" max="5" step="1" value="3" />
-            <span class="range-value" data-bound-for="fbLookFeel">3</span>
-          </div>
-          <div class="range-legend"><span>Poor</span><span>Excellent</span></div>
-        </div>
-        <div class="feedback-row" data-q="variety">
-          <label class="feedback-q" for="fbVariety">Product variety</label>
-          <div class="range-row">
-            <input type="range" id="fbVariety" min="1" max="5" step="1" value="3" />
-            <span class="range-value" data-bound-for="fbVariety">3</span>
-          </div>
-          <div class="range-legend"><span>Very limited</span><span>Endless</span></div>
-        </div>
-        <div class="feedback-row" data-q="easeNav">
-          <label class="feedback-q" for="fbEaseNav">Ease of navigation</label>
-          <div class="range-row">
-            <input type="range" id="fbEaseNav" min="1" max="5" step="1" value="3" />
-            <span class="range-value" data-bound-for="fbEaseNav">3</span>
-          </div>
-          <div class="range-legend"><span>Hard</span><span>Effortless</span></div>
-        </div>
-        <div class="feedback-row" data-q="willUseAgain">
-          <label class="feedback-q" for="fbWillUseAgain">Will you surf Global Shopper in your free time?</label>
-          <div class="range-row">
-            <input type="range" id="fbWillUseAgain" min="1" max="5" step="1" value="3" />
-            <span class="range-value" data-bound-for="fbWillUseAgain">3</span>
-          </div>
-          <div class="range-legend"><span>Unlikely</span><span>Very likely</span></div>
-        </div>
-        <div class="feedback-row" data-q="willRecommend">
-          <label class="feedback-q" for="fbWillRecommend">Will you recommend us to friends?</label>
-          <div class="range-row">
-            <input type="range" id="fbWillRecommend" min="1" max="5" step="1" value="3" />
-            <span class="range-value" data-bound-for="fbWillRecommend">3</span>
-          </div>
-          <div class="range-legend"><span>Unlikely</span><span>Definitely</span></div>
-        </div>
-        <div class="feedback-row" data-q="willBuy">
-          <label class="feedback-q" for="fbWillBuy">What is the likelihood of you buying products on this app?</label>
-          <div class="range-row">
-            <input type="range" id="fbWillBuy" min="1" max="5" step="1" value="3" />
-            <span class="range-value" data-bound-for="fbWillBuy">3</span>
-          </div>
-          <div class="range-legend"><span>Unlikely</span><span>Very likely</span></div>
-        </div>
+        <!-- Rating questions use 1-5 radio button groups. Order:
+             1) USP / value-prop questions FIRST (what would draw them in)
+             2) App-usage questions SECOND (how the experience felt)
+             Each row's data-q is the canonical key sent to the server
+             (must match the keys the admin feedback table expects). -->
 
-        <!-- New questions (Round 2): global interest, money-back trust,
-             pricing transparency, 15-day-delivery value prop. -->
+        <!-- ─── USP / value-prop questions (lead with these) ─── -->
         <div class="feedback-row" data-q="globalUsEu">
-          <label class="feedback-q" for="fbGlobalUsEu">How interested are you in buying global products sold in the US and Europe?</label>
-          <div class="range-row">
-            <input type="range" id="fbGlobalUsEu" min="1" max="5" step="1" value="3" />
-            <span class="range-value" data-bound-for="fbGlobalUsEu">3</span>
+          <span class="feedback-q">How interested are you in buying global products sold in the US and Europe?</span>
+          <div class="radio-row" role="radiogroup" aria-label="Interest in US/EU global products">
+            <label class="radio-pill"><input type="radio" name="fbGlobalUsEu" value="1" /><span>1</span></label>
+            <label class="radio-pill"><input type="radio" name="fbGlobalUsEu" value="2" /><span>2</span></label>
+            <label class="radio-pill"><input type="radio" name="fbGlobalUsEu" value="3" /><span>3</span></label>
+            <label class="radio-pill"><input type="radio" name="fbGlobalUsEu" value="4" /><span>4</span></label>
+            <label class="radio-pill"><input type="radio" name="fbGlobalUsEu" value="5" /><span>5</span></label>
           </div>
-          <div class="range-legend"><span>Not interested</span><span>Very interested</span></div>
+          <div class="radio-legend"><span>Not interested</span><span>Very interested</span></div>
         </div>
         <div class="feedback-row" data-q="trendyTech">
-          <label class="feedback-q" for="fbTrendyTech">How interested are you in buying trendy, tech, and innovative products not easily available in India?</label>
-          <div class="range-row">
-            <input type="range" id="fbTrendyTech" min="1" max="5" step="1" value="3" />
-            <span class="range-value" data-bound-for="fbTrendyTech">3</span>
+          <span class="feedback-q">How interested are you in buying trendy, tech, and innovative products not easily available in India?</span>
+          <div class="radio-row" role="radiogroup" aria-label="Interest in trendy / tech products">
+            <label class="radio-pill"><input type="radio" name="fbTrendyTech" value="1" /><span>1</span></label>
+            <label class="radio-pill"><input type="radio" name="fbTrendyTech" value="2" /><span>2</span></label>
+            <label class="radio-pill"><input type="radio" name="fbTrendyTech" value="3" /><span>3</span></label>
+            <label class="radio-pill"><input type="radio" name="fbTrendyTech" value="4" /><span>4</span></label>
+            <label class="radio-pill"><input type="radio" name="fbTrendyTech" value="5" /><span>5</span></label>
           </div>
-          <div class="range-legend"><span>Not interested</span><span>Very interested</span></div>
+          <div class="radio-legend"><span>Not interested</span><span>Very interested</span></div>
         </div>
         <div class="feedback-row" data-q="moneyBackTrust">
-          <label class="feedback-q" for="fbMoneyBackTrust">How much would a 100% money-back policy increase your trust?</label>
-          <div class="range-row">
-            <input type="range" id="fbMoneyBackTrust" min="1" max="5" step="1" value="3" />
-            <span class="range-value" data-bound-for="fbMoneyBackTrust">3</span>
+          <span class="feedback-q">How much would a 100% money-back policy increase your trust?</span>
+          <div class="radio-row" role="radiogroup" aria-label="Money-back trust impact">
+            <label class="radio-pill"><input type="radio" name="fbMoneyBackTrust" value="1" /><span>1</span></label>
+            <label class="radio-pill"><input type="radio" name="fbMoneyBackTrust" value="2" /><span>2</span></label>
+            <label class="radio-pill"><input type="radio" name="fbMoneyBackTrust" value="3" /><span>3</span></label>
+            <label class="radio-pill"><input type="radio" name="fbMoneyBackTrust" value="4" /><span>4</span></label>
+            <label class="radio-pill"><input type="radio" name="fbMoneyBackTrust" value="5" /><span>5</span></label>
           </div>
-          <div class="range-legend"><span>Not at all</span><span>A lot</span></div>
+          <div class="radio-legend"><span>Not at all</span><span>A lot</span></div>
         </div>
         <div class="feedback-row" data-q="inclusivePricing">
-          <label class="feedback-q" for="fbInclusivePricing">How useful is all-inclusive pricing with shipping, customs duties, and taxes included?</label>
-          <div class="range-row">
-            <input type="range" id="fbInclusivePricing" min="1" max="5" step="1" value="3" />
-            <span class="range-value" data-bound-for="fbInclusivePricing">3</span>
+          <span class="feedback-q">How useful is all-inclusive pricing with shipping, customs duties, and taxes included?</span>
+          <div class="radio-row" role="radiogroup" aria-label="All-inclusive pricing usefulness">
+            <label class="radio-pill"><input type="radio" name="fbInclusivePricing" value="1" /><span>1</span></label>
+            <label class="radio-pill"><input type="radio" name="fbInclusivePricing" value="2" /><span>2</span></label>
+            <label class="radio-pill"><input type="radio" name="fbInclusivePricing" value="3" /><span>3</span></label>
+            <label class="radio-pill"><input type="radio" name="fbInclusivePricing" value="4" /><span>4</span></label>
+            <label class="radio-pill"><input type="radio" name="fbInclusivePricing" value="5" /><span>5</span></label>
           </div>
-          <div class="range-legend"><span>Not useful</span><span>Very useful</span></div>
+          <div class="radio-legend"><span>Not useful</span><span>Very useful</span></div>
         </div>
         <div class="feedback-row" data-q="delivery15Day">
-          <label class="feedback-q" for="fbDelivery15Day">How likely are you to buy if you get 15-day delivery and access to 2M+ products across 100+ categories?</label>
-          <div class="range-row">
-            <input type="range" id="fbDelivery15Day" min="1" max="5" step="1" value="3" />
-            <span class="range-value" data-bound-for="fbDelivery15Day">3</span>
+          <span class="feedback-q">How likely are you to buy if you get 15-day delivery and access to 2M+ products across 100+ categories?</span>
+          <div class="radio-row" role="radiogroup" aria-label="15-day delivery + 2M catalog buy intent">
+            <label class="radio-pill"><input type="radio" name="fbDelivery15Day" value="1" /><span>1</span></label>
+            <label class="radio-pill"><input type="radio" name="fbDelivery15Day" value="2" /><span>2</span></label>
+            <label class="radio-pill"><input type="radio" name="fbDelivery15Day" value="3" /><span>3</span></label>
+            <label class="radio-pill"><input type="radio" name="fbDelivery15Day" value="4" /><span>4</span></label>
+            <label class="radio-pill"><input type="radio" name="fbDelivery15Day" value="5" /><span>5</span></label>
           </div>
-          <div class="range-legend"><span>Unlikely</span><span>Very likely</span></div>
+          <div class="radio-legend"><span>Unlikely</span><span>Very likely</span></div>
+        </div>
+
+        <!-- ─── App-usage questions ─── -->
+        <div class="feedback-row" data-q="lookFeel">
+          <span class="feedback-q">Look &amp; feel of the website</span>
+          <div class="radio-row" role="radiogroup" aria-label="Look and feel rating">
+            <label class="radio-pill"><input type="radio" name="fbLookFeel" value="1" /><span>1</span></label>
+            <label class="radio-pill"><input type="radio" name="fbLookFeel" value="2" /><span>2</span></label>
+            <label class="radio-pill"><input type="radio" name="fbLookFeel" value="3" /><span>3</span></label>
+            <label class="radio-pill"><input type="radio" name="fbLookFeel" value="4" /><span>4</span></label>
+            <label class="radio-pill"><input type="radio" name="fbLookFeel" value="5" /><span>5</span></label>
+          </div>
+          <div class="radio-legend"><span>Poor</span><span>Excellent</span></div>
+        </div>
+        <div class="feedback-row" data-q="variety">
+          <span class="feedback-q">Product variety</span>
+          <div class="radio-row" role="radiogroup" aria-label="Product variety rating">
+            <label class="radio-pill"><input type="radio" name="fbVariety" value="1" /><span>1</span></label>
+            <label class="radio-pill"><input type="radio" name="fbVariety" value="2" /><span>2</span></label>
+            <label class="radio-pill"><input type="radio" name="fbVariety" value="3" /><span>3</span></label>
+            <label class="radio-pill"><input type="radio" name="fbVariety" value="4" /><span>4</span></label>
+            <label class="radio-pill"><input type="radio" name="fbVariety" value="5" /><span>5</span></label>
+          </div>
+          <div class="radio-legend"><span>Very limited</span><span>Endless</span></div>
+        </div>
+        <div class="feedback-row" data-q="easeNav">
+          <span class="feedback-q">Ease of navigation</span>
+          <div class="radio-row" role="radiogroup" aria-label="Ease of navigation rating">
+            <label class="radio-pill"><input type="radio" name="fbEaseNav" value="1" /><span>1</span></label>
+            <label class="radio-pill"><input type="radio" name="fbEaseNav" value="2" /><span>2</span></label>
+            <label class="radio-pill"><input type="radio" name="fbEaseNav" value="3" /><span>3</span></label>
+            <label class="radio-pill"><input type="radio" name="fbEaseNav" value="4" /><span>4</span></label>
+            <label class="radio-pill"><input type="radio" name="fbEaseNav" value="5" /><span>5</span></label>
+          </div>
+          <div class="radio-legend"><span>Hard</span><span>Effortless</span></div>
+        </div>
+        <div class="feedback-row" data-q="willUseAgain">
+          <span class="feedback-q">Will you surf Global Shopper in your free time?</span>
+          <div class="radio-row" role="radiogroup" aria-label="Free-time use likelihood">
+            <label class="radio-pill"><input type="radio" name="fbWillUseAgain" value="1" /><span>1</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillUseAgain" value="2" /><span>2</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillUseAgain" value="3" /><span>3</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillUseAgain" value="4" /><span>4</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillUseAgain" value="5" /><span>5</span></label>
+          </div>
+          <div class="radio-legend"><span>Unlikely</span><span>Very likely</span></div>
+        </div>
+        <div class="feedback-row" data-q="willRecommend">
+          <span class="feedback-q">Will you recommend us to friends?</span>
+          <div class="radio-row" role="radiogroup" aria-label="Recommend to friends likelihood">
+            <label class="radio-pill"><input type="radio" name="fbWillRecommend" value="1" /><span>1</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillRecommend" value="2" /><span>2</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillRecommend" value="3" /><span>3</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillRecommend" value="4" /><span>4</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillRecommend" value="5" /><span>5</span></label>
+          </div>
+          <div class="radio-legend"><span>Unlikely</span><span>Definitely</span></div>
+        </div>
+        <div class="feedback-row" data-q="willBuy">
+          <span class="feedback-q">What is the likelihood of you buying products on this app?</span>
+          <div class="radio-row" role="radiogroup" aria-label="Buy products likelihood">
+            <label class="radio-pill"><input type="radio" name="fbWillBuy" value="1" /><span>1</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillBuy" value="2" /><span>2</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillBuy" value="3" /><span>3</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillBuy" value="4" /><span>4</span></label>
+            <label class="radio-pill"><input type="radio" name="fbWillBuy" value="5" /><span>5</span></label>
+          </div>
+          <div class="radio-legend"><span>Unlikely</span><span>Very likely</span></div>
         </div>
 
         <div class="feedback-row feedback-row-comments">
@@ -431,8 +466,8 @@
   <!-- Razorpay Checkout — loaded async so it doesn't block the page;
        only used on the checkout page when the customer hits "Pay & Place order". -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
-  <script src="/js/app.js?v=20260516-sync-continuous"></script>
-  <script src="/js/app-store.js?v=20260516-sync-continuous"></script>
+  <script src="/js/app.js?v=20260517-radio-feedback"></script>
+  <script src="/js/app-store.js?v=20260517-radio-feedback"></script>
   <!-- Surface any uncaught JS error in the page so we can debug from
        the browser without DevTools. Goes to console.error and shows
        a discreet banner if anything blows up. -->
