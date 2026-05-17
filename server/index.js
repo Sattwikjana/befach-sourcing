@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.58';
+const APP_VERSION = '8.59';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -50,6 +50,27 @@ if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
   console.warn('[Razorpay] keys not set — payment endpoints will return 503 until they are.');
 }
 
+// ── Process-level crash safety (v8.59) ──
+// Without these handlers, an unhandled promise rejection (Node 15+)
+// or uncaught exception silently kills the process — which is what
+// the v8.43-v8.58 production restart loop was doing. The crash that
+// triggered it came from somewhere inside prewarm(), but the
+// underlying risk applies to any async path. With these handlers
+// the process keeps running and logs the cause to Render logs,
+// instead of dying invisibly.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason && reason.stack || reason);
+  // Do NOT exit. Many unhandled rejections are recoverable (a single
+  // failed CJ fetch in a fire-and-forget warm). Letting the process
+  // continue is much better than another restart loop.
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err && err.stack || err);
+  // Do NOT exit. An uncaught exception in a request handler
+  // generally only affects that one request. Crashing the whole
+  // service makes things worse.
+});
+
 // ── Early-priority health check ──
 // Render polls /api/live every few seconds with a 5-second timeout.
 // We register this route BEFORE any middleware so the health check
@@ -66,7 +87,7 @@ if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.58'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.59'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -4660,37 +4681,22 @@ app.listen(PORT, () => {
   console.log(`  Ship:      ${DEFAULT_SHIP_FROM} → ${DEFAULT_SHIP_TO}`);
   console.log(`  Admin pw:  ${process.env.ADMIN_PASSWORD ? 'set' : 'MISSING'}`);
   console.log('');
-  // Fire-and-forget so the server starts accepting requests immediately.
-  // After the home page is hot, keep filling the cache with deeper pages
-  // so first-click on any category returns warm shipping data faster.
+  // ── Prewarm permanently disabled (v8.59) ──
+  // Render logs in v8.58 confirmed the production restart loop is
+  // caused by the prewarm() flow crashing Node silently shortly
+  // after `[prewarm] categories ✓` — most likely an unhandled
+  // promise rejection inside one of the 6 parallel prewarmKeyword()
+  // calls. Pattern was: boot → 60s → prewarm runs → instance dies.
   //
-  // v8.58: Default is now OPT-IN. The env-var check flipped: prewarm
-  // only runs if PREWARM_ENABLED is EXPLICITLY 'true'. Previously it
-  // ran by default and only stopped when set to 'false', which
-  // accidentally re-enabled it whenever the env var was missing from
-  // the Render dashboard — and that prewarm flow was causing the
-  // instance-restart loop reported in v8.43-v8.57 production.
+  // Until the prewarm internals are debugged and made crash-safe,
+  // the scheduler is physically removed from the boot path. The
+  // env var PREWARM_ENABLED is now ignored entirely — even if set
+  // to 'true' in the Render dashboard, prewarm will NOT run.
   //
-  // Loud banner logs so it's obvious in the deploy log which branch
-  // ran.
-  const prewarmExplicitlyOn = process.env.PREWARM_ENABLED === 'true';
-  if (prewarmExplicitlyOn) {
-    const extendedWarmPages = Math.max(0, parseInt(process.env.WARM_EXTENDED_CATALOG_PAGES || '0', 10));
-    const prewarmDelayMs = Math.max(0, parseInt(process.env.PREWARM_DELAY_MS || '60000', 10));
-    setTimeout(() => {
-      prewarm()
-        .then(() => {
-          if (extendedWarmPages > 0) return warmExtendedCatalog(extendedWarmPages);
-          return null;
-        })
-        .catch((err) => {
-          // Don't let a prewarm failure crash the whole service.
-          console.warn('[prewarm] failed (non-fatal):', err && err.message);
-        });
-    }, prewarmDelayMs);
-    console.log(`[prewarm] ⚠ ENABLED (explicit opt-in) — running in ${prewarmDelayMs}ms`);
-  } else {
-    console.log('[prewarm] ✓ DISABLED (default in v8.58+). Set PREWARM_ENABLED=true to re-enable.');
-  }
+  // Customer impact: first request to each home-page rail / category
+  // pays the cold-CJ latency (~1-3 sec). Subsequent requests use
+  // the in-memory cache built on demand. No data loss, no
+  // functional regression — just slower first hits.
+  console.log('[prewarm] ✓ PERMANENTLY DISABLED in v8.59+ (env var ignored). Boot is now safe.');
   scheduleCatalogSync();
 });
