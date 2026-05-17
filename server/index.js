@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.55';
+const APP_VERSION = '8.56';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -188,24 +188,12 @@ app.get('/index.html', (req, res) => res.redirect(301, '/'));
 
 // Android App Links / Digital Asset Links.
 // MUST be declared BEFORE express.static — the static middleware
-// (without `dotfiles: 'allow'`) 404s any path starting with a dot
-// before our explicit route can run.
-//
-// Google fetches this file to verify that the Android app at
-// `in.globalshopper.app` is allowed to handle https://globalshopper.in/*
-// links directly (no browser intermediary, no "Open with" picker).
-//
-// SHA-256 cert fingerprints are loaded from the ANDROID_SHA256_FINGERPRINTS
-// env var (comma-separated for multiple — e.g. Play App Signing key
-// plus the upload key). Returns an empty array (still valid JSON) if
-// the env is missing so the route doesn't 404 — Google's UI shows
-// "domain not verified" but we don't break.
+// (default dotfiles: 'ignore') 404s any path starting with a dot
+// before our explicit route can run. Reads SHA-256 cert fingerprints
+// from ANDROID_SHA256_FINGERPRINTS env var (comma-separated).
 app.get('/.well-known/assetlinks.json', (req, res) => {
   const raw = process.env.ANDROID_SHA256_FINGERPRINTS || '';
-  const fingerprints = raw
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
+  const fingerprints = raw.split(',').map(s => s.trim()).filter(Boolean);
   const packageName = process.env.ANDROID_PACKAGE_NAME || 'in.globalshopper.app';
   const payload = fingerprints.length ? [{
     relation: ['delegate_permission/common.handle_all_urls'],
@@ -215,8 +203,6 @@ app.get('/.well-known/assetlinks.json', (req, res) => {
       sha256_cert_fingerprints: fingerprints,
     },
   }] : [];
-  // Must be application/json and no caching issues — Google re-fetches
-  // periodically and a stale cache can lock you out for hours.
   res.set('Cache-Control', 'public, max-age=300');
   res.type('application/json').send(JSON.stringify(payload, null, 2));
 });
@@ -4031,28 +4017,15 @@ app.get('/api/admin/dashboard', adminAuth, (req, res) => {
 });
 
 app.get('/api/admin/catalog/status', adminAuth, (req, res) => {
-  // Bundle shipping-cache stats alongside catalog status so the admin
-  // dashboard's "Catalog & Shipping" tile can render from a single
-  // request — keeps the panel snappy and avoids two parallel admin
-  // round-trips.
-  res.json({
-    ...catalog.getStatus(),
-    shippingCache: getShippingCacheStats(),
-    appVersion: APP_VERSION,
-  });
+  res.json(catalog.getStatus());
 });
 
 app.post('/api/admin/catalog/sync', adminAuth, (req, res) => {
-  // `force: true` lets the admin override CATALOG_SYNC_DISABLED for a
-  // one-off catch-up run. The env-level kill-switch still blocks the
-  // automatic background sync — this only opens the door for an
-  // explicit operator request.
   const opts = {
     targetProducts: req.body?.targetProducts,
     maxCalls: req.body?.maxCalls,
     pageSize: req.body?.pageSize,
     minDelayMs: req.body?.minDelayMs,
-    force: req.body?.force === true,
   };
   res.json(catalog.startSync(cj, opts));
 });
@@ -4657,33 +4630,6 @@ function scheduleCatalogSync() {
   }, delayMs);
 }
 
-// ── Process-level crash handlers ──
-// Make Render's logs show WHY the process died instead of a silent
-// SIGTERM. Without these, uncaught exceptions / unhandled rejections
-// can take down the Node process and only show up as "instance failed"
-// in Render's UI with no further detail.
-process.on('uncaughtException', (err) => {
-  console.error('[FATAL] uncaughtException:', err && err.stack || err);
-  // Don't exit immediately — give logging a chance to flush, then let
-  // Render restart us if state is truly corrupted.
-  setTimeout(() => process.exit(1), 1000);
-});
-process.on('unhandledRejection', (reason) => {
-  console.error('[unhandledRejection]', reason && reason.stack || reason);
-  // Don't exit on unhandled rejections — log only. Many of these are
-  // recoverable (e.g. a single failed CJ fetch from a fire-and-forget
-  // warm path) and shouldn't take down the whole service.
-});
-
-// ── Periodic memory snapshot for debugging Render instance failures ──
-// Logs heap + RSS every 30 seconds. If the process gets killed because
-// of OOM, the last few snapshots in Render's logs will show the climb.
-setInterval(() => {
-  const m = process.memoryUsage();
-  const fmt = (n) => `${Math.round(n / 1024 / 1024)}MB`;
-  console.log(`[mem] heap=${fmt(m.heapUsed)}/${fmt(m.heapTotal)} rss=${fmt(m.rss)} ext=${fmt(m.external)}`);
-}, 30000).unref();
-
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
@@ -4695,21 +4641,6 @@ app.listen(PORT, () => {
   console.log(`  Ship:      ${DEFAULT_SHIP_FROM} → ${DEFAULT_SHIP_TO}`);
   console.log(`  Admin pw:  ${process.env.ADMIN_PASSWORD ? 'set' : 'MISSING'}`);
   console.log('');
-
-  // v8.55: defer the continuous-sync flag-clear to 30 sec after boot.
-  // The function is a no-op in v8.54+ (just clears a stale flag) but it
-  // synchronously touches the 880MB SQLite via ensureDb(), which can
-  // block the event loop for several seconds during a critical window
-  // when Render is still doing health checks against /api/live. Delay
-  // it until after /api/live has been hot for 30 seconds.
-  setTimeout(() => {
-    try {
-      catalog.tryResumeContinuousSync(cj);
-    } catch (err) {
-      console.warn('[catalog] resume check failed:', err.message);
-    }
-  }, 30000);
-
   // Fire-and-forget so the server starts accepting requests immediately.
   // After the home page is hot, keep filling the cache with deeper pages
   // so first-click on any category returns warm shipping data faster.

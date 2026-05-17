@@ -782,9 +782,7 @@ function syncErrorMessage(err) {
 
 async function runCatalogSync(cj, opts = {}) {
   if (!isEnabled()) return getStatus();
-  // Honor the kill-switch for auto syncs but let an explicit { force: true }
-  // admin trigger override it (see startSync for the same gate).
-  if (syncDisabled() && !opts.force) {
+  if (syncDisabled()) {
     syncJob = {
       ...syncJob,
       running: false,
@@ -801,17 +799,8 @@ async function runCatalogSync(cj, opts = {}) {
   }
   const targetProducts = Math.max(1, parseInt(opts.targetProducts || process.env.CATALOG_SYNC_TARGET || 50000, 10));
   const maxCalls = Math.max(1, parseInt(opts.maxCalls || process.env.CATALOG_SYNC_MAX_CALLS || 600, 10));
-  // Smaller page size when running continuously — halves the per-call
-  // JSON memory footprint, which matters on Render free tier (512 MB).
-  const isContinuous = targetProducts >= 1000000 || maxCalls >= 100000;
-  const defaultPageSize = isContinuous ? 100 : 200;
-  const pageSize = Math.max(20, Math.min(parseInt(opts.pageSize || process.env.CATALOG_SYNC_PAGE_SIZE || defaultPageSize, 10), 200));
-  // Continuous mode runs 24/7 on a shared free-tier server, so default
-  // pacing is much gentler (6s/call → ~10 calls/min → ~14K calls/day).
-  // That's enough to refresh the whole catalog daily without crushing
-  // the web service. One-off bursts still default to 1.2s.
-  const defaultDelay = isContinuous ? 6000 : 1200;
-  const minDelayMs = Math.max(0, parseInt(opts.minDelayMs || process.env.CATALOG_SYNC_MIN_DELAY_MS || defaultDelay, 10));
+  const pageSize = Math.max(20, Math.min(parseInt(opts.pageSize || process.env.CATALOG_SYNC_PAGE_SIZE || 200, 10), 200));
+  const minDelayMs = Math.max(0, parseInt(opts.minDelayMs || process.env.CATALOG_SYNC_MIN_DELAY_MS || 1200, 10));
 
   syncJob = {
     running: true,
@@ -832,20 +821,8 @@ async function runCatalogSync(cj, opts = {}) {
     upsertCategories(categoryData?.data || []);
     const leaves = prepared.leafCategories.all();
 
-    // Once a global page comes back empty, CJ's "global feed" iteration
-    // is exhausted from where our cursor is sitting (we're already 2,648+
-    // pages deep). Flip globalExhausted=true and let the rest of the
-    // budget run through categories — the leaf index has 1,000+ entries
-    // and almost always still has fresh pages. Previously a single empty
-    // global page broke the *entire* loop, which is why the May-16
-    // catch-up sync exited after just 3 calls instead of 600.
-    let globalExhausted = false;
-    let consecutiveEmptyCategoryRotations = 0;
-
     while (!syncJob.stopRequested && syncJob.calls < maxCalls && syncJob.seen < targetProducts) {
-      // Prefer categories when global is exhausted. Otherwise keep the
-      // 2-categories-per-1-global rhythm (calls % 3 !== 2).
-      const useCategory = leaves.length && (globalExhausted || syncJob.calls % 3 !== 2);
+      const useCategory = leaves.length && (syncJob.calls % 3 !== 2);
       syncJob.phase = useCategory ? 'category-pages' : 'global-pages';
       let result;
       try {
@@ -868,24 +845,7 @@ async function runCatalogSync(cj, opts = {}) {
       syncJob.seen += result.products.length;
       syncJob.upserted += result.upserted;
       setState('lastSyncAt', new Date().toISOString());
-
-      if (!result.products.length) {
-        if (useCategory) {
-          // One empty category page is normal — we already advance the
-          // cursor inside syncOneCategoryPage. Only break if the full
-          // leaf-rotation comes back dry, which means the whole catalog
-          // truly has nothing new.
-          consecutiveEmptyCategoryRotations += 1;
-          if (consecutiveEmptyCategoryRotations >= Math.max(leaves.length, 50)) break;
-        } else {
-          // Empty global page: don't break the loop. Just stop using
-          // global for the rest of this run and let categories carry it.
-          globalExhausted = true;
-        }
-      } else if (useCategory) {
-        consecutiveEmptyCategoryRotations = 0;
-      }
-
+      if (!result.products.length && !useCategory) break;
       if (syncJob.calls < maxCalls && syncJob.seen < targetProducts) await sleep(minDelayMs);
     }
 
@@ -903,69 +863,17 @@ async function runCatalogSync(cj, opts = {}) {
 }
 
 function startSync(cj, opts = {}) {
-  // CATALOG_SYNC_DISABLED is a global kill-switch for the background
-  // auto-sync. An explicit admin trigger with { force: true } bypasses
-  // it (we still respect "already running"). This is the safe pattern:
-  // routine drift stays off, ad-hoc operator catch-ups still possible.
-  if (syncDisabled() && !opts.force) return { started: false, disabled: true, job: { ...syncJob } };
+  if (syncDisabled()) return { started: false, disabled: true, job: { ...syncJob } };
   if (syncJob.running) return { started: false, job: { ...syncJob } };
-  // v8.49 used to persist a "continuousSyncWanted" flag here so the
-  // sync would auto-resume after a Render restart. v8.54 removed that
-  // because the free-tier instance can't sustain the load — auto-resume
-  // turned every restart into the start of a thrash loop. The sync now
-  // only runs for the duration of the current process. If the operator
-  // wants it back after a restart, they re-click /admin → Sync now.
   runCatalogSync(cj, opts).catch(err => {
     console.error('[catalog] sync failed:', err.message);
   });
-  return { started: true, forced: !!(syncDisabled() && opts.force), continuous: false, job: { ...syncJob } };
+  return { started: true, job: { ...syncJob } };
 }
 
 function stopSync() {
-  // Clearing the continuous flag is what makes Stop sticky across a
-  // server restart — otherwise the next boot would re-kick the sync.
-  setState('continuousSyncWanted', '0');
   if (syncJob.running) syncJob.stopRequested = true;
   return { job: { ...syncJob } };
-}
-
-// Heuristic: limits in the millions = operator wants it to keep going.
-// Matches what the admin Sync now button posts (1e8 / 1e8).
-function isContinuousByLimits(opts) {
-  const target = parseInt(opts.targetProducts || 0, 10);
-  const calls = parseInt(opts.maxCalls || 0, 10);
-  return target >= 1000000 || calls >= 100000;
-}
-
-// Called once on server boot.
-//
-// History:
-//   v8.49 — Introduced this to auto-resume continuous sync after Render
-//           restarts the service (free tier recycles every ~30 min idle).
-//   v8.50 — Added 90s anti-thrash + 30s boot delay + gentler 6s pacing.
-//   v8.54 — DISABLED. Even with all the safeguards, the sync was
-//           overloading the 512 MB free tier in real-world traffic, causing
-//           5s health-check timeouts → Render kills the instance → boot
-//           auto-resumes the sync → repeat. The 90s anti-thrash didn't
-//           fire because `lastSyncAt` updates throughout the run, so by
-//           the time the server actually died, the last-sync timestamp
-//           was still "fresh."
-//
-// New behavior: clear the continuousSyncWanted flag on every boot and do
-// NOT auto-resume. The operator still uses /admin → Sync now for ad-hoc
-// runs, but those runs end when the server next restarts. If the operator
-// wants to keep syncing after a restart, they re-click Sync now manually.
-// This trades a bit of inconvenience for full stability of the web service.
-function tryResumeContinuousSync(cj) {
-  if (!isEnabled()) return { resumed: false, reason: 'catalog disabled' };
-  // Always clear the persisted "want continuous" flag so old state from
-  // pre-v8.54 deploys doesn't keep triggering auto-resume on subsequent
-  // boots.
-  if (getState('continuousSyncWanted', '0') === '1') {
-    setState('continuousSyncWanted', '0');
-    console.warn('[catalog] cleared stale continuousSyncWanted flag (auto-resume disabled in v8.54)');
-  }
-  return { resumed: false, reason: 'auto-resume disabled (v8.54+)' };
 }
 
 module.exports = {
@@ -985,5 +893,4 @@ module.exports = {
   runCatalogSync,
   startSync,
   stopSync,
-  tryResumeContinuousSync,
 };
