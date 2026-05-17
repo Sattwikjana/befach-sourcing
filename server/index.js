@@ -30,7 +30,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.54';
+const APP_VERSION = '8.55';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -4657,6 +4657,33 @@ function scheduleCatalogSync() {
   }, delayMs);
 }
 
+// ── Process-level crash handlers ──
+// Make Render's logs show WHY the process died instead of a silent
+// SIGTERM. Without these, uncaught exceptions / unhandled rejections
+// can take down the Node process and only show up as "instance failed"
+// in Render's UI with no further detail.
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] uncaughtException:', err && err.stack || err);
+  // Don't exit immediately — give logging a chance to flush, then let
+  // Render restart us if state is truly corrupted.
+  setTimeout(() => process.exit(1), 1000);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason && reason.stack || reason);
+  // Don't exit on unhandled rejections — log only. Many of these are
+  // recoverable (e.g. a single failed CJ fetch from a fire-and-forget
+  // warm path) and shouldn't take down the whole service.
+});
+
+// ── Periodic memory snapshot for debugging Render instance failures ──
+// Logs heap + RSS every 30 seconds. If the process gets killed because
+// of OOM, the last few snapshots in Render's logs will show the climb.
+setInterval(() => {
+  const m = process.memoryUsage();
+  const fmt = (n) => `${Math.round(n / 1024 / 1024)}MB`;
+  console.log(`[mem] heap=${fmt(m.heapUsed)}/${fmt(m.heapTotal)} rss=${fmt(m.rss)} ext=${fmt(m.external)}`);
+}, 30000).unref();
+
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
@@ -4669,18 +4696,19 @@ app.listen(PORT, () => {
   console.log(`  Admin pw:  ${process.env.ADMIN_PASSWORD ? 'set' : 'MISSING'}`);
   console.log('');
 
-  // If the operator left a continuous catalog sync running and Render
-  // (or any other restart) recycled the process, pick up where we left
-  // off. The flag lives in catalog_sync_state on disk, so it survives
-  // deploys, restarts, and crashes. Stop sync clears it.
-  try {
-    const resume = catalog.tryResumeContinuousSync(cj);
-    if (resume?.resumed) {
-      console.log('[catalog] continuous sync flag set on disk — auto-resuming in 5s');
+  // v8.55: defer the continuous-sync flag-clear to 30 sec after boot.
+  // The function is a no-op in v8.54+ (just clears a stale flag) but it
+  // synchronously touches the 880MB SQLite via ensureDb(), which can
+  // block the event loop for several seconds during a critical window
+  // when Render is still doing health checks against /api/live. Delay
+  // it until after /api/live has been hot for 30 seconds.
+  setTimeout(() => {
+    try {
+      catalog.tryResumeContinuousSync(cj);
+    } catch (err) {
+      console.warn('[catalog] resume check failed:', err.message);
     }
-  } catch (err) {
-    console.warn('[catalog] resume check failed:', err.message);
-  }
+  }, 30000);
 
   // Fire-and-forget so the server starts accepting requests immediately.
   // After the home page is hot, keep filling the cache with deeper pages
