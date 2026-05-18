@@ -69,20 +69,24 @@
     src="https://www.facebook.com/tr?id=2162836681180793&ev=PageView&noscript=1"
     alt="" /></noscript>
   <!-- End Meta Pixel Code -->
-  <!-- Favicon = the cart+globe icon-only mark (square, no wordmark) so it
-       reads cleanly at 16×16 / 32×32 in the browser tab. The wordmark
-       version (globalshopper.png) is used in the header, where there's
-       room for the text. Sized variants for Android / iOS home screens
-       and bookmarks. All point at the same square PNG; modern browsers
-       scale it appropriately.
-       Bump the cache-buster suffix when the icon changes so users get
-       the new favicon immediately instead of waiting for browser cache
-       to expire. -->
-  <link rel="icon" type="image/png" sizes="any" href="/img/globalshopper-icon.png?v=20260517-favicon" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/img/globalshopper-icon.png?v=20260517-favicon" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/img/globalshopper-icon.png?v=20260517-favicon" />
-  <link rel="shortcut icon" href="/img/globalshopper-icon.png?v=20260517-favicon" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/img/globalshopper-icon.png?v=20260517-favicon" />
+  <!-- Favicon: cart+globe icon-only mark (no wordmark) at the sizes
+       each surface actually needs. Browsers/OSes pick the smallest
+       file ≥ the size they need; pre-downsampling these (instead of
+       letting the browser scale the 1080×1080 source down) keeps the
+       cart+globe shape sharper at tiny tab sizes.
+
+       Order matters — browsers walk the list top-to-bottom:
+       1. /favicon.ico  → legacy/Safari/pinned-tab (multi-res .ico)
+       2. 32×32 PNG     → modern browser tab
+       3. 192×192 PNG   → Android home screen
+       4. 180×180 PNG   → iOS home screen (apple-touch-icon)
+
+       Cache-buster: bump suffix when the icon design changes. -->
+  <link rel="icon" href="/favicon.ico?v=20260518-icon" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/globalshopper-icon-32.png?v=20260518-icon" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/img/globalshopper-icon.png?v=20260518-icon" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/img/globalshopper-icon-180.png?v=20260518-icon" />
+  <link rel="shortcut icon" href="/favicon.ico?v=20260518-icon" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- Preconnect to CJ's image CDN so the TLS handshake completes before
