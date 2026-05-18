@@ -24,7 +24,7 @@ const DEFAULT_SITE_URL = 'https://www.globalshopper.in';
 const SITE_URL = String(Constants.expoConfig?.extra?.siteUrl || DEFAULT_SITE_URL).replace(/\/+$/, '');
 const HOME_URL = `${SITE_URL}/`;
 
-const APP_VERSION = '0.1.2';
+const APP_VERSION = '0.1.6';
 const APP_USER_AGENT = `GlobalShopperAndroid/${APP_VERSION}`;
 
 Notifications.setNotificationHandler({
@@ -259,7 +259,22 @@ export default function App() {
             minimumFontSize={0}
             injectedJavaScript={injectedJavaScript}
             injectedJavaScriptBeforeContentLoaded={injectedJavaScript}
-            pullToRefreshEnabled
+            // v0.1.6: Removed pullToRefreshEnabled because Android's
+            // SwipeRefreshLayout was rendering a circular progress
+            // indicator over the page during normal scrolling and
+            // navigation — users were seeing it as a "loading screen
+            // on top of the main screen" overlay (multiple reports).
+            // The web app has its own skeleton + 'Loading products…'
+            // hint, so we don't need the native pull-to-refresh UX too.
+            pullToRefreshEnabled={false}
+            // Explicitly tell the WebView NOT to render any default
+            // loading view (startInLoadingState would render an
+            // ActivityIndicator overlay otherwise on some platforms).
+            startInLoadingState={false}
+            renderLoading={() => <View />}
+            // Hardware-accelerated rendering — smoother scrolling, no
+            // intermediate paint that could resemble a loading state.
+            androidLayerType="hardware"
             onNavigationStateChange={handleNavChange}
             onLoadStart={() => {
               setError(null);
