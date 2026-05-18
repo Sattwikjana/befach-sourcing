@@ -73,29 +73,35 @@ const HOME_USP_SLIDES = [
   {
     src: '/img/hero/global-usp-1.jpg',
     href: '/category',
+    label: 'Shop global products sold in US and Europe, now in India',
+    alt: 'Global Shopper banner: Shop global products sold in US and Europe, now in India. Carefully sourced from trusted global brands.'
+  },
+  {
+    src: '/img/hero/global-usp-2.jpg',
+    href: '/category',
     label: '2M+ products — millions of choices, one app',
     alt: 'Global Shopper banner: 2M+ products. Millions of choices, one app.'
   },
   {
-    src: '/img/hero/global-usp-2.jpg',
+    src: '/img/hero/global-usp-3.jpg',
     href: '/faq',
     label: '100% money back policy — no questions asked',
     alt: 'Global Shopper banner: 100% money back policy. No question asked. Your satisfaction, our promise.'
   },
   {
-    src: '/img/hero/global-usp-3.jpg',
+    src: '/img/hero/global-usp-4.jpg',
     href: '/faq',
     label: 'All-inclusive pricing — shipping, customs and taxes included',
     alt: 'Global Shopper banner: Price including shipping & custom duties, taxes. No hidden fees. What you see is what you pay.'
   },
   {
-    src: '/img/hero/global-usp-4.jpg',
+    src: '/img/hero/global-usp-5.jpg',
     href: '/track',
     label: 'Delivery within 15 days — fast, reliable, right on time',
     alt: 'Global Shopper banner: Delivery within 15 days. Fast. Reliable. Right on time.'
   },
   {
-    src: '/img/hero/global-usp-5.jpg',
+    src: '/img/hero/global-usp-6.jpg',
     href: '/category',
     label: "Bringing the world's best products to you",
     alt: "Global Shopper banner: Bringing the world's best products to you. Exclusive, sourced globally, 100% authentic."
@@ -2339,7 +2345,7 @@ async function renderHome() {
             <div class="home-usp-track">
               ${HOME_USP_SLIDES.map((slide, index) => `
                 <a class="home-usp-slide${index === 0 ? ' is-active' : ''}" href="${slide.href}" aria-label="${esc(slide.label)}" aria-hidden="${index === 0 ? 'false' : 'true'}" tabindex="${index === 0 ? '0' : '-1'}">
-                  <img src="${slide.src}?v=20260518usp4" alt="${esc(slide.alt)}" width="1600" height="900" loading="${index === 0 ? 'eager' : 'lazy'}" decoding="async"${index === 0 ? ' fetchpriority="high"' : ''} />
+                  <img src="${slide.src}?v=20260518usp5" alt="${esc(slide.alt)}" width="1600" height="900" loading="${index === 0 ? 'eager' : 'lazy'}" decoding="async"${index === 0 ? ' fetchpriority="high"' : ''} />
                 </a>
               `).join('')}
             </div>
