@@ -5348,8 +5348,17 @@ body {
     padding-top: 8px;
   }
 
+  /* v8.69: native-app header used to add 30px padding-top here AND
+     max(18px, env(safe-area-inset-top)) further down — both redundant.
+     React Native's SafeAreaView (App.tsx, edges=['top']) already
+     pushes the WebView below the device status bar. Anything we add
+     here is double-counted, producing a tall header that hides
+     section headings ("Men's Clothing", etc.) when the page scrolls
+     under the sticky header. Match the web header instead — a flat
+     8px constant gives a consistent compact header across all
+     phones and orientations. */
   html.global-shopper-native-app .header {
-    padding-top: 30px;
+    padding-top: 8px;
   }
 
   .header-inner {
@@ -5876,7 +5885,15 @@ body {
 
   html.global-shopper-native-app .header,
   body.global-shopper-native-app .header {
-    padding-top: max(18px, env(safe-area-inset-top, 0px));
+    /* v8.69: was max(18px, env(safe-area-inset-top, 0px)) — that env()
+       value isn't 0 inside Android WebView even though SafeAreaView
+       already consumed it at the native shell, so the header was
+       getting padded TWICE (once by SafeAreaView pushing the WebView
+       down, once by this rule reading the same inset from inside).
+       Flat 8px matches the browser header — SafeAreaView handles
+       the status bar clearance, the header just needs natural
+       breathing room. */
+    padding-top: 8px;
   }
 
   .header-inner {
