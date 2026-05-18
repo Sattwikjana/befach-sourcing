@@ -69,10 +69,20 @@
     src="https://www.facebook.com/tr?id=2162836681180793&ev=PageView&noscript=1"
     alt="" /></noscript>
   <!-- End Meta Pixel Code -->
-  <!-- Vector favicon — sharper at any size than a PNG.
-       Browsers that don't support SVG favicons (very old IE) fall back
-       to the alternate PNG. -->
-  <link rel="icon" type="image/png" href="/img/globalshopper.png" />
+  <!-- Favicon = the cart+globe icon-only mark (square, no wordmark) so it
+       reads cleanly at 16×16 / 32×32 in the browser tab. The wordmark
+       version (globalshopper.png) is used in the header, where there's
+       room for the text. Sized variants for Android / iOS home screens
+       and bookmarks. All point at the same square PNG; modern browsers
+       scale it appropriately.
+       Bump the cache-buster suffix when the icon changes so users get
+       the new favicon immediately instead of waiting for browser cache
+       to expire. -->
+  <link rel="icon" type="image/png" sizes="any" href="/img/globalshopper-icon.png?v=20260517-favicon" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/globalshopper-icon.png?v=20260517-favicon" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/img/globalshopper-icon.png?v=20260517-favicon" />
+  <link rel="shortcut icon" href="/img/globalshopper-icon.png?v=20260517-favicon" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/img/globalshopper-icon.png?v=20260517-favicon" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- Preconnect to CJ's image CDN so the TLS handshake completes before
