@@ -75,19 +75,6 @@ html, body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   font-variant-numeric: normal;
-  /* v8.67: Tell Chromium/Android WebView NOT to trigger the native
-     pull-to-refresh gesture when the user overscrolls at the top of
-     the page. The v0.1.5 AAB has pullToRefreshEnabled={true} on the
-     WebView, which means Android's SwipeRefreshLayout will render
-     its circular progress indicator over the page. We can't disable
-     that prop from web code, but overscroll-behavior:contain tells
-     the WebView's Chromium engine to NOT consume the overscroll as
-     a pull-to-refresh event — neutralizing the gesture before it
-     reaches SwipeRefreshLayout's listener.
-     Works on Chrome 63+ / WebView 63+ (Android 6+).
-     The v0.1.6 AAB removes pullToRefreshEnabled entirely; this CSS
-     rule is the immediate fix that doesn't require a rebuild. */
-  overscroll-behavior: contain;
 }
 
 a { color: inherit; text-decoration: none; }
