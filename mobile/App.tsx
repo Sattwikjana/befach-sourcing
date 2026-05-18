@@ -199,20 +199,50 @@ export default function App() {
 
   useEffect(() => {
     const onBackPress = () => {
-      if (canGoBack) {
-        webViewRef.current?.goBack();
-        return true;
-      }
-      if (currentUrl !== HOME_URL) {
-        setCurrentUrl(HOME_URL);
-        webViewRef.current?.injectJavaScript(`window.location.href = ${JSON.stringify(HOME_URL)}; true;`);
-        return true;
-      }
-      return false;
+      // The web app is an SPA — every category / product / search /
+      // cart navigation is a window.history.pushState() inside the
+      // WebView. Android WebView's canGoBack() and goBack() track
+      // *full page* navigations, not SPA pushState entries, so they
+      // were returning false even after the user navigated several
+      // screens deep — back press fell through and exited the app.
+      //
+      // Fix: inject JavaScript that uses the SPA's own window.history
+      // (which DOES track every pushState). The injected script
+      // decides:
+      //   1. If we're on the home route ('/') → tell native side to
+      //      exit the app (postMessage 'GS_BACK_EXIT').
+      //   2. Else if window.history can go back → history.back().
+      //   3. Else (deep-link entry, no history) → navigate to home.
+      // We always return true here because the back press is being
+      // handled inside the WebView; native should never auto-exit
+      // unless the WebView explicitly requested it.
+      webViewRef.current?.injectJavaScript(`
+        (function () {
+          try {
+            var path = (window.location.pathname || '/') +
+                       (window.location.search || '') +
+                       (window.location.hash || '');
+            var isHome = path === '/' || path === '' || path === '/index.html';
+            if (isHome) {
+              if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+                window.ReactNativeWebView.postMessage('GS_BACK_EXIT');
+              }
+            } else if (window.history && window.history.length > 1) {
+              window.history.back();
+            } else {
+              window.location.href = '/';
+            }
+          } catch (e) {
+            window.location.href = '/';
+          }
+        })();
+        true;
+      `);
+      return true;
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
-  }, [canGoBack, currentUrl]);
+  }, []);
 
   useEffect(() => {
     const fallback = setTimeout(() => {
@@ -275,6 +305,17 @@ export default function App() {
             // Hardware-accelerated rendering — smoother scrolling, no
             // intermediate paint that could resemble a loading state.
             androidLayerType="hardware"
+            // Messages from the WebView's JS environment. The back-
+            // button handler (in the useEffect above) posts
+            // 'GS_BACK_EXIT' when the user presses back from the home
+            // page — we exit gracefully so we don't sit on a screen
+            // the user can't navigate further back from.
+            onMessage={event => {
+              const msg = event?.nativeEvent?.data;
+              if (msg === 'GS_BACK_EXIT') {
+                BackHandler.exitApp();
+              }
+            }}
             onNavigationStateChange={handleNavChange}
             onLoadStart={() => {
               setError(null);
