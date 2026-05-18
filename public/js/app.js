@@ -3089,6 +3089,10 @@ async function renderSearch(query, page = 1, opts = {}) {
     ${childChips}
     <div class="search-layout search-layout-no-filters">
       <div class="search-results">
+        <!-- Text hint above the skeleton so the user has a clear
+             "this is loading, not broken" signal. Removed by JS
+             below as soon as real products replace the skeletons. -->
+        <p class="grid-loading-hint" id="gridLoadingHint">Loading products from global catalog…</p>
         <div class="products-grid" id="searchGrid">${productSkeleton(12)}</div>
         <div class="pagination" id="pagination"></div>
       </div>
@@ -3143,12 +3147,20 @@ async function renderSearch(query, page = 1, opts = {}) {
     // paint it into the grid IMMEDIATELY (no skeleton wait) and refetch
     // in the background. Repeat visits feel instant; the silent
     // revalidate keeps prices / stock fresh.
+    // Once we have real cards to paint (cached or fresh), remove the
+    // "Loading products…" hint above the grid so the page stops looking
+    // like it's still loading.
+    const removeGridLoadingHint = () => {
+      document.getElementById('gridLoadingHint')?.remove();
+    };
+
     const cached = fetchPath ? productListCacheRead(fetchPath) : null;
     if (cached && !photoPayload && Array.isArray(cached.products) && cached.products.length) {
       const earlyGrid = document.getElementById('searchGrid');
       if (earlyGrid) {
         earlyGrid.innerHTML = cached.products.map(productCard).join('');
         backfillCardShipping(earlyGrid);
+        removeGridLoadingHint();
       }
     }
 
@@ -3205,10 +3217,12 @@ async function renderSearch(query, page = 1, opts = {}) {
         <p class="muted">Try a different keyword or browse all categories.</p>
         <a class="btn btn-primary" href="/category">Browse categories</a>
       </div>`;
+      removeGridLoadingHint();
       return;
     }
     grid.innerHTML = products.map(productCard).join('');
     backfillCardShipping(grid);
+    removeGridLoadingHint();
 
     if (pag && totalPages > 1) {
       // Three modes: pure category browse, search-within-category, or pure search.

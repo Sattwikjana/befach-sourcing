@@ -2689,17 +2689,85 @@ main {
 
 /* ═══════════════════════════════════════════════════════════════
    Skeleton + spinner
-   ═══════════════════════════════════════════════════════════════ */
-.skeleton { background: #f3f4f7; animation: pulse 1.4s ease-in-out infinite; }
+   ═══════════════════════════════════════════════════════════════
+   Skeletons use a moving shimmer gradient so it's obvious to the
+   user that content is *loading* (not broken). The previous version
+   used a simple opacity pulse which made the placeholder look like
+   a dead gray box; mobile users on the WebView app were reading
+   that as a stuck page. The diagonal gradient sweep is the standard
+   pattern (LinkedIn, Facebook, Skeleton.js, etc.) and reads as
+   "in progress" universally. */
+.skeleton {
+  background: linear-gradient(
+    100deg,
+    #f0f2f6 30%,
+    #e0e3eb 50%,
+    #f0f2f6 70%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.4s linear infinite;
+}
 .product-card.skeleton {
   min-height: 358px;
   overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
 }
-.skeleton-img { aspect-ratio: 1; background: #e9ebef; }
-.skeleton-text { height: 12px; background: #e9ebef; border-radius: 4px; margin: 10px 12px; }
+.skeleton-img {
+  aspect-ratio: 1;
+  background: linear-gradient(
+    100deg,
+    #e6e9ef 30%,
+    #d3d7e1 50%,
+    #e6e9ef 70%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.4s linear infinite;
+}
+.skeleton-text,
+.skeleton-price {
+  background: linear-gradient(
+    100deg,
+    #e6e9ef 30%,
+    #d3d7e1 50%,
+    #e6e9ef 70%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.4s linear infinite;
+  border-radius: 4px;
+  margin: 10px 12px;
+}
+.skeleton-text       { height: 12px; }
 .skeleton-text.short { width: 40%; }
-.skeleton-price { height: 18px; background: #e9ebef; border-radius: 4px; margin: 10px 12px; width: 60%; }
+.skeleton-price      { height: 18px; width: 60%; }
+@keyframes skeleton-shimmer {
+  0%   { background-position: 220% 0; }
+  100% { background-position: -220% 0; }
+}
 @keyframes pulse { 50% { opacity: 0.6; } }
+
+/* "Loading products…" hint above the skeleton grid so users have
+   a clear text signal that the slow part is the network, not a
+   broken page. Hidden once products replace the skeletons (JS
+   removes the .grid-loading-hint sibling after first paint). */
+.grid-loading-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px 14px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.grid-loading-hint::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
 
 .loading-wrap {
   display: flex;
