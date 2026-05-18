@@ -2746,28 +2746,14 @@ main {
 }
 @keyframes pulse { 50% { opacity: 0.6; } }
 
-/* "Loading products…" hint above the skeleton grid so users have
-   a clear text signal that the slow part is the network, not a
-   broken page. Hidden once products replace the skeletons (JS
-   removes the .grid-loading-hint sibling after first paint). */
-.grid-loading-hint {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 4px 14px;
-  color: var(--text-muted);
-  font-size: 14px;
-}
-.grid-loading-hint::before {
-  content: '';
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--border);
-  border-top-color: var(--brand);
-  border-radius: 50%;
-  animation: spin 0.9s linear infinite;
-  flex-shrink: 0;
-}
+/* .grid-loading-hint was introduced in v8.65 to show a "Loading
+   products from global catalog…" text + tiny spinner above the
+   skeleton grid. Users reported the spinner persisted ON TOP of
+   already-loaded products (the removal trigger had a leak path).
+   v8.66 removed the element entirely from app.js; this CSS rule
+   hides any stale instance that might still exist in cached HTML
+   on returning users' devices. */
+.grid-loading-hint { display: none !important; }
 
 .loading-wrap {
   display: flex;
