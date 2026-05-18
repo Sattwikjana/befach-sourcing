@@ -72,33 +72,33 @@ let stopHomeUspCarousel = null;
 const HOME_USP_SLIDES = [
   {
     src: '/img/hero/global-usp-1.jpg',
-    href: '/search?q=global%20products',
-    label: 'Explore global products and endless choices',
-    alt: 'Global Shopper campaign banner: Bored of the same? Global products, endless choices.'
+    href: '/category',
+    label: '2M+ products — millions of choices, one app',
+    alt: 'Global Shopper banner: 2M+ products. Millions of choices, one app.'
   },
   {
     src: '/img/hero/global-usp-2.jpg',
-    href: '/search?q=global%20shopping',
-    label: 'Upgrade your shopping with global products',
-    alt: 'Global Shopper campaign banner: Upgrade your shopping with global products delivered to you.'
+    href: '/faq',
+    label: '100% money back policy — no questions asked',
+    alt: 'Global Shopper banner: 100% money back policy. No question asked. Your satisfaction, our promise.'
   },
   {
     src: '/img/hero/global-usp-3.jpg',
-    href: '/search?q=trending%20global',
-    label: 'Shop trending global products now in India',
-    alt: 'Global Shopper campaign banner: Trending in US, now in India.'
+    href: '/faq',
+    label: 'All-inclusive pricing — shipping, customs and taxes included',
+    alt: 'Global Shopper banner: Price including shipping & custom duties, taxes. No hidden fees. What you see is what you pay.'
   },
   {
     src: '/img/hero/global-usp-4.jpg',
-    href: '/search?q=premium%20global%20brands',
-    label: 'Beyond borders, beyond ordinary',
-    alt: 'Global Shopper campaign banner: Beyond borders. Beyond ordinary. Shop global, live better.'
+    href: '/track',
+    label: 'Delivery within 15 days — fast, reliable, right on time',
+    alt: 'Global Shopper banner: Delivery within 15 days. Fast. Reliable. Right on time.'
   },
   {
     src: '/img/hero/global-usp-5.jpg',
-    href: '/search?q=premium%20global%20products',
-    label: 'Start shopping what is possible globally',
-    alt: 'Global Shopper campaign banner: Stop settling for what is available, start shopping what is possible.'
+    href: '/category',
+    label: "Bringing the world's best products to you",
+    alt: "Global Shopper banner: Bringing the world's best products to you. Exclusive, sourced globally, 100% authentic."
   }
 ];
 
