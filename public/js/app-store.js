@@ -1396,11 +1396,38 @@ async function loadAdminFeedback() {
       return;
     }
 
+    // Age-bracket distribution panel — small breakdown above the
+    // raw table so the operator can read demographic mix at a glance.
+    if (averagesEl && data.ageDistribution) {
+      const ageLabels = {
+        'under18': 'Under 18',
+        '18-24': '18-24',
+        '25-34': '25-34',
+        '35-44': '35-44',
+        '45-54': '45-54',
+        '55plus': '55+',
+        'unanswered': 'Not stated',
+      };
+      const ageHtml = `
+        <div style="margin-top:12px">
+          <div class="muted small" style="margin-bottom:6px">Age distribution</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${Object.entries(ageLabels).map(([k, lab]) => {
+              const n = data.ageDistribution[k] || 0;
+              return `<span class="stat-card" style="padding:5px 10px;font-size:12px"><strong>${n}</strong> · ${lab}</span>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+      averagesEl.insertAdjacentHTML('beforeend', ageHtml);
+    }
+
     list.innerHTML = `
       <table class="admin-table">
         <thead><tr>
           <th>When</th>
           <th>Customer</th>
+          <th title="Age bracket">Age</th>
           <th title="Look & feel">Look</th>
           <th title="Product variety">Variety</th>
           <th title="Ease of navigation">Nav</th>
@@ -1420,12 +1447,24 @@ async function loadAdminFeedback() {
             // fall back to their signed-in account email; else anonymous.
             const customerEmail = e.contactEmail || (e.user && e.user.email) || '';
             const customerName = e.user && e.user.name ? e.user.name : (customerEmail ? '' : 'anonymous');
+            // Pretty age label — server stores keys like "18-24"
+            // but unanswered is empty string; show "—" for that.
+            const AGE_LABELS = {
+              'under18': '<18',
+              '18-24': '18-24',
+              '25-34': '25-34',
+              '35-44': '35-44',
+              '45-54': '45-54',
+              '55plus': '55+',
+            };
+            const ageLabel = AGE_LABELS[e.ageBracket] || '—';
             return `
             <tr>
               <td class="muted small">${new Date(e.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td>
               <td>
                 ${customerName ? esc(customerName) : ''}${customerName && customerEmail ? '<br>' : ''}${customerEmail ? `<a href="mailto:${esc(customerEmail)}" class="muted small">${esc(customerEmail)}</a>` : (customerName ? '' : '<span class="muted small">anonymous</span>')}
               </td>
+              <td class="small">${ageLabel}</td>
               <td>${e.lookFeel || '—'}</td>
               <td>${e.variety || '—'}</td>
               <td>${e.easeNav || '—'}</td>

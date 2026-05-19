@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.87';
+const APP_VERSION = '8.88';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.87'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.88'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -900,6 +900,16 @@ app.post('/api/feedback', (req, res) => {
     delivery15Day:    clampRating(b.delivery15Day),
     comments: typeof b.comments === 'string' ? b.comments.slice(0, 1000).trim() : '',
     contactEmail: validContactEmail,
+    // Coarse demographic bucket. Only accept whitelisted values so a
+    // malicious or buggy client can't shove arbitrary strings into our
+    // analytics. Empty string means the customer didn't answer.
+    ageBracket: (() => {
+      const ALLOWED_AGE_BRACKETS = new Set([
+        'under18', '18-24', '25-34', '35-44', '45-54', '55plus',
+      ]);
+      const v = typeof b.ageBracket === 'string' ? b.ageBracket.trim() : '';
+      return ALLOWED_AGE_BRACKETS.has(v) ? v : '';
+    })(),
     user: req.user ? { id: req.user.id, name: req.user.name, email: req.user.email } : null,
     userAgent: (req.headers['user-agent'] || '').slice(0, 200),
   };
@@ -944,7 +954,16 @@ app.get('/api/admin/feedback', adminAuth, (req, res) => {
     averages[f] = vals.length ? +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) : 0;
   });
 
-  res.json({ items, total, page, pageSize, averages });
+  // Age-bracket distribution across ALL submissions (not paginated).
+  // 'unanswered' counts customers who skipped the question.
+  const ageBuckets = ['under18', '18-24', '25-34', '35-44', '45-54', '55plus', 'unanswered'];
+  const ageDistribution = Object.fromEntries(ageBuckets.map(k => [k, 0]));
+  for (const e of sorted) {
+    const k = (e.ageBracket && ageBuckets.includes(e.ageBracket)) ? e.ageBracket : 'unanswered';
+    ageDistribution[k]++;
+  }
+
+  res.json({ items, total, page, pageSize, averages, ageDistribution });
 });
 
 app.patch('/api/auth/me', (req, res) => {

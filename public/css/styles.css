@@ -6530,6 +6530,16 @@ body.page-home .feedback-fab {
   gap: 6px;
   margin: 4px 0 2px;
 }
+/* Age-bracket pills have 6 columns and use word labels ("Under 18",
+   "18-24", etc.) instead of single digits — give them a fluid grid
+   so they wrap nicely on narrow phones. */
+.radio-row-age {
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+}
+.radio-row-age .radio-pill {
+  font-size: 12.5px;
+  padding: 0 6px;
+}
 .radio-pill {
   position: relative;
   display: flex;

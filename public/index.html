@@ -97,7 +97,7 @@
   <!-- v query-string busts the browser cache whenever we ship UI
        changes. Bump the suffix to force fresh JS/CSS downloads even
        on browsers that ignore Cache-Control: no-cache. -->
-  <link rel="stylesheet" href="/css/styles.css?v=20260519-share" />
+  <link rel="stylesheet" href="/css/styles.css?v=20260519-age" />
   <script>
     // 1) MIGRATE OLD HASH URLs — anyone hitting /#/cart from a stale
     //    bookmark or shared link is silently redirected to /cart so
@@ -456,6 +456,22 @@
           <div class="radio-legend"><span>Unlikely</span><span>Very likely</span></div>
         </div>
 
+        <!-- Demographic — coarse age bracket. Buckets (not exact age)
+             so it's quick to answer and privacy-friendly. Bracket key
+             goes to the server as `ageBracket` so the admin can slice
+             ratings by demographic. -->
+        <div class="feedback-row" data-age-row>
+          <span class="feedback-q">Your age (helps us understand who's shopping)</span>
+          <div class="radio-row radio-row-age" role="radiogroup" aria-label="Age bracket">
+            <label class="radio-pill"><input type="radio" name="fbAge" value="under18" /><span>Under 18</span></label>
+            <label class="radio-pill"><input type="radio" name="fbAge" value="18-24" /><span>18-24</span></label>
+            <label class="radio-pill"><input type="radio" name="fbAge" value="25-34" /><span>25-34</span></label>
+            <label class="radio-pill"><input type="radio" name="fbAge" value="35-44" /><span>35-44</span></label>
+            <label class="radio-pill"><input type="radio" name="fbAge" value="45-54" /><span>45-54</span></label>
+            <label class="radio-pill"><input type="radio" name="fbAge" value="55plus" /><span>55+</span></label>
+          </div>
+        </div>
+
         <div class="feedback-row feedback-row-comments">
           <label class="feedback-q" for="feedbackEmail">Email (optional)</label>
           <input type="email" id="feedbackEmail" placeholder="you@example.com" maxlength="200" autocomplete="email" />
@@ -485,11 +501,11 @@
   <!-- Razorpay Checkout — loaded async so it doesn't block the page;
        only used on the checkout page when the customer hits "Pay & Place order". -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
-  <script src="/js/app.js?v=20260519-share"></script>
-  <script src="/js/app-store.js?v=20260519-share"></script>
+  <script src="/js/app.js?v=20260519-age"></script>
+  <script src="/js/app-store.js?v=20260519-age"></script>
   <!-- AI shopping assistant (AL Suliswan) — floating button + chat panel.
        Loaded after the core SPA so it can reuse navigate() / imgProxy(). -->
-  <script src="/js/ai-assistant.js?v=20260519-share" defer></script>
+  <script src="/js/ai-assistant.js?v=20260519-age" defer></script>
   <!-- Surface any uncaught JS error in the page so we can debug from
        the browser without DevTools. Goes to console.error and shows
        a discreet banner if anything blows up. -->

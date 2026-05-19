@@ -4254,6 +4254,12 @@ async function fbSubmit(e) {
     payload[r.dataset.q] = checked ? (parseInt(checked.value, 10) || 0) : 0;
   });
   payload.comments = (document.getElementById('feedbackComments')?.value || '').trim();
+  // Optional age bracket — radio outside the data-q rows so we collect
+  // it separately. Saved on the server as `ageBracket`. Empty if the
+  // customer skipped the question (treated as "not provided" in the
+  // admin demographic breakdown).
+  const ageChecked = document.querySelector('#feedbackForm input[name="fbAge"]:checked');
+  if (ageChecked) payload.ageBracket = ageChecked.value;
   const emailRaw = (document.getElementById('feedbackEmail')?.value || '').trim();
   if (emailRaw) {
     // Optional — but if provided, do a sanity check so we don't capture
