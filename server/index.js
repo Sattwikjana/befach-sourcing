@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.80';
+const APP_VERSION = '8.81';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.80'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.81'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -1024,10 +1024,15 @@ app.get('/api/auth/orders', (req, res) => {
 //  limited per IP so a runaway client can't burn through credits.
 // ══════════════════════════════════════════════════════════════════
 // Resolve the customer-facing USD price for a catalog row. Mirrors
-// the product-detail logic: prefer a cached (wholesale + shipping)
-// × (1 + markup) if we have one, otherwise fall back to markup-only.
+// the product-detail logic: (wholesale + shipping) × (1 + markup).
+// Three tiers:
+//   1. Use the cached real shipping for this PID  (always exact)
+//   2. Fall back to a heuristic shipping estimate (close enough)
+//   3. Fall back to markup-only                   (last resort)
+const AI_FALLBACK_SHIPPING_USD = parseFloat(process.env.AI_FALLBACK_SHIPPING_USD || '8');
 function aiGetDisplayUsd(p) {
   const pid = String(p?.pid || p?.id || p?.productId || '');
+  const wholesaleFromRow = parseFloat(p?.sellPrice || p?.price || p?.nowPrice || 0) || 0;
   if (pid && shippingCache[pid]) {
     const c = shippingCache[pid];
     // 1a. We already computed the full display price → use it.
@@ -1035,20 +1040,29 @@ function aiGetDisplayUsd(p) {
     if (Number.isFinite(cached) && cached > 0) return cached;
     // 1b. We have shipping but not yet displayUsd → compute now.
     const ship = parseFloat(c.usd);
-    const wholesale = parseFloat(c.wholesaleUsd || p?.sellPrice || 0);
+    const wholesale = parseFloat(c.wholesaleUsd || wholesaleFromRow);
     if (Number.isFinite(ship) && ship > 0 && Number.isFinite(wholesale) && wholesale > 0) {
       return computeDisplayUsd(wholesale, ship);
     }
   }
-  // 2. No cached shipping — return markup-only price (storefront
-  //    list-view price). Customer might see a slightly higher number
-  //    on the detail page once we quote real shipping, but the AI
-  //    matches at least one canonical surface of the site.
+  // 2. No cached shipping for this PID yet. Use the average India
+  //    shipping estimate so the AI quote is in the same ballpark
+  //    as what the customer sees on the detail page. This was
+  //    previously falling back to markup-only (no shipping), which
+  //    quoted ~5× lower than reality on heavy/medium items.
+  //    Once a customer opens the product, real shipping gets cached
+  //    and future AI calls are exact.
+  if (wholesaleFromRow > 0 && AI_FALLBACK_SHIPPING_USD > 0) {
+    try {
+      return computeDisplayUsd(wholesaleFromRow, AI_FALLBACK_SHIPPING_USD);
+    } catch {}
+  }
+  // 3. Last resort — markup-only via applyStorePricing.
   try {
     const priced = pricing.applyStorePricing(p);
     return parseFloat(priced.sellPrice || priced.price || 0) || 0;
   } catch {
-    return parseFloat(p.sellPrice || p.price || 0) || 0;
+    return wholesaleFromRow;
   }
 }
 const __aiChat = aiAssistant.buildChat({
