@@ -158,49 +158,43 @@ async function probeAuth() {
 //  site uses so the AI never sees a different inventory than the
 //  customer would see by typing in the search bar.
 // ──────────────────────────────────────────────────────────────────
-function buildSearchAdapter({ searchProductsWithCatalogExtras, mergeDeterministicSearchIntent }) {
-  return async function searchCatalogForAI(query, max = 4) {
-    const q = String(query || '').trim().slice(0, 80);
-    if (!q) return [];
-    const size = Math.max(1, Math.min(6, max || 4));
-    let intent = null;
+function buildSearchAdapter({ catalog }) {
+  // Pure SQLite path. No live CJ fetch, no async I/O beyond SQLite
+  // (which is synchronous via better-sqlite3). This was originally
+  // calling the storefront's full searchProductsWithCatalogExtras
+  // wrapper, but that helper has an "if no local rows then call CJ"
+  // fallback which can crash the Node process when the CJ token
+  // rotates mid-request or when the catalog index doesn't match.
+  // The AI doesn't need that complexity — a direct SQLite hit on
+  // 522k+ products is far simpler and never escalates to live calls.
+  return function searchCatalogForAI(query, max = 4) {
     try {
-      intent = mergeDeterministicSearchIntent(q, {
-        keywords: q,
-        broader_keywords: q,
-        category: null,
-        color: null,
-        gender: null,
-        price_min: null,
-        price_max: null,
-        intent: null,
-        source: 'deterministic',
-      });
-    } catch {}
-    let meta;
-    try {
-      meta = await searchProductsWithCatalogExtras({
+      const q = String(query || '').trim().slice(0, 80);
+      if (!q) return [];
+      const size = Math.max(1, Math.min(6, max || 4));
+      const meta = catalog.searchProducts({
         keyWord: q,
         page: 1,
         size,
-        allowLive: false, // SQLite catalog only — keeps the AI fast (catalog has 522k+ products)
-        searchIntent: intent,
       });
+      const items = (meta?.products || []).slice(0, size);
+      return items.map(p => {
+        const usd = parseFloat(p.sellPrice || p.nowPrice || p.price || 0) || 0;
+        return {
+          pid: String(p.pid || p.id || p.productId || ''),
+          name: String(p.productNameEn || p.productName || '').slice(0, 110),
+          image: p.productImage || p.bigImage || p.image || '',
+          priceInr: Math.round(usd * USD_TO_INR),
+          category: p.categoryName || p.threeCategoryName || '',
+        };
+      }).filter(x => x.pid && x.name);
     } catch (err) {
+      // Never let a search failure crash the whole chat — return
+      // empty results and let the AI tell the customer it couldn't
+      // find anything for that query.
       console.warn('[ai] catalog search failed:', err.message);
       return [];
     }
-    const items = (meta?.products || []).slice(0, size);
-    return items.map(p => {
-      const usd = parseFloat(p.sellPrice || p.nowPrice || p.price || 0) || 0;
-      return {
-        pid: String(p.pid || p.id || p.productId || ''),
-        name: String(p.productNameEn || p.productName || '').slice(0, 110),
-        image: p.productImage || p.bigImage || p.image || '',
-        priceInr: Math.round(usd * USD_TO_INR),
-        category: p.categoryName || p.threeCategoryName || '',
-      };
-    }).filter(x => x.pid && x.name);
   };
 }
 
@@ -283,22 +277,27 @@ function buildChat(deps) {
       fullMessages.push(assistantTurn);
 
       if (msg.tool_calls && msg.tool_calls.length) {
-        // Execute each requested tool call in parallel
-        const toolResultMessages = await Promise.all(
-          msg.tool_calls.map(async (tc) => {
+        // Execute each requested tool call sequentially. Sequential
+        // (not Promise.all) so a sluggish SQLite query for one tool
+        // call doesn't pile concurrent calls on the same DB handle —
+        // typical chat turn calls 1-2 tools max, latency is fine.
+        const toolResultMessages = [];
+        for (const tc of msg.tool_calls) {
+          try {
             let parsed;
             try {
               parsed = JSON.parse(tc.function?.arguments || '{}');
             } catch {
-              return {
+              toolResultMessages.push({
                 role: 'tool',
                 tool_call_id: tc.id,
                 content: JSON.stringify({ error: 'Could not parse tool arguments.' }),
-              };
+              });
+              continue;
             }
 
             if (tc.function?.name === 'search_products') {
-              const items = await searchCatalogForAI(parsed.query, parsed.max);
+              const items = searchCatalogForAI(parsed.query, parsed.max);
               productGroups.push({
                 query: parsed.query,
                 purpose: parsed.purpose || parsed.query,
@@ -312,20 +311,30 @@ function buildChat(deps) {
                 priceInr: p.priceInr,
                 category: p.category,
               }));
-              return {
+              toolResultMessages.push({
                 role: 'tool',
                 tool_call_id: tc.id,
                 content: JSON.stringify({ products: summary, count: summary.length }),
-              };
+              });
+            } else {
+              toolResultMessages.push({
+                role: 'tool',
+                tool_call_id: tc.id,
+                content: JSON.stringify({ error: 'Unknown tool.' }),
+              });
             }
-
-            return {
+          } catch (err) {
+            // Belt-and-braces — even if something inside the tool
+            // execution throws unexpectedly, return a tool-result
+            // so OpenRouter's loop stays coherent.
+            console.warn('[ai] tool execution failed:', err.message);
+            toolResultMessages.push({
               role: 'tool',
               tool_call_id: tc.id,
-              content: JSON.stringify({ error: 'Unknown tool.' }),
-            };
-          })
-        );
+              content: JSON.stringify({ error: 'Tool execution failed.' }),
+            });
+          }
+        }
         fullMessages.push(...toolResultMessages);
         continue; // Loop — give the model another chance to answer with tool data
       }
