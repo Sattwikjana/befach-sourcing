@@ -6573,7 +6573,11 @@ body.page-home .feedback-fab {
    ═══════════════════════════════════════════════════════════════ */
 .ai-float-btn {
   position: fixed;
-  right: 18px;
+  /* Anchored to the LEFT so we never collide with the home-page
+     Feedback pill (which lives bottom-right) or the sticky CTA bar
+     on product/cart pages. Switched from right-side after the
+     feedback button was getting visually blocked by the robot. */
+  left: 18px;
   bottom: 22px;
   width: 60px;
   height: 60px;
@@ -6626,7 +6630,9 @@ body.page-home .feedback-fab {
 }
 .ai-float-tip {
   position: absolute;
-  right: 70px;
+  /* Tip floats on the OPPOSITE side of the screen edge — button
+     is on the left now, so the tip sits to its right. */
+  left: 70px;
   top: 50%;
   transform: translateY(-50%);
   background: #1A0B36;
@@ -6641,12 +6647,13 @@ body.page-home .feedback-fab {
   transition: opacity 200ms ease, transform 200ms ease;
   box-shadow: 0 8px 16px rgba(15, 6, 40, 0.35);
 }
-.ai-float-btn:hover .ai-float-tip { opacity: 1; transform: translateY(-50%) translateX(-4px); }
+.ai-float-btn:hover .ai-float-tip { opacity: 1; transform: translateY(-50%) translateX(4px); }
 
 /* Lift the button above the mobile bottom-nav so it doesn't sit on
-   top of the cart/account icons. */
+   top of the cart/account icons. Still left-anchored to keep
+   clear of the home-page Feedback pill on the right. */
 @media (max-width: 860px) {
-  .ai-float-btn { bottom: 78px; right: 14px; width: 54px; height: 54px; }
+  .ai-float-btn { bottom: 78px; left: 14px; right: auto; width: 54px; height: 54px; }
   .ai-float-btn img { width: 40px; height: 40px; }
   .ai-float-tip { display: none; }
 }
