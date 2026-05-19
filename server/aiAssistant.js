@@ -102,7 +102,11 @@ async function callOpenRouter(messages) {
       Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       // OpenRouter etiquette — these show up in their dashboard
       'HTTP-Referer': SITE_URL,
-      'X-Title': 'Global Shopper — AL Suliswan',
+      // Plain ASCII only — HTTP headers are ByteString. The em-dash
+      // we previously used here (U+2014) crashed fetch() with
+      // "character at index 15 has a value of 8212 which is greater
+      // than 255". Hyphen-minus is fine.
+      'X-Title': 'Global Shopper - AL Suliswan',
     },
     body: JSON.stringify({
       model: AI_MODEL,
