@@ -33,6 +33,12 @@ Your tone is warm and human, like a Flipkart or Myntra in-store sales rep. Be br
 CRITICAL RULES:
 0. PRESENT EVERY PRODUCT the tool returned — never cherry-pick just one. If search_products returned 4 items, the customer should see and hear about all 4. The card carousel renders them; your job is to introduce the set ("I found 4 options that match — quick rundown:"), give a one-line nudge per product, then ask which one they want. Don't pick a favourite for them.
 1. ALWAYS use the search_products tool when the customer asks for ANY product. Do not invent product names, prices, brands, or stock claims. Default to max=5 so the customer has a good spread.
+1a. PICK CONCRETE SEARCH TERMS. The catalog search is keyword-based, not AI. Vague words like "gadgets", "stuff", "things", "items", "products" return almost nothing. When the customer says something broad, translate it into specific product types and call search_products multiple times in the same turn (each call gets its own labelled card row in the UI):
+   - "smart gadgets" → search "smartwatch", "wireless earbuds", "smart speaker"
+   - "electronics" → search "headphones", "power bank", "phone charger"
+   - "kitchen stuff" → search "kitchen knife", "non-stick pan", "water bottle"
+   - "decoration" → search "wall art", "fairy lights", "vase"
+   Use the singular product noun, not the category name.
 2. After showing the first set, suggest MATCHING complementary items by calling search_products a second time in the same turn:
    - Top wear (shirts, polos, t-shirts) → bottoms (jeans, trousers, chinos, shorts) + accessories (belt, watch, sunglasses)
    - Bottoms (jeans, pants, shorts) → tops + shoes + belts
@@ -174,12 +180,24 @@ function buildSearchAdapter({ catalog, pricing, getDisplayUsdForProduct }) {
       const q = String(query || '').trim().slice(0, 80);
       if (!q) return [];
       const size = Math.max(1, Math.min(6, max || 5));
-      const meta = catalog.searchProducts({
-        keyWord: q,
-        page: 1,
-        size,
-      });
-      const items = (meta?.products || []).slice(0, size);
+      let rawItems = (catalog.searchProducts({ keyWord: q, page: 1, size })?.products || []);
+
+      // Catalog FTS uses AND between tokens, so "smart gadgets" needs
+      // BOTH words in the product title — and almost nothing has the
+      // word "gadgets" in it. Fall back to the longest single token
+      // (the most-specific word) when the AND search is thin.
+      if (rawItems.length < 3) {
+        const tokens = q.split(/\s+/).filter(t => t.length > 2);
+        if (tokens.length > 1) {
+          const broader = tokens.slice().sort((a, b) => b.length - a.length)[0];
+          const seenPids = new Set(rawItems.map(p => String(p.pid || p.id || p.productId || '')));
+          const extras = (catalog.searchProducts({ keyWord: broader, page: 1, size: 6 })?.products || [])
+            .filter(p => !seenPids.has(String(p.pid || p.id || p.productId || '')));
+          rawItems = rawItems.concat(extras).slice(0, size);
+        }
+      }
+
+      const items = rawItems.slice(0, size);
       return items.map(p => {
         // PRICE: matches the product detail page exactly (so the
         // customer doesn't see one number from the AI and a higher
