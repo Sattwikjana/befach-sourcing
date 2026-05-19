@@ -156,7 +156,23 @@ async function renderCheckout() {
     message: 'Please sign in before checkout so we can save your address, payment status and order tracking.',
     redirect: '/checkout'
   });
-  if (!state.cart.length) return renderCart();
+  // Two flows land here:
+  //   • Buy Now → state.buyNowItem holds a single product (the rest
+  //     of the cart is ignored on this page)
+  //   • Cart → Checkout → renders state.cart as usual
+  const isBuyNow = !!state.buyNowItem;
+  const items = isBuyNow ? [state.buyNowItem] : state.cart;
+  if (!items.length) {
+    // Buy-now slot somehow emptied (qty fell to 0, item removed) —
+    // send the user back to cart, which itself shows the empty state
+    // if the cart is also empty.
+    if (isBuyNow) clearBuyNowItem();
+    return renderCart();
+  }
+  const subtotalUsd = () => items.reduce(
+    (s, i) => s + (parseFloat(i.priceUsd) * (i.quantity || 1)),
+    0
+  );
 
   // Restore any previous address so customers don't re-type
   let saved = {};
@@ -179,8 +195,8 @@ async function renderCheckout() {
   app.innerHTML = `
     <div class="breadcrumb">
       <a href="/">Home</a> <span>›</span>
-      <a href="/cart">Cart</a> <span>›</span>
-      <span class="current">Checkout</span>
+      ${isBuyNow ? '' : '<a href="/cart">Cart</a> <span>›</span>'}
+      <span class="current">Checkout${isBuyNow ? ' (Buy Now)' : ''}</span>
     </div>
     <h1 class="page-title">Checkout</h1>
 
@@ -255,11 +271,11 @@ async function renderCheckout() {
         <h3>Order summary</h3>
         <div class="checkout-items" id="checkoutItems"></div>
         <hr/>
-        <div class="summary-row"><span>Subtotal (${state.cart.length} ${state.cart.length === 1 ? 'item' : 'items'})</span><strong>${fmtINR(cartSubtotalUsd())}</strong></div>
+        <div class="summary-row" id="sumSubtotalRow"><span id="sumSubtotalLabel">Subtotal (${items.length} ${items.length === 1 ? 'item' : 'items'})</span><strong id="sumSubtotal">${fmtINR(subtotalUsd())}</strong></div>
         <div class="summary-row muted"><span>Shipping</span><span>Included</span></div>
         <div class="summary-row muted"><span>Taxes</span><span>Included</span></div>
         <hr/>
-        <div class="summary-row summary-total"><span>Total</span><strong id="sumTotal">${fmtINR(cartSubtotalUsd())}</strong></div>
+        <div class="summary-row summary-total"><span>Total</span><strong id="sumTotal">${fmtINR(subtotalUsd())}</strong></div>
         <button class="btn btn-primary btn-lg btn-full" id="placeOrderBtn">Pay &amp; Place order</button>
         <p class="muted small" style="text-align:center">By placing this order you agree to our terms.</p>
       </aside>
@@ -267,21 +283,95 @@ async function renderCheckout() {
   `;
 
   trackEcommerceEvent('begin_checkout', {
-    value: cartValueInr(),
-    items: state.cart.map(analyticsItemFromCart)
+    value: Math.round(subtotalUsd() * (state.config.usdToInr || 85)),
+    items: items.map(analyticsItemFromCart)
   });
 
-  // Render order summary items
-  document.getElementById('checkoutItems').innerHTML = state.cart.map(item => `
-    <div class="checkout-item">
-      <img src="${imgProxy(item.image)}" alt="${esc(item.productName)}" width="50" height="50" loading="lazy" decoding="async" onerror="this.src='/img/globalshopper.png'"/>
-      <div class="checkout-item-info">
-        <div class="checkout-item-title">${esc(item.productName.slice(0, 50))}${item.productName.length > 50 ? '…' : ''}</div>
-        <div class="checkout-item-qty">Qty ${item.quantity}${item.variantName ? ' · ' + esc(item.variantName) : ''}</div>
+  // Render order-summary items WITH inline quantity controls and a
+  // remove button. Same UX for cart-mode and buy-now mode; the
+  // handlers branch internally.
+  function renderCheckoutItems() {
+    const list = checkoutItems();
+    const host = document.getElementById('checkoutItems');
+    if (!host) return;
+    host.innerHTML = list.map(item => {
+      const lineUsd = parseFloat(item.priceUsd) * (item.quantity || 1);
+      return `
+      <div class="checkout-item" data-pid="${esc(item.pid)}" data-vid="${esc(item.vid)}">
+        <img src="${imgProxy(item.image)}" alt="${esc(item.productName)}" width="50" height="50" loading="lazy" decoding="async" onerror="this.src='/img/globalshopper.png'"/>
+        <div class="checkout-item-info">
+          <div class="checkout-item-title">${esc(item.productName.slice(0, 50))}${item.productName.length > 50 ? '…' : ''}</div>
+          ${item.variantName ? `<div class="checkout-item-variant muted small">${esc(item.variantName)}</div>` : ''}
+          <div class="checkout-item-controls">
+            <div class="checkout-qty">
+              <button type="button" class="checkout-qty-btn" aria-label="Decrease quantity" onclick="checkoutQtyChange('${esc(item.pid)}','${esc(item.vid)}',-1)">−</button>
+              <span class="checkout-qty-num" aria-live="polite">${item.quantity || 1}</span>
+              <button type="button" class="checkout-qty-btn" aria-label="Increase quantity" onclick="checkoutQtyChange('${esc(item.pid)}','${esc(item.vid)}',1)">+</button>
+            </div>
+            <button type="button" class="checkout-item-remove" aria-label="Remove ${esc(item.productName)}" onclick="checkoutRemoveItem('${esc(item.pid)}','${esc(item.vid)}')">✕</button>
+          </div>
+        </div>
+        <div class="checkout-item-price">${fmtINR(lineUsd)}</div>
       </div>
-      <div class="checkout-item-price">${fmtINR(parseFloat(item.priceUsd) * item.quantity)}</div>
-    </div>
-  `).join('');
+    `;}).join('');
+  }
+  function refreshCheckoutSummary() {
+    const list = checkoutItems();
+    const sub = list.reduce((s, i) => s + parseFloat(i.priceUsd) * (i.quantity || 1), 0);
+    const subEl = document.getElementById('sumSubtotal');
+    const totalEl = document.getElementById('sumTotal');
+    const labelEl = document.getElementById('sumSubtotalLabel');
+    if (subEl) subEl.textContent = fmtINR(sub);
+    if (totalEl) totalEl.textContent = fmtINR(sub);
+    if (labelEl) labelEl.textContent = `Subtotal (${list.length} ${list.length === 1 ? 'item' : 'items'})`;
+  }
+  renderCheckoutItems();
+  // Expose helpers so the inline onclick handlers above can find them
+  // (these need to live on window because the HTML is injected as a
+  // string). Defined fresh each render so they always close over the
+  // latest mode (cart vs buy-now).
+  window.checkoutQtyChange = function(pid, vid, delta) {
+    if (state.buyNowItem) {
+      if (state.buyNowItem.pid !== pid || state.buyNowItem.vid !== vid) return;
+      const next = (state.buyNowItem.quantity || 1) + delta;
+      if (next <= 0) return window.checkoutRemoveItem(pid, vid);
+      setBuyNowItem({ ...state.buyNowItem, quantity: next });
+    } else {
+      const item = state.cart.find(i => i.pid === pid && i.vid === vid);
+      if (!item) return;
+      const next = (item.quantity || 1) + delta;
+      if (next <= 0) return window.checkoutRemoveItem(pid, vid);
+      updateCartQuantity(pid, vid, next);
+      updateCartBadge();
+    }
+    renderCheckoutItems();
+    refreshCheckoutSummary();
+  };
+  window.checkoutRemoveItem = function(pid, vid) {
+    if (state.buyNowItem) {
+      // Removing the single buy-now product means the express
+      // checkout no longer has anything to charge for — fall back
+      // to whichever next page makes sense.
+      clearBuyNowItem();
+      if (state.cart.length) {
+        showToast('Removed. Returned to your cart.');
+        navigate('/cart');
+      } else {
+        showToast('Removed.');
+        navigate('/');
+      }
+      return;
+    }
+    removeFromCart(pid, vid);
+    updateCartBadge();
+    if (!state.cart.length) {
+      showToast('Your cart is empty.');
+      navigate('/cart');
+      return;
+    }
+    renderCheckoutItems();
+    refreshCheckoutSummary();
+  };
 
   // Persist address as user types
   const form = document.getElementById('checkoutForm');
@@ -362,7 +452,9 @@ async function renderCheckout() {
     btn.disabled = true;
     btn.textContent = 'Starting payment…';
 
-    const itemsPayload = state.cart.map(i => ({ pid: i.pid, vid: i.vid, quantity: i.quantity }));
+    // Use whichever item set is being checked out (cart OR buy-now)
+    const checkoutList = checkoutItems();
+    const itemsPayload = checkoutList.map(i => ({ pid: i.pid, vid: i.vid, quantity: i.quantity }));
     const shippingPayload = {
       address: fd.address,
       address2: fd.address2 || '',
@@ -381,7 +473,7 @@ async function renderCheckout() {
     // the customer would only learn about a price change inside the
     // Razorpay modal — too late and confusing.
     const usdToInr = state.config.usdToInr || 85;
-    const expectedTotalPaise = Math.round(cartSubtotalUsd() * usdToInr * 100);
+    const expectedTotalPaise = Math.round(subtotalUsd() * usdToInr * 100);
 
     let intent;
     try {
@@ -394,21 +486,29 @@ async function renderCheckout() {
       btn.textContent = 'Pay & Place order';
 
       if (err.code === 'PRICE_CHANGED' && Array.isArray(err.data?.priced)) {
-        // Update the cart with the new server-side prices so the
-        // customer sees the real total before they retry.
+        // Update whichever item-set is being checked out (cart OR
+        // buy-now) with the new server-side prices so the customer
+        // sees the real total before they retry.
         const priceByVid = {};
         for (const p of err.data.priced) priceByVid[p.vid] = p.displayPrice;
-        for (const item of state.cart) {
-          if (priceByVid[item.vid]) item.priceUsd = String(priceByVid[item.vid]);
+        if (state.buyNowItem && priceByVid[state.buyNowItem.vid]) {
+          setBuyNowItem({
+            ...state.buyNowItem,
+            priceUsd: String(priceByVid[state.buyNowItem.vid]),
+          });
+        } else {
+          for (const item of state.cart) {
+            if (priceByVid[item.vid]) item.priceUsd = String(priceByVid[item.vid]);
+          }
+          try { localStorage.setItem(CART_KEY, JSON.stringify(state.cart)); } catch {}
         }
-        try { localStorage.setItem(CART_KEY, JSON.stringify(state.cart)); } catch {}
 
         const oldInr = (expectedTotalPaise / 100).toFixed(0);
         const newInr = (err.data.actualTotalPaise / 100).toFixed(0);
         showToast(`Prices updated since you opened your cart — old ₹${oldInr}, new ₹${newInr}. Review and tap Pay again.`, 7000);
-        // Re-render the checkout summary so the new total shows.
-        const sumTotal = document.getElementById('sumTotal');
-        if (sumTotal) sumTotal.textContent = fmtINR(cartSubtotalUsd());
+        // Re-render the checkout list + summary so the new total shows.
+        renderCheckoutItems();
+        refreshCheckoutSummary();
         updateCartBadge();
         return;
       }
@@ -455,10 +555,15 @@ async function renderCheckout() {
             razorpay_signature: rzResp.razorpay_signature,
           });
           if (res.success && res.order) {
+            const purchasedItems = checkoutItems();
+            const purchasedValueInr = Math.round(
+              purchasedItems.reduce((s, i) => s + parseFloat(i.priceUsd) * (i.quantity || 1), 0)
+              * (state.config.usdToInr || 85)
+            );
             trackEcommerceEvent('purchase', {
               transaction_id: res.order.id,
-              value: cartValueInr(),
-              items: state.cart.map(analyticsItemFromCart)
+              value: purchasedValueInr,
+              items: purchasedItems.map(analyticsItemFromCart)
             });
             // Save address to user profile (best-effort)
             if (state.user) {
@@ -467,7 +572,14 @@ async function renderCheckout() {
                 address: { ...shippingPayload },
               }).catch(() => {});
             }
-            clearCart();
+            // Clear only the slot that was actually used. Buy-now
+            // orders leave the cart intact so the customer doesn't
+            // lose what they had saved before the express purchase.
+            if (isBuyNow) {
+              clearBuyNowItem();
+            } else {
+              clearCart();
+            }
             navigate(`/order/${res.order.id}`);
           } else {
             throw new Error(res.error || 'Order failed');

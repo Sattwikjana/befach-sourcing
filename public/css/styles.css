@@ -2224,18 +2224,78 @@ main {
 }
 .payment-note strong { display: block; margin-bottom: 4px; }
 
-.checkout-items { display: flex; flex-direction: column; gap: 10px; max-height: 280px; overflow-y: auto; }
+.checkout-items { display: flex; flex-direction: column; gap: 12px; max-height: 320px; overflow-y: auto; }
 .checkout-item {
   display: grid;
-  grid-template-columns: 50px 1fr auto;
+  grid-template-columns: 56px 1fr auto;
   gap: 10px;
-  align-items: center;
+  align-items: flex-start;
   font-size: 13px;
 }
-.checkout-item img { width: 50px; height: 50px; border-radius: var(--radius-sm); object-fit: cover; background: var(--surface-alt); }
-.checkout-item-title { font-weight: 500; }
+.checkout-item img { width: 56px; height: 56px; border-radius: var(--radius-sm); object-fit: cover; background: var(--surface-alt); }
+.checkout-item-info { min-width: 0; }
+.checkout-item-title { font-weight: 500; line-height: 1.25; }
+.checkout-item-variant { margin-top: 2px; }
 .checkout-item-qty { color: var(--text-muted); font-size: 11.5px; }
-.checkout-item-price { font-weight: 700; }
+.checkout-item-price { font-weight: 700; white-space: nowrap; }
+
+/* Qty +/− and remove ✕ controls in the order-summary sidebar.
+   Same look on both buy-now and cart-mode checkouts. */
+.checkout-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.checkout-qty {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.checkout-qty-btn {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text);
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.checkout-qty-btn:hover { background: var(--surface-alt); }
+.checkout-qty-num {
+  min-width: 24px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+.checkout-item-remove {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-muted);
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.checkout-item-remove:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    Order detail / success

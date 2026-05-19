@@ -936,6 +936,44 @@ function cartSubtotalUsd() {
 }
 updateCartBadge();
 
+// ──────────────────────────────────────────────────────────────
+//  BUY NOW (single-item express checkout)
+//  Kept separate from the cart so clicking "Buy Now" on product
+//  pages doesn't drag the existing cart items into checkout.
+//  Persisted to sessionStorage so a checkout-page refresh works.
+//  Cleared automatically whenever the user navigates away from
+//  /checkout (see handleRoute).
+// ──────────────────────────────────────────────────────────────
+const BUYNOW_KEY = 'gs_buynow_v1';
+state.buyNowItem = null;
+try {
+  const raw = sessionStorage.getItem(BUYNOW_KEY);
+  if (raw) state.buyNowItem = JSON.parse(raw);
+} catch {}
+function setBuyNowItem(item) {
+  state.buyNowItem = item ? { ...item } : null;
+  try {
+    if (item) sessionStorage.setItem(BUYNOW_KEY, JSON.stringify(item));
+    else sessionStorage.removeItem(BUYNOW_KEY);
+  } catch {}
+}
+function clearBuyNowItem() { setBuyNowItem(null); }
+window.setBuyNowItem = setBuyNowItem;
+window.clearBuyNowItem = clearBuyNowItem;
+// Items currently being checked out — single buy-now item if set,
+// otherwise the full cart. Callers should not mutate the array.
+function checkoutItems() {
+  return state.buyNowItem ? [state.buyNowItem] : state.cart;
+}
+function checkoutSubtotalUsd() {
+  return checkoutItems().reduce(
+    (s, i) => s + (parseFloat(i.priceUsd) * (i.quantity || 1)),
+    0
+  );
+}
+window.checkoutItems = checkoutItems;
+window.checkoutSubtotalUsd = checkoutSubtotalUsd;
+
 // ══════════════════════════════════════════════════════════════
 //  WISHLIST (account-only)
 //  Stores product IDs only. The server-side account wishlist is
@@ -1167,6 +1205,15 @@ function handleRoute() {
   const { path, params } = getRoute();
   state.currentPage = path;
   resetRouteVitals();
+
+  // Buy-now is a single-page express checkout. Once the user leaves
+  // /checkout (back, navigate elsewhere, complete the order, etc.)
+  // drop the slot so a future click on a "Cart → Checkout" link
+  // doesn't accidentally show the old buy-now product instead.
+  if (path !== '/checkout' && state.buyNowItem) {
+    try { sessionStorage.removeItem(BUYNOW_KEY); } catch {}
+    state.buyNowItem = null;
+  }
 
   if (typeof cancelBackfill === 'function') cancelBackfill();
   if (typeof stopHomeUspCarousel === 'function') {
@@ -3635,6 +3682,25 @@ async function renderProduct(pid) {
     return true;
   }
 
+  // Express buy-now flow: skips the cart so existing cart items are
+  // NOT pulled into checkout. We only ship this one product to the
+  // checkout page via the dedicated state.buyNowItem slot.
+  function buyNowCurrentProduct() {
+    if (!current.vid) { showToast('Please pick a variant'); return false; }
+    if (!state.user) { requireSignIn('checkout', '/checkout'); return false; }
+    const qty = parseInt(qtyInput.value) || 1;
+    setBuyNowItem({
+      pid: current.pid,
+      vid: current.vid,
+      quantity: Math.max(1, qty),
+      productName: current.name,
+      variantName: current.variantName,
+      image: current.image,
+      priceUsd: current.priceUsd.toString(),
+    });
+    return true;
+  }
+
   // Add to cart
   document.getElementById('pdAddCart').onclick = () => {
     addCurrentProductToCart(true);
@@ -3642,7 +3708,7 @@ async function renderProduct(pid) {
 
   // Buy now
   document.getElementById('pdBuyNow').onclick = () => {
-    if (addCurrentProductToCart(false)) navigate('/checkout');
+    if (buyNowCurrentProduct()) navigate('/checkout');
   };
 
   // Initial stock check
@@ -3666,7 +3732,7 @@ async function renderProduct(pid) {
         label: 'Buy Now',
         className: 'mobile-cta-btn-buy',
         onClick: () => {
-          if (addCurrentProductToCart(false)) navigate('/checkout');
+          if (buyNowCurrentProduct()) navigate('/checkout');
         },
       },
     ],
