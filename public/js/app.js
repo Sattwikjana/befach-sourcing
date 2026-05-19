@@ -3448,6 +3448,11 @@ async function populateProductRails({ currentPid, category, categoryId }) {
       if (host && section) {
         host.innerHTML = recents.slice(0, 12).map((p, i) => productCard(p, i)).join('');
         section.hidden = false;
+        // Cards in this rail were rendered with data-accurate="0" (we only
+        // persisted name/image/price in localStorage, not the shipping-
+        // accurate flag). Kick off backfill so the "Calculating…" placeholder
+        // gets replaced with the real INR price.
+        if (typeof backfillCardShipping === 'function') backfillCardShipping(host);
       }
     }
   } catch (err) {
@@ -3479,6 +3484,8 @@ async function populateProductRails({ currentPid, category, categoryId }) {
     if (host && section) {
       host.innerHTML = filtered.map((p, i) => productCard(p, i)).join('');
       section.hidden = false;
+      // Same backfill kick as the recent rail — populate exact INR prices.
+      if (typeof backfillCardShipping === 'function') backfillCardShipping(host);
     }
   } catch (err) {
     console.warn('[similar-rail] failed:', err.message);
