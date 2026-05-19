@@ -24,7 +24,7 @@ const DEFAULT_SITE_URL = 'https://www.globalshopper.in';
 const SITE_URL = String(Constants.expoConfig?.extra?.siteUrl || DEFAULT_SITE_URL).replace(/\/+$/, '');
 const HOME_URL = `${SITE_URL}/`;
 
-const APP_VERSION = '0.1.6';
+const APP_VERSION = '0.1.7';
 const APP_USER_AGENT = `GlobalShopperAndroid/${APP_VERSION}`;
 
 Notifications.setNotificationHandler({
@@ -282,6 +282,29 @@ export default function App() {
             domStorageEnabled
             allowsBackForwardNavigationGestures
             mediaPlaybackRequiresUserAction={false}
+            /* v0.1.7: hand WebView permission requests (mic for the AI
+               assistant's voice search, camera for "search by photo")
+               back to the OS so users get the standard runtime prompt.
+               Without this, the WebView silently denies every getUserMedia
+               call. The browser's <input type=file> picker is handled
+               separately by the WebView and already opens correctly
+               once READ_MEDIA_IMAGES is in the manifest. */
+            onPermissionRequest={(event: any) => {
+              try {
+                if (event?.grant && Array.isArray(event?.resources)) {
+                  event.grant(event.resources);
+                }
+              } catch {}
+            }}
+            /* The Android picker for <input type="file"> needs these on
+               to expose both Camera AND the Gallery. Without it some
+               Android versions show only one of them, or block uploads
+               entirely. */
+            allowFileAccess
+            allowFileAccessFromFileURLs
+            allowUniversalAccessFromFileURLs
+            allowsInlineMediaPlayback
+            geolocationEnabled={false}
             scalesPageToFit={false}
             setBuiltInZoomControls={false}
             setDisplayZoomControls={false}

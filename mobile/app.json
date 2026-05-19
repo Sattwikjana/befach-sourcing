@@ -3,7 +3,7 @@
     "name": "Global Shopper",
     "slug": "global-shopper",
     "scheme": "globalshopper",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -17,11 +17,16 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "in.globalshopper.app"
+      "bundleIdentifier": "in.globalshopper.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Global Shopper uses your camera so you can search for products by taking a photo.",
+        "NSPhotoLibraryUsageDescription": "Global Shopper uses your photo library so you can search for products by uploading an image you already have.",
+        "NSMicrophoneUsageDescription": "Global Shopper uses your microphone for voice search in the AI shopping assistant."
+      }
     },
     "android": {
       "package": "in.globalshopper.app",
-      "versionCode": 10,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2b0b5a"
@@ -29,13 +34,15 @@
       "permissions": [
         "INTERNET",
         "CAMERA",
-        "POST_NOTIFICATIONS"
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "POST_NOTIFICATIONS",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
       ],
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO"
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "intentFilters": [
         {
