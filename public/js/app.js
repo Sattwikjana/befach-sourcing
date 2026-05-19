@@ -1206,6 +1206,10 @@ function handleRoute() {
   state.currentPage = path;
   resetRouteVitals();
 
+  // Notify subscribers (currently the AI floating button) that the
+  // SPA navigated, so they can show/hide themselves per route.
+  try { window.dispatchEvent(new CustomEvent('gs:route', { detail: { path } })); } catch {}
+
   // Buy-now is a single-page express checkout. Once the user leaves
   // /checkout (back, navigate elsewhere, complete the order, etc.)
   // drop the slot so a future click on a "Cart → Checkout" link

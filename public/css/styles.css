@@ -6566,4 +6566,410 @@ body.page-home .feedback-fab {
 }
 
 
+/* ═══════════════════════════════════════════════════════════════
+   AI Shopping Assistant — "AL Suliswan"
+   Floating button + chat panel + voice mode.
+   Lives on every customer page (hidden on admin / login / checkout).
+   ═══════════════════════════════════════════════════════════════ */
+.ai-float-btn {
+  position: fixed;
+  right: 18px;
+  bottom: 22px;
+  width: 60px;
+  height: 60px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(167, 139, 250, 0.35), transparent 70%),
+    linear-gradient(150deg, #2E1065 0%, #1A0B36 100%);
+  box-shadow:
+    0 14px 32px rgba(46, 16, 101, 0.45),
+    0 4px 12px rgba(15, 6, 40, 0.35),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  z-index: 850;
+  display: grid;
+  place-items: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+.ai-float-btn img {
+  position: relative;
+  z-index: 2;
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+  pointer-events: none;
+}
+.ai-float-btn:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow:
+    0 18px 38px rgba(46, 16, 101, 0.55),
+    0 6px 16px rgba(15, 6, 40, 0.45),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+.ai-float-btn:active { transform: translateY(0) scale(0.98); }
+.ai-float-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.55);
+  animation: aiPulse 2.4s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes aiPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.55); }
+  70%  { box-shadow: 0 0 0 18px rgba(167, 139, 250, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(167, 139, 250, 0); }
+}
+.ai-float-tip {
+  position: absolute;
+  right: 70px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1A0B36;
+  color: #FFD766;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease, transform 200ms ease;
+  box-shadow: 0 8px 16px rgba(15, 6, 40, 0.35);
+}
+.ai-float-btn:hover .ai-float-tip { opacity: 1; transform: translateY(-50%) translateX(-4px); }
+
+/* Lift the button above the mobile bottom-nav so it doesn't sit on
+   top of the cart/account icons. */
+@media (max-width: 860px) {
+  .ai-float-btn { bottom: 78px; right: 14px; width: 54px; height: 54px; }
+  .ai-float-btn img { width: 40px; height: 40px; }
+  .ai-float-tip { display: none; }
+}
+
+/* When a sticky mobile CTA bar is showing (product / cart pages),
+   stack the AI button further up so they don't overlap. */
+body.page-product .ai-float-btn,
+body.page-cart .ai-float-btn {
+  bottom: 132px;
+}
+
+/* ── Chat panel ── */
+.ai-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 880;
+  display: none;
+  align-items: flex-end;
+  justify-content: flex-end;
+  background: rgba(15, 6, 40, 0.42);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.ai-panel.is-open { display: flex; }
+.ai-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ai-panel > .ai-panel-header,
+.ai-panel > .ai-messages,
+.ai-panel > .ai-input-bar {
+  position: relative;
+  z-index: 1;
+}
+
+/* Mobile: full-screen sheet from bottom */
+.ai-panel {
+  flex-direction: column;
+}
+.ai-panel .ai-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, #2E1065 0%, #1A0B36 100%);
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(15, 6, 40, 0.45);
+  z-index: 2;
+}
+.ai-panel-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+}
+.ai-panel-avatar img { width: 32px; height: 32px; object-fit: contain; }
+.ai-panel-title { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.ai-panel-title strong { font-size: 15px; color: #fff; }
+.ai-panel-sub { font-size: 11.5px; color: rgba(255, 215, 102, 0.85); }
+.ai-panel-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 14px;
+  -webkit-tap-highlight-color: transparent;
+}
+.ai-panel-icon:hover { background: rgba(255, 255, 255, 0.18); }
+.ai-panel-icon.is-on { background: rgba(255, 215, 102, 0.95); color: #2E1065; }
+.ai-icon-speaker::before { content: '🔊'; font-size: 16px; line-height: 1; }
+.ai-panel-icon.is-on .ai-icon-speaker::before { content: '🔊'; }
+.ai-panel-icon:not(.is-on) .ai-icon-speaker::before { content: '🔈'; }
+
+.ai-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 14px 12px;
+  background: #FAF7FF;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1;
+}
+.ai-msg {
+  max-width: 86%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  word-wrap: break-word;
+}
+.ai-msg-user {
+  align-self: flex-end;
+  background: #2E1065;
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+.ai-msg-bot {
+  align-self: flex-start;
+  background: #fff;
+  color: #1A0B36;
+  border: 1px solid rgba(46, 16, 101, 0.08);
+  border-bottom-left-radius: 6px;
+  box-shadow: 0 2px 6px rgba(15, 6, 40, 0.05);
+}
+.ai-msg-typing {
+  display: inline-flex;
+  gap: 4px;
+  padding: 14px 16px;
+}
+.ai-msg-typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9B7BD8;
+  animation: aiTyping 1s infinite ease-in-out;
+}
+.ai-msg-typing span:nth-child(2) { animation-delay: 0.15s; }
+.ai-msg-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes aiTyping {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+
+/* ── Product groups inside chat ── */
+.ai-product-group { margin-top: 10px; }
+.ai-product-group-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6D5BAD;
+  margin-bottom: 6px;
+}
+.ai-product-scroller {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  margin: 0 -4px;
+  padding: 2px 4px 6px;
+  scrollbar-width: thin;
+}
+.ai-product-scroller::-webkit-scrollbar { height: 6px; }
+.ai-product-scroller::-webkit-scrollbar-thumb { background: rgba(46, 16, 101, 0.2); border-radius: 4px; }
+.ai-product-card {
+  flex: 0 0 140px;
+  scroll-snap-align: start;
+  background: #fff;
+  border: 1px solid rgba(46, 16, 101, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 6px rgba(15, 6, 40, 0.05);
+}
+.ai-product-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #F5F3FF;
+}
+.ai-product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ai-product-body {
+  padding: 8px 9px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.ai-product-name {
+  font-size: 12px;
+  line-height: 1.3;
+  color: #1A0B36;
+  font-weight: 500;
+  text-decoration: none;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 32px;
+}
+.ai-product-price {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2E1065;
+}
+.ai-product-cta {
+  margin-top: auto;
+  display: inline-block;
+  background: #2E1065;
+  color: #fff;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  padding: 6px 0;
+  border-radius: 999px;
+}
+.ai-product-cta:hover { background: #3F1B7A; }
+
+/* ── Input bar ── */
+.ai-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: #fff;
+  border-top: 1px solid rgba(46, 16, 101, 0.08);
+  z-index: 2;
+}
+.ai-input-bar input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(46, 16, 101, 0.15);
+  background: #FAF7FF;
+  font-size: 14px;
+  color: #1A0B36;
+  outline: none;
+}
+.ai-input-bar input:focus {
+  border-color: #2E1065;
+  background: #fff;
+}
+.ai-mic-btn,
+.ai-send-btn {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  -webkit-tap-highlight-color: transparent;
+  flex: 0 0 44px;
+}
+.ai-mic-btn {
+  background: rgba(46, 16, 101, 0.08);
+  color: #2E1065;
+}
+.ai-mic-btn:hover { background: rgba(46, 16, 101, 0.15); }
+.ai-mic-btn.is-listening {
+  background: #DC2626;
+  color: #fff;
+  animation: aiMicPulse 1.4s ease-out infinite;
+}
+@keyframes aiMicPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
+  70%  { box-shadow: 0 0 0 14px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+.ai-icon-mic::before { content: '🎤'; font-size: 18px; line-height: 1; }
+.ai-send-btn {
+  background: linear-gradient(135deg, #2E1065, #4F1F8C);
+  color: #fff;
+}
+.ai-send-btn:hover { background: linear-gradient(135deg, #3F1B7A, #5A28A0); }
+.ai-icon-send::before { content: '➤'; font-size: 15px; line-height: 1; }
+
+/* Desktop layout — anchor as a 380x600 card in the bottom-right
+   instead of a full-screen sheet. */
+@media (min-width: 861px) {
+  .ai-panel {
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 0 22px 22px;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    pointer-events: none;
+  }
+  .ai-panel.is-open { background: rgba(15, 6, 40, 0.18); pointer-events: auto; }
+  .ai-panel .ai-panel-header,
+  .ai-panel .ai-messages,
+  .ai-panel .ai-input-bar {
+    width: 380px;
+    max-width: 92vw;
+  }
+  .ai-panel .ai-panel-header { border-radius: 18px 18px 0 0; }
+  .ai-panel .ai-messages { height: 460px; flex: 0 0 460px; }
+  .ai-panel .ai-input-bar { border-radius: 0 0 18px 18px; box-shadow: 0 18px 42px rgba(15, 6, 40, 0.4); }
+}
+
+/* Mobile sheet polish — slide-up animation */
+@media (max-width: 860px) {
+  .ai-panel .ai-messages {
+    /* Account for the panel header and input bar height roughly */
+  }
+  .ai-panel.is-open .ai-panel-header { animation: aiPanelSlideHeader 240ms ease-out; }
+  .ai-panel.is-open .ai-messages { animation: aiPanelSlideBody 240ms ease-out; }
+  .ai-panel.is-open .ai-input-bar { animation: aiPanelSlideBody 240ms ease-out; }
+}
+@keyframes aiPanelSlideHeader {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+@keyframes aiPanelSlideBody {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* When the AI panel is open, freeze background scroll on mobile so
+   the page doesn't move behind it. */
+html.ai-panel-open body { overflow: hidden; }
+@media (min-width: 861px) {
+  html.ai-panel-open body { overflow: auto; }
+}
 

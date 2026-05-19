@@ -24,13 +24,14 @@ const orders = require('./orderManager');
 const auth = require('./auth');
 const searchAI = require('./searchAI');
 const catalog = require('./catalogDb');
+const aiAssistant = require('./aiAssistant');
 
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.71';
+const APP_VERSION = '8.72';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -87,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.71'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.72'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -1014,6 +1015,58 @@ app.get('/api/auth/orders', (req, res) => {
     createdAt: o.createdAt,
   }));
   res.json({ orders: safe });
+});
+
+// ══════════════════════════════════════════════════════════════════
+//  AI SHOPPING ASSISTANT — "AL Suliswan"
+//  Wraps OpenRouter with tool-calling so the model searches our
+//  local SQLite catalog in real time. Public endpoint, soft-rate-
+//  limited per IP so a runaway client can't burn through credits.
+// ══════════════════════════════════════════════════════════════════
+const __aiChat = aiAssistant.buildChat({
+  searchProductsWithCatalogExtras,
+  mergeDeterministicSearchIntent,
+});
+// Simple per-IP token bucket (10 requests / minute). Resets on
+// restart — fine because the limit is mostly to stop a tab from
+// hammering us, not to enforce billing.
+const __aiRateLimit = new Map();
+function aiRateLimitOk(ip) {
+  const now = Date.now();
+  const bucket = __aiRateLimit.get(ip) || [];
+  const fresh = bucket.filter(t => now - t < 60_000);
+  if (fresh.length >= 10) {
+    __aiRateLimit.set(ip, fresh);
+    return false;
+  }
+  fresh.push(now);
+  __aiRateLimit.set(ip, fresh);
+  return true;
+}
+app.get('/api/ai/status', (req, res) => {
+  res.json({ configured: aiAssistant.isConfigured(), model: aiAssistant.AI_MODEL });
+});
+app.post('/api/ai/chat', async (req, res) => {
+  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.ip || 'unknown';
+  if (!aiRateLimitOk(ip)) {
+    return res.status(429).json({
+      reply: "I'm getting a lot of questions — give me just a moment and try again!",
+      productGroups: [],
+      error: 'rate_limited',
+    });
+  }
+  const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  try {
+    const result = await __aiChat({ messages });
+    res.json(result);
+  } catch (err) {
+    console.error('[ai] chat error:', err.message);
+    res.status(500).json({
+      reply: 'Something went wrong on my side. Could you try again?',
+      productGroups: [],
+      error: 'server',
+    });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════
