@@ -6684,9 +6684,25 @@ body.page-cart .ai-float-btn {
   z-index: 1;
 }
 
-/* Mobile: full-screen sheet from bottom */
+/* Mobile: full-screen sheet from bottom.
+   align-items: stretch makes the header / messages / input-bar each
+   span the FULL panel width — without this, the inherited
+   align-items: flex-end (set for the desktop card layout) sized each
+   child to its content width and the bot message bubble overflowed
+   the viewport on the left when a product scroller was inside it. */
 .ai-panel {
   flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+@media (max-width: 860px) {
+  .ai-panel .ai-panel-header,
+  .ai-panel .ai-messages,
+  .ai-panel .ai-input-bar {
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+  }
 }
 .ai-panel .ai-panel-header {
   display: flex;

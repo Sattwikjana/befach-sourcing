@@ -403,8 +403,20 @@
   }
   function escapeAttr(s) { return escapeHtml(s); }
   function linkify(s) {
-    // Convert basic newlines to <br/> for readability
-    return s.replace(/\n/g, '<br/>');
+    // Convert basic newlines to <br/> for readability.
+    // Also strip leftover markdown the model may emit despite the
+    // system-prompt instruction — render **bold** as <strong>, **__
+    // and other markup as plain text so the customer never sees
+    // literal asterisks in the chat.
+    let out = String(s || '');
+    // **bold** → <strong>bold</strong>  (only when paired)
+    out = out.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+    // Stray single asterisks left after the pair pass — just remove
+    out = out.replace(/(^|\s)\*(?=\S)|(?<=\S)\*(?=\s|$)/g, '$1');
+    // Hash-mark headings → bold lines
+    out = out.replace(/^#{1,3}\s+(.*)$/gm, '<strong>$1</strong>');
+    // Newlines → <br/>
+    return out.replace(/\n/g, '<br/>');
   }
   function capitalize(s) {
     s = String(s || '');

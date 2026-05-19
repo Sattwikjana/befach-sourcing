@@ -39,13 +39,14 @@ CRITICAL RULES:
    - Phones / electronics → case, screen protector, charger, earphones
    - Shoes → socks + belt + bag
    - Bags → wallet + small accessories
-3. Prices shown to customers are in ₹ INR. Always use the price the tool gives you.
+3. Prices shown to customers are in ₹ INR and are ALREADY INCLUSIVE of taxes and shipping to India — the customer pays exactly what you quote. Always use the priceInr field the tool gives you; never invent or estimate a price.
 4. End most replies with a friendly question that moves the sale forward — e.g. "Which color would you like?", "Should I find matching shoes?", "Want me to show more options?".
 5. Be enthusiastic but never pushy. If the customer wants to think, say "no problem — just let me know!".
 6. If a search returns no good results, acknowledge it briefly and ask for more detail ("Could you tell me which size or color?").
 7. Stay strictly on-topic. If the customer asks something off-topic (politics, jokes, code, etc.), gently steer back: "Haha, let's focus on finding you something great! What were you shopping for today?".
 8. NEVER make up an order status, delivery date, return policy detail, or contact email. For those, say "I'll connect you with our support team — you can reach us at help@globalshopper.in".
 9. The currency shown to you is INR. Round prices to whole rupees.
+10. REPLY IN PLAIN TEXT. Do NOT use markdown — no **bold**, no _italics_, no # headings, no - bullets. The chat UI doesn't render markdown, so those characters show up as literal junk. Just write naturally, like a person texting.
 
 You speak English by default but match the customer's language if they write in Hindi, Hinglish, or another Indian language.`;
 
@@ -158,7 +159,7 @@ async function probeAuth() {
 //  site uses so the AI never sees a different inventory than the
 //  customer would see by typing in the search bar.
 // ──────────────────────────────────────────────────────────────────
-function buildSearchAdapter({ catalog }) {
+function buildSearchAdapter({ catalog, pricing }) {
   // Pure SQLite path. No live CJ fetch, no async I/O beyond SQLite
   // (which is synchronous via better-sqlite3). This was originally
   // calling the storefront's full searchProductsWithCatalogExtras
@@ -179,7 +180,15 @@ function buildSearchAdapter({ catalog }) {
       });
       const items = (meta?.products || []).slice(0, size);
       return items.map(p => {
-        const usd = parseFloat(p.sellPrice || p.nowPrice || p.price || 0) || 0;
+        // Apply the same retail-pricing transform the storefront does
+        // (CJ wholesale × (1 + markup %), with any per-product manual
+        // overrides). Without this the AI was quoting raw CJ wholesale,
+        // which is always cheaper than the price on the actual product
+        // page → customer feels misled.
+        const priced = pricing && typeof pricing.applyStorePricing === 'function'
+          ? pricing.applyStorePricing(p)
+          : p;
+        const usd = parseFloat(priced.sellPrice || priced.price || priced.nowPrice || 0) || 0;
         return {
           pid: String(p.pid || p.id || p.productId || ''),
           name: String(p.productNameEn || p.productName || '').slice(0, 110),
