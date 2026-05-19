@@ -31,8 +31,9 @@ const SYSTEM_PROMPT = `You are AL Suliswan, the friendly AI shopping assistant f
 Your tone is warm and human, like a Flipkart or Myntra in-store sales rep. Be brief — 2 to 3 sentences max before asking the next clarifying question. NEVER write long paragraphs.
 
 CRITICAL RULES:
-1. ALWAYS use the search_products tool when the customer asks for ANY product. Do not invent product names, prices, brands, or stock claims.
-2. After showing the first product, suggest MATCHING complementary items by calling search_products a second time in the same turn:
+0. PRESENT EVERY PRODUCT the tool returned — never cherry-pick just one. If search_products returned 4 items, the customer should see and hear about all 4. The card carousel renders them; your job is to introduce the set ("I found 4 options that match — quick rundown:"), give a one-line nudge per product, then ask which one they want. Don't pick a favourite for them.
+1. ALWAYS use the search_products tool when the customer asks for ANY product. Do not invent product names, prices, brands, or stock claims. Default to max=5 so the customer has a good spread.
+2. After showing the first set, suggest MATCHING complementary items by calling search_products a second time in the same turn:
    - Top wear (shirts, polos, t-shirts) → bottoms (jeans, trousers, chinos, shorts) + accessories (belt, watch, sunglasses)
    - Bottoms (jeans, pants, shorts) → tops + shoes + belts
    - Dresses → shoes + handbag + jewelry
@@ -72,7 +73,7 @@ const TOOLS = [
           },
           max: {
             type: 'integer',
-            description: 'How many items to return (1-6). Default 4.',
+            description: 'How many items to return (1-6). Default 5. Use 5 unless the customer asked for a specific number — variety helps them pick.',
             minimum: 1,
             maximum: 6,
           },
@@ -159,7 +160,7 @@ async function probeAuth() {
 //  site uses so the AI never sees a different inventory than the
 //  customer would see by typing in the search bar.
 // ──────────────────────────────────────────────────────────────────
-function buildSearchAdapter({ catalog, pricing }) {
+function buildSearchAdapter({ catalog, pricing, getDisplayUsdForProduct }) {
   // Pure SQLite path. No live CJ fetch, no async I/O beyond SQLite
   // (which is synchronous via better-sqlite3). This was originally
   // calling the storefront's full searchProductsWithCatalogExtras
@@ -168,11 +169,11 @@ function buildSearchAdapter({ catalog, pricing }) {
   // rotates mid-request or when the catalog index doesn't match.
   // The AI doesn't need that complexity — a direct SQLite hit on
   // 522k+ products is far simpler and never escalates to live calls.
-  return function searchCatalogForAI(query, max = 4) {
+  return function searchCatalogForAI(query, max = 5) {
     try {
       const q = String(query || '').trim().slice(0, 80);
       if (!q) return [];
-      const size = Math.max(1, Math.min(6, max || 4));
+      const size = Math.max(1, Math.min(6, max || 5));
       const meta = catalog.searchProducts({
         keyWord: q,
         page: 1,
@@ -180,15 +181,34 @@ function buildSearchAdapter({ catalog, pricing }) {
       });
       const items = (meta?.products || []).slice(0, size);
       return items.map(p => {
-        // Apply the same retail-pricing transform the storefront does
-        // (CJ wholesale × (1 + markup %), with any per-product manual
-        // overrides). Without this the AI was quoting raw CJ wholesale,
-        // which is always cheaper than the price on the actual product
-        // page → customer feels misled.
-        const priced = pricing && typeof pricing.applyStorePricing === 'function'
-          ? pricing.applyStorePricing(p)
-          : p;
-        const usd = parseFloat(priced.sellPrice || priced.price || priced.nowPrice || 0) || 0;
+        // PRICE: matches the product detail page exactly (so the
+        // customer doesn't see one number from the AI and a higher
+        // one when they tap "View"). Two-tier lookup:
+        //
+        //   1. If we have a cached shipping quote for this PID (from
+        //      a prior visit or an admin-run shipping refresh), use
+        //      the full (wholesale + shipping) × (1 + markup) — that's
+        //      computeDisplayUsd, the same call the detail page makes.
+        //   2. Otherwise fall back to applyStorePricing (wholesale ×
+        //      markup, no shipping). Slight under-quote vs. detail,
+        //      but it's the storefront list-view price so still
+        //      consistent with at least one place on the site.
+        let usd = 0;
+        try {
+          const displayUsd = typeof getDisplayUsdForProduct === 'function'
+            ? getDisplayUsdForProduct(p)
+            : null;
+          if (displayUsd != null && Number.isFinite(displayUsd) && displayUsd > 0) {
+            usd = displayUsd;
+          } else if (pricing && typeof pricing.applyStorePricing === 'function') {
+            const priced = pricing.applyStorePricing(p);
+            usd = parseFloat(priced.sellPrice || priced.price || priced.nowPrice || 0) || 0;
+          } else {
+            usd = parseFloat(p.sellPrice || p.nowPrice || p.price || 0) || 0;
+          }
+        } catch {
+          usd = parseFloat(p.sellPrice || p.nowPrice || p.price || 0) || 0;
+        }
         return {
           pid: String(p.pid || p.id || p.productId || ''),
           name: String(p.productNameEn || p.productName || '').slice(0, 110),
