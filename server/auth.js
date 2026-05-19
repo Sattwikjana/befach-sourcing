@@ -218,12 +218,42 @@ function clearSessionCookie(res) {
   res.clearCookie(COOKIE_NAME, { path: '/' });
 }
 
+// ── Delete account ──
+//   • Removes the user record from data/users.json
+//   • Revokes ALL of this user's sessions (any other devices get
+//     signed out the next time they hit the server)
+//   • Returns true if a record was removed, false if no such user
+//
+// Required by the Google Play "Account Deletion" policy: customers
+// must be able to delete their account from inside the app AND from
+// a publicly accessible web URL without installing the app.
+function deleteUser(userId) {
+  if (!userId) return false;
+  const before = users.length;
+  users = users.filter(u => u.id !== userId);
+  if (users.length === before) return false;
+  saveJson(USERS_FILE, users);
+
+  // Drop every session belonging to this user. Sessions is a
+  // { token: { userId, expiresAt } } map.
+  let sessionsChanged = false;
+  for (const [token, s] of Object.entries(sessions)) {
+    if (s && s.userId === userId) {
+      delete sessions[token];
+      sessionsChanged = true;
+    }
+  }
+  if (sessionsChanged) saveJson(SESSIONS_FILE, sessions);
+  return true;
+}
+
 module.exports = {
   register,
   login,
   logout,
   userForToken,
   updateProfile,
+  deleteUser,
   getUserCart,
   setUserCart,
   getUserWishlist,

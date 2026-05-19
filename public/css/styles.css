@@ -1711,6 +1711,58 @@ main {
 .btn-wish-pd.on { color: #d6336c; border-color: #d6336c; background: #fef0f5; }
 .btn-wish-pd.on svg { fill: #d6336c; }
 
+/* Share button on product page — same shape as the wishlist button
+   so they line up side-by-side. Different accent (brand purple) to
+   distinguish action types. */
+.btn-share-pd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 18px;
+  min-height: 44px;
+  background: #fff;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.btn-share-pd:hover {
+  color: var(--brand, #2E1065);
+  border-color: var(--brand, #2E1065);
+  background: #F5F3FF;
+}
+.btn-share-pd-label { font-weight: 600; }
+
+/* Danger-action card on the account page (Delete account) */
+.account-danger-card {
+  border-top: 3px solid #fee2e2;
+}
+.account-danger-card h2 {
+  color: #b91c1c;
+}
+.btn-danger {
+  background: #fff;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.btn-danger:hover {
+  background: #b91c1c;
+  color: #fff;
+  border-color: #b91c1c;
+}
+
 .pd-meta {
   display: flex;
   flex-direction: column;

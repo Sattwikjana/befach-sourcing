@@ -1804,6 +1804,99 @@ async function signOutCurrentUser() {
   navigate('/');
 }
 
+// Two-step account-deletion flow. Required for Google Play compliance
+// AND a basic safety guard: the customer must type "DELETE" so a
+// stray tap can't wipe the account. Body sends { confirm: "DELETE" }
+// which the server checks too — double-layered.
+async function handleDeleteAccountClick() {
+  if (!state.user) return;
+  const typed = window.prompt(
+    'This will permanently delete your account. Type DELETE in capital letters to confirm.'
+  );
+  if (typed !== 'DELETE') {
+    if (typed != null) showToast('Account NOT deleted — exact word "DELETE" required.');
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/me', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ confirm: 'DELETE' }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Could not delete account');
+    }
+    // Same teardown as sign-out — but DON'T call /api/auth/logout
+    // (the session is already gone server-side).
+    state.user = null;
+    if (typeof window.clearGuestCartStorage === 'function')     window.clearGuestCartStorage();
+    if (typeof window.clearGuestWishlistStorage === 'function') window.clearGuestWishlistStorage();
+    state.cart = [];
+    state.wishlist = [];
+    updateAuthSlot();
+    showToast('Your account has been deleted.');
+    navigate('/');
+  } catch (err) {
+    showToast('Delete failed: ' + err.message, 6000);
+  }
+}
+window.handleDeleteAccountClick = handleDeleteAccountClick;
+
+// Publicly accessible account-deletion explainer + action page.
+// Reached at https://www.globalshopper.in/account/delete — Google
+// Play reviewers should be able to find the deletion path WITHOUT
+// installing the app, so this URL is intentionally permalinked and
+// crawlable.
+function renderAccountDelete() {
+  const signedIn = !!state.user;
+  app.innerHTML = `
+    <div class="breadcrumb">
+      <a href="/">Home</a> <span>›</span>
+      <a href="/account">Account</a> <span>›</span>
+      <span class="current">Delete account</span>
+    </div>
+    <section class="card" style="max-width:680px;margin:0 auto">
+      <h1>Delete your Global Shopper account</h1>
+      <p class="muted">
+        You can permanently delete your account at any time. Here's
+        what happens when you do:
+      </p>
+      <ul style="line-height:1.7;margin:14px 0 18px;padding-left:22px">
+        <li><strong>Profile</strong> — name, email, phone, address: removed</li>
+        <li><strong>Cart and wishlist</strong>: removed</li>
+        <li><strong>Saved login sessions</strong> on all devices: signed out</li>
+        <li><strong>Order history</strong>: retained for tax and payment-compliance reasons, but you will no longer be able to sign in to view it</li>
+        <li><strong>Notifications</strong>: push tokens removed; no further marketing email</li>
+      </ul>
+      <p class="muted small">This action cannot be undone.</p>
+      ${signedIn ? `
+        <p>You are signed in as <strong>${esc(state.user.email)}</strong>.</p>
+        <button type="button" class="btn btn-danger" id="deleteAccountBtnPublic">Delete my account permanently</button>
+      ` : `
+        <p>
+          To delete your account, please <a href="/login?redirect=%2Faccount%2Fdelete">sign in</a> first.
+          Once signed in, this page will show a confirm button — or you
+          can use the <em>Delete account</em> section near the bottom
+          of the <a href="/account">My Account</a> page inside the app.
+        </p>
+      `}
+      <hr style="margin:22px 0 14px"/>
+      <p class="muted small">
+        If you'd rather have us delete your account on your behalf, email
+        <a href="mailto:help@globalshopper.in">help@globalshopper.in</a>
+        from the email address associated with your account and our team
+        will process the request within 7 days.
+      </p>
+    </section>
+  `;
+  if (signedIn) {
+    document.getElementById('deleteAccountBtnPublic').onclick = handleDeleteAccountClick;
+  }
+}
+window.renderAccountDelete = renderAccountDelete;
+
 function renderGuestAccount() {
   app.innerHTML = `
     <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span class="current">Account</span></div>
@@ -1863,11 +1956,29 @@ async function renderAccount() {
           <h2>Your orders</h2>
           <div id="myOrders">Loading…</div>
         </section>
+
+        <!-- Account deletion — required by Google Play's account-
+             deletion policy. Always rendered on the account page so
+             customers can find it without hunting. The actual delete
+             happens via DELETE /api/auth/me on the server, gated by
+             a typed "DELETE" confirmation. -->
+        <section class="card account-danger-card">
+          <h2>Delete account</h2>
+          <p class="muted small">
+            Permanently delete your Global Shopper account. Your profile,
+            saved cart and wishlist will be removed and you'll be signed
+            out. Past orders are kept for tax and payment compliance but
+            you'll no longer be able to sign in to view them. This action
+            cannot be undone.
+          </p>
+          <button type="button" class="btn btn-danger" id="deleteAccountBtn">Delete my account</button>
+        </section>
       </div>
     </div>
   `;
 
   document.getElementById('logoutBtn').onclick = signOutCurrentUser;
+  document.getElementById('deleteAccountBtn').onclick = handleDeleteAccountClick;
 
   document.getElementById('profileForm').onsubmit = async (e) => {
     e.preventDefault();

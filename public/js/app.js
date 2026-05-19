@@ -1308,6 +1308,12 @@ function handleRoute() {
   if (path === '/login') { setPageTitle('Login | Global Shopper'); return finish(renderLogin()); }
   if (path === '/register') { setPageTitle('Create Account | Global Shopper'); return finish(renderRegister()); }
   if (path === '/account') { setPageTitle('Account | Global Shopper'); return finish(renderAccount()); }
+  // Publicly findable account-deletion page — required by Google
+  // Play's data-safety policy. If the user is signed in we show
+  // the same delete button they'd see on /account; if not, we
+  // explain the path so reviewers can still confirm the feature
+  // exists.
+  if (path === '/account/delete') { setPageTitle('Delete account | Global Shopper'); return finish(renderAccountDelete()); }
   if (path === '/orders') { setPageTitle('My Orders | Global Shopper'); return finish(renderOrders()); }
   if (path === '/wishlist') { setPageTitle('Wishlist | Global Shopper'); return finish(renderWishlist()); }
   if (path === '/returns') { setPageTitle('Returns & Refunds | Global Shopper'); return finish(renderReturns()); }
@@ -2243,6 +2249,35 @@ window._pdWishToggle = function(btn) {
     el.setAttribute('aria-label', added ? 'Remove from wishlist' : 'Save to wishlist');
   });
   showToast(added ? '♥ Added to wishlist' : 'Removed from wishlist');
+};
+
+// Native share for the product detail page. Tries the Web Share API
+// first (opens the OS share sheet on Android and iOS — WhatsApp,
+// Telegram, mail, etc.) and falls back to copying the product URL
+// to the clipboard for desktop browsers that don't support it.
+window._pdShare = async function(productName) {
+  const url = location.href;
+  const name = String(productName || document.title || 'Global Shopper');
+  const shareText = `${name} — Global Shopper`;
+  // Web Share API path
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: name, text: shareText, url });
+      return;
+    } catch (err) {
+      // User dismissed the share sheet (AbortError) → silent
+      if (err && err.name === 'AbortError') return;
+      // Any other failure → fall through to clipboard
+    }
+  }
+  // Clipboard fallback
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied to clipboard');
+  } catch {
+    // Last-ditch: open mailto with the URL pre-populated
+    location.href = `mailto:?subject=${encodeURIComponent(name)}&body=${encodeURIComponent(url)}`;
+  }
 };
 
 // Mobile-only heart overlay on the product image. Mirrors _pdWishToggle but
@@ -3651,6 +3686,24 @@ async function renderProduct(pid) {
               <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
             </svg>
             <span class="btn-wish-pd-label">Wishlist</span>
+          </button>
+          <!-- Native share button — opens the OS share sheet
+               (WhatsApp / Telegram / Mail / etc.) so the customer can
+               send the product to a friend. Falls back to copying the
+               URL to the clipboard if navigator.share is missing. -->
+          <button type="button"
+                  class="btn-share-pd"
+                  id="pdShareBtn"
+                  aria-label="Share this product"
+                  onclick="window._pdShare(${JSON.stringify(esc(name)).replace(/"/g, '&quot;')})">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+            <span class="btn-share-pd-label">Share</span>
           </button>
         </div>
 

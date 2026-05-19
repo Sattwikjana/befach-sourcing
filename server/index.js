@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.86';
+const APP_VERSION = '8.87';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.86'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.87'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -954,6 +954,35 @@ app.patch('/api/auth/me', (req, res) => {
     res.json({ user: updated });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// Delete this account permanently. Required by Google Play's Account
+// Deletion policy (apps that let users create accounts must let them
+// delete those accounts from inside the app). We also expose a
+// publicly accessible URL at /account/delete so a customer without
+// the app installed can still find the deletion path — Google's
+// reviewer checks both.
+//
+// The request body MUST contain { confirm: 'DELETE' } so an
+// accidental DELETE isn't catastrophic. Saved orders are intentionally
+// NOT deleted (we need them for tax / payment reconciliation) but
+// the customer can no longer sign in to view them. If you want to
+// also anonymise the orders, do it here.
+app.delete('/api/auth/me', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not signed in' });
+  const confirm = (req.body && req.body.confirm) || '';
+  if (confirm !== 'DELETE') {
+    return res.status(400).json({ error: 'Send { confirm: "DELETE" } to confirm.' });
+  }
+  try {
+    const ok = auth.deleteUser(req.user.id);
+    if (!ok) return res.status(404).json({ error: 'Account not found' });
+    auth.clearSessionCookie(res);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[auth] delete account failed:', err.message);
+    res.status(500).json({ error: 'Could not delete account' });
   }
 });
 
