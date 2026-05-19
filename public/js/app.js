@@ -2105,6 +2105,41 @@ function clearRecentSearches() {
   try { localStorage.removeItem(RECENT_SEARCHES_KEY); } catch {}
 }
 
+// ──────────────────────────────────────────────────────────────
+//  RECENTLY VIEWED PRODUCTS
+//  Persisted per-device in localStorage. The detail page calls
+//  recordRecentlyViewed() on every visit; the same page renders
+//  a "Recently viewed" rail at the bottom using these entries.
+//  Stores compact records — full product is refetched if a card
+//  click goes through to detail.
+// ──────────────────────────────────────────────────────────────
+const RECENT_PRODUCTS_KEY = 'gs_recent_products_v1';
+const RECENT_PRODUCTS_MAX = 16;
+function getRecentlyViewedProducts() {
+  try {
+    const raw = localStorage.getItem(RECENT_PRODUCTS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
+function recordRecentlyViewed(entry) {
+  if (!entry || !entry.pid) return;
+  let list = getRecentlyViewedProducts().filter(x => x.pid !== entry.pid);
+  list.unshift({
+    pid: String(entry.pid),
+    productNameEn: entry.productNameEn || entry.name || '',
+    productImage: entry.productImage || entry.image || '',
+    sellPrice: entry.sellPrice != null ? String(entry.sellPrice) : (entry.priceUsd != null ? String(entry.priceUsd) : ''),
+    mrp: entry.mrp != null ? String(entry.mrp) : '',
+    discountPercent: entry.discountPercent != null ? Number(entry.discountPercent) : 0,
+    ts: Date.now(),
+  });
+  if (list.length > RECENT_PRODUCTS_MAX) list = list.slice(0, RECENT_PRODUCTS_MAX);
+  try { localStorage.setItem(RECENT_PRODUCTS_KEY, JSON.stringify(list)); } catch {}
+}
+window.recordRecentlyViewed = recordRecentlyViewed;
+window.getRecentlyViewedProducts = getRecentlyViewedProducts;
+
 // ══════════════════════════════════════════════════════════════
 //  PRODUCT CARD
 // ══════════════════════════════════════════════════════════════
@@ -3394,6 +3429,62 @@ async function renderSearch(query, page = 1, opts = {}) {
 // ══════════════════════════════════════════════════════════════
 //  PRODUCT DETAIL
 // ══════════════════════════════════════════════════════════════
+// ──────────────────────────────────────────────────────────────
+//  PRODUCT-PAGE DISCOVERY RAILS
+//  Renders two horizontal carousels at the bottom of every product
+//  detail page:
+//    • Similar products — same category, fetched live
+//    • Recently viewed — from localStorage history
+//  Both are populated async after the main render so the description
+//  paints fast; if a rail has no items it stays hidden.
+// ──────────────────────────────────────────────────────────────
+async function populateProductRails({ currentPid, category, categoryId }) {
+  // ── Recently-viewed: synchronous, just read localStorage. ──
+  try {
+    const recents = getRecentlyViewedProducts().filter(p => p.pid !== currentPid);
+    if (recents.length) {
+      const host = document.getElementById('recentRail');
+      const section = document.getElementById('recentRailSection');
+      if (host && section) {
+        host.innerHTML = recents.slice(0, 12).map((p, i) => productCard(p, i)).join('');
+        section.hidden = false;
+      }
+    }
+  } catch (err) {
+    console.warn('[recent-rail] failed:', err.message);
+  }
+
+  // ── Similar products: hit /api/store/products by categoryId or
+  //    by category name as a keyword fallback. Skip if neither. ──
+  try {
+    const params = new URLSearchParams();
+    if (categoryId) {
+      params.set('categoryId', String(categoryId));
+    } else if (category) {
+      // Strip parent-path crumbs ("Mens Clothing > Accessories > Belts" → "Belts")
+      const leaf = String(category).split('>').pop().trim();
+      params.set('keyWord', leaf);
+    } else {
+      return; // nothing to query against
+    }
+    params.set('size', '12');
+    const res = await apiGet(`/api/store/products?${params.toString()}`);
+    const products = Array.isArray(res?.products) ? res.products : [];
+    const filtered = products
+      .filter(p => (p.pid || p.id || p.productId) !== currentPid)
+      .slice(0, 10);
+    if (!filtered.length) return;
+    const host = document.getElementById('similarRail');
+    const section = document.getElementById('similarRailSection');
+    if (host && section) {
+      host.innerHTML = filtered.map((p, i) => productCard(p, i)).join('');
+      section.hidden = false;
+    }
+  } catch (err) {
+    console.warn('[similar-rail] failed:', err.message);
+  }
+}
+
 async function renderProduct(pid) {
   app.innerHTML = `<div class="loading-wrap"><div class="spinner"></div><p>Loading product...</p></div>`;
 
@@ -3570,7 +3661,33 @@ async function renderProduct(pid) {
         <div class="pd-description">${desc}</div>
       </section>
     ` : ''}
+
+    <!-- Discovery rails — populated asynchronously by populateProductRails().
+         Order: similar products first (in-context for the page), then recently
+         viewed (cross-context: takes the customer back to earlier sessions). -->
+    <section class="section product-reco-rail-section" id="similarRailSection" hidden>
+      <h2 class="section-title-plain">Similar products</h2>
+      <div class="product-reco-rail" id="similarRail"></div>
+    </section>
+    <section class="section product-reco-rail-section" id="recentRailSection" hidden>
+      <h2 class="section-title-plain">Recently viewed</h2>
+      <div class="product-reco-rail" id="recentRail"></div>
+    </section>
   `;
+
+  // Save this product into the per-device "recently viewed" list so the
+  // next page (this one or any other product page) can surface it.
+  recordRecentlyViewed({
+    pid,
+    productNameEn: name,
+    productImage: images[0],
+    sellPrice: priceUsd,
+    mrp: p.mrp,
+    discountPercent: p.discountPercent,
+  });
+
+  // Fire-and-forget; rails fill in once data arrives.
+  populateProductRails({ currentPid: pid, category, categoryId: p.categoryId });
 
   trackEcommerceEvent('view_item', {
     value: Math.round((selectedPriceUsd || 0) * (state.config.usdToInr || 85)),
