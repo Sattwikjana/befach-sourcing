@@ -5830,6 +5830,12 @@ body {
 .home-usp-viewport {
   overflow: hidden;
   border-radius: inherit;
+  /* Let the JS handle horizontal swipes — without this the browser
+     intercepts the horizontal touch gesture as a "maybe a scroll"
+     and pointer events fire late or not at all on Android Chrome.
+     pan-y still lets the user scroll the page vertically through
+     the banner. */
+  touch-action: pan-y;
 }
 
 .home-usp-track {
@@ -5850,6 +5856,11 @@ body {
   aspect-ratio: 16 / 9;
   background: #080519;
   text-decoration: none;
+  /* Prevent the browser's native image-drag UI from kicking in
+     when the user starts a swipe on the banner image. */
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .home-usp-slide img {
@@ -5858,6 +5869,8 @@ body {
   height: 100%;
   object-fit: contain;
   background: #080519;
+  pointer-events: none; /* swipe gestures hit the slide <a>, not the img */
+  -webkit-user-drag: none;
 }
 
 /* Desktop: keep the slide at the source 16:9 (so the banner image is

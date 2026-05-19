@@ -2502,8 +2502,19 @@ function initHomeUspCarousel() {
   let activeIndex = 0;
   let timer = null;
   let pointerStartX = 0;
+  let pointerStartY = 0;
   let pointerCurrentX = 0;
   let isDragging = false;
+  // Once a horizontal-vs-vertical decision is made we stop guessing.
+  // Avoids the carousel "jittering" if the user later moves vertically
+  // after starting horizontally (and vice-versa).
+  let axisLocked = null; // 'x' | 'y' | null
+  // True once the pointer has travelled more than ~6px in any direction.
+  // We use this to decide whether the release is a "tap" (open the
+  // banner's href) or a "drag" (just close the gesture without
+  // navigating).
+  let didDrag = false;
+  const viewport = root.querySelector('.home-usp-viewport') || track;
 
   const stopTimer = () => {
     if (timer) window.clearInterval(timer);
@@ -2533,28 +2544,92 @@ function initHomeUspCarousel() {
   const onPointerDown = (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     isDragging = true;
+    axisLocked = null;
+    didDrag = false;
     pointerStartX = event.clientX;
+    pointerStartY = event.clientY;
     pointerCurrentX = event.clientX;
     stopTimer();
     root.classList.add('is-dragging');
-    root.setPointerCapture?.(event.pointerId);
+    try { root.setPointerCapture?.(event.pointerId); } catch {}
   };
 
   const onPointerMove = (event) => {
     if (!isDragging) return;
+    const dx = event.clientX - pointerStartX;
+    const dy = event.clientY - pointerStartY;
     pointerCurrentX = event.clientX;
+
+    // Lock onto horizontal vs vertical after the first decisive movement
+    // so we don't fight the page's vertical scroll on touch devices.
+    if (!axisLocked) {
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+        axisLocked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      }
+    }
+    if (axisLocked === 'y') {
+      // User is scrolling the page — back out, restore the auto-slide
+      // and let the browser do its thing.
+      isDragging = false;
+      root.classList.remove('is-dragging');
+      try {
+        if (root.hasPointerCapture?.(event.pointerId)) {
+          root.releasePointerCapture(event.pointerId);
+        }
+      } catch {}
+      track.style.transform = `translate3d(${-activeIndex * 100}%, 0, 0)`;
+      startTimer();
+      return;
+    }
+    if (axisLocked !== 'x') return;
+
+    // Real-time drag feedback — track follows the finger so the user
+    // can SEE the next slide peeking in. Computed in px against the
+    // viewport width, then converted to a translateX in pixels for
+    // smooth motion regardless of CSS percent math.
+    if (Math.abs(dx) > 6) didDrag = true;
+    const width = viewport.clientWidth || 1;
+    const basePx = -activeIndex * width;
+    track.style.transform = `translate3d(${basePx + dx}px, 0, 0)`;
+    // Prevent the page from also reacting (e.g. scrolling sideways on
+    // mobile Safari with elastic overscroll) while we own the swipe.
+    if (event.cancelable) event.preventDefault();
   };
 
   const onPointerEnd = (event) => {
     if (!isDragging) return;
     isDragging = false;
     root.classList.remove('is-dragging');
-    if (root.hasPointerCapture?.(event.pointerId)) {
-      root.releasePointerCapture(event.pointerId);
+    try {
+      if (root.hasPointerCapture?.(event.pointerId)) {
+        root.releasePointerCapture(event.pointerId);
+      }
+    } catch {}
+
+    if (axisLocked === 'x') {
+      const delta = pointerCurrentX - pointerStartX;
+      const width = viewport.clientWidth || 1;
+      // Commit the next/prev slide if the user swiped past ~18% of the
+      // viewport OR did a fast flick. Otherwise snap back.
+      const threshold = Math.max(40, width * 0.18);
+      if (Math.abs(delta) > threshold) {
+        setSlide(activeIndex + (delta < 0 ? 1 : -1));
+      } else {
+        setSlide(activeIndex);
+      }
     }
-    const delta = pointerCurrentX - pointerStartX;
-    if (Math.abs(delta) > 44) setSlide(activeIndex + (delta < 0 ? 1 : -1));
     startTimer();
+  };
+
+  // After a real drag, suppress the click-through on the <a> slide so
+  // the customer doesn't accidentally open the linked page when they
+  // were trying to swipe. One-shot listener — clears the flag.
+  const onSlideClick = (event) => {
+    if (didDrag) {
+      event.preventDefault();
+      event.stopPropagation();
+      didDrag = false;
+    }
   };
 
   dots.forEach(dot => {
@@ -2581,9 +2656,13 @@ function initHomeUspCarousel() {
     }
   });
   root.addEventListener('pointerdown', onPointerDown);
-  root.addEventListener('pointermove', onPointerMove);
+  // {passive:false} so the move handler can call preventDefault() to
+  // stop the page from also reacting to the gesture on touch devices.
+  root.addEventListener('pointermove', onPointerMove, { passive: false });
   root.addEventListener('pointerup', onPointerEnd);
   root.addEventListener('pointercancel', onPointerEnd);
+  // Capture phase so we get the click before the <a> navigation fires.
+  slides.forEach(slide => slide.addEventListener('click', onSlideClick, true));
 
   setSlide(0);
   startTimer();
