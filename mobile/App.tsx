@@ -24,7 +24,7 @@ const DEFAULT_SITE_URL = 'https://www.globalshopper.in';
 const SITE_URL = String(Constants.expoConfig?.extra?.siteUrl || DEFAULT_SITE_URL).replace(/\/+$/, '');
 const HOME_URL = `${SITE_URL}/`;
 
-const APP_VERSION = '0.1.7';
+const APP_VERSION = '0.1.8';
 const APP_USER_AGENT = `GlobalShopperAndroid/${APP_VERSION}`;
 
 Notifications.setNotificationHandler({
