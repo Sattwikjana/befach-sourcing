@@ -252,11 +252,16 @@ function buildChat(deps) {
             error: 'disabled',
           };
         }
-        console.error('[ai] OpenRouter call failed:', err.message);
+        console.error('[ai] OpenRouter call failed:', err.message, err.upstreamBody || '');
         return {
           reply: 'Sorry, I had a hiccup connecting to my brain. Could you try again in a moment?',
           productGroups,
           error: 'upstream',
+          // Surface upstream diagnostics in non-production debug callers.
+          // Safe to expose — no secrets in OpenRouter's standard error
+          // bodies (they describe the failure reason, not your key).
+          upstreamStatus: err.upstream || null,
+          upstreamBody: err.upstreamBody ? err.upstreamBody.slice(0, 240) : null,
         };
       }
 
