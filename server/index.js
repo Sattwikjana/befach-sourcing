@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.72';
+const APP_VERSION = '8.73';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.72'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.73'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -1045,6 +1045,12 @@ function aiRateLimitOk(ip) {
 }
 app.get('/api/ai/status', (req, res) => {
   res.json({ configured: aiAssistant.isConfigured(), model: aiAssistant.AI_MODEL });
+});
+// Diagnostic — verify the OpenRouter key + show remaining credits.
+// Admin-only because the response reveals account-level info.
+app.get('/api/ai/probe', adminAuth, async (req, res) => {
+  const result = await aiAssistant.probeAuth();
+  res.json(result);
 });
 app.post('/api/ai/chat', async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.ip || 'unknown';

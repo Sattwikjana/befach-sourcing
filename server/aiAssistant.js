@@ -115,11 +115,38 @@ async function callOpenRouter(messages) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    const err = new Error(`OpenRouter ${res.status}: ${body.slice(0, 300)}`);
+    // Surface the upstream status + first 300 chars of the body so
+    // misconfiguration (401 invalid key, 402 no credits, 404 unknown
+    // model, etc.) is visible in Render logs.
+    console.error(`[ai] OpenRouter ${res.status}: ${body.slice(0, 300)}`);
+    const err = new Error(`OpenRouter ${res.status}`);
     err.upstream = res.status;
+    err.upstreamBody = body.slice(0, 300);
     throw err;
   }
   return res.json();
+}
+
+// Validate the configured key against OpenRouter's /auth/key endpoint
+// without sending any tokens. Returns { ok, status, info }. Used by
+// the /api/ai/probe diagnostic route so admins can verify their
+// Render env var without enabling a costly chat round-trip.
+async function probeAuth() {
+  if (!OPENROUTER_API_KEY) return { ok: false, reason: 'no_key' };
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
+      headers: { Authorization: `Bearer ${OPENROUTER_API_KEY}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    return {
+      ok: res.ok,
+      status: res.status,
+      // OpenRouter returns { data: { label, usage, limit, ... } } when valid.
+      info: body?.data || body,
+    };
+  } catch (err) {
+    return { ok: false, reason: 'network', message: err.message };
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -313,5 +340,6 @@ function buildChat(deps) {
 module.exports = {
   buildChat,
   AI_MODEL,
+  probeAuth,
   isConfigured: () => !!OPENROUTER_API_KEY,
 };
