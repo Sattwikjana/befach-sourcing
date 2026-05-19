@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.82';
+const APP_VERSION = '8.83';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.82'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.83'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -1027,9 +1027,24 @@ app.get('/api/auth/orders', (req, res) => {
 // the product-detail logic: (wholesale + shipping) × (1 + markup).
 // Three tiers:
 //   1. Use the cached real shipping for this PID  (always exact)
-//   2. Fall back to a heuristic shipping estimate (close enough)
-//   3. Fall back to markup-only                   (last resort)
+//   2. Estimate shipping from product weight       (good for first view)
+//   3. Fall back to markup-only                    (last resort)
 const AI_FALLBACK_SHIPPING_USD = parseFloat(process.env.AI_FALLBACK_SHIPPING_USD || '8');
+// Weight-based shipping estimate. Calibrated against ~hundred cached
+// quotes from the storefront:
+//   base $4 + $0.020 per gram, floor $5, cap $25.
+// Examples:
+//   100 g →  $6.00
+//   200 g →  $8.00
+//   380 g → $11.60   (matches the user-screenshot backpack within ~5%)
+//   500 g → $14.00
+//   1000 g → $24.00 → capped at $25
+function estimateShippingFromWeight(grams) {
+  const g = parseFloat(grams) || 0;
+  if (g <= 0) return AI_FALLBACK_SHIPPING_USD;
+  const est = 4 + (g * 0.02);
+  return Math.min(25, Math.max(5, est));
+}
 function aiGetDisplayUsd(p) {
   const pid = String(p?.pid || p?.id || p?.productId || '');
   const wholesaleFromRow = parseFloat(p?.sellPrice || p?.price || p?.nowPrice || 0) || 0;
@@ -1045,16 +1060,17 @@ function aiGetDisplayUsd(p) {
       return computeDisplayUsd(wholesale, ship);
     }
   }
-  // 2. No cached shipping for this PID yet. Use the average India
-  //    shipping estimate so the AI quote is in the same ballpark
-  //    as what the customer sees on the detail page. This was
-  //    previously falling back to markup-only (no shipping), which
-  //    quoted ~5× lower than reality on heavy/medium items.
-  //    Once a customer opens the product, real shipping gets cached
-  //    and future AI calls are exact.
-  if (wholesaleFromRow > 0 && AI_FALLBACK_SHIPPING_USD > 0) {
+  // 2. No cached shipping yet. Use a weight-based estimate so the AI
+  //    quote is in the same ballpark as the detail-page price.
+  //    Catalog stores productWeight (grams) per row when CJ supplies
+  //    it — much better than a flat $8 across all products.
+  if (wholesaleFromRow > 0) {
     try {
-      return computeDisplayUsd(wholesaleFromRow, AI_FALLBACK_SHIPPING_USD);
+      const weight = parseFloat(p?.productWeight || p?.weight || 0);
+      const estShip = weight > 0
+        ? estimateShippingFromWeight(weight)
+        : AI_FALLBACK_SHIPPING_USD;
+      return computeDisplayUsd(wholesaleFromRow, estShip);
     } catch {}
   }
   // 3. Last resort — markup-only via applyStorePricing.
@@ -1064,6 +1080,53 @@ function aiGetDisplayUsd(p) {
   } catch {
     return wholesaleFromRow;
   }
+}
+
+// Background cache warming. After the AI responds, fire-and-forget
+// real-shipping fetches for any uncached PIDs we just showed the
+// customer. The CURRENT response uses the weight-based estimate;
+// the NEXT customer (or this same customer's next message about the
+// same product) gets the exact price from the now-warmed cache.
+//
+// Rate-limited to 1 fetch every 600 ms via a simple queue so we
+// don't blast CJ's API. Failures are silent — we already returned
+// a usable estimate; if the upstream fetch flakes, the cache just
+// stays cold for that PID and we use the estimate next time too.
+const __aiShippingWarmQueue = [];
+let __aiShippingWarmBusy = false;
+function aiWarmShippingFor(pids) {
+  if (!Array.isArray(pids) || !pids.length) return;
+  const fresh = pids.filter(pid =>
+    pid &&
+    typeof pid === 'string' &&
+    !shippingCache[pid] &&                             // not already cached
+    !__aiShippingWarmQueue.includes(pid)                // not already queued
+  );
+  if (!fresh.length) return;
+  __aiShippingWarmQueue.push(...fresh);
+  if (!__aiShippingWarmBusy) aiShippingWarmTick();
+}
+function aiShippingWarmTick() {
+  if (!__aiShippingWarmQueue.length) {
+    __aiShippingWarmBusy = false;
+    return;
+  }
+  __aiShippingWarmBusy = true;
+  const pid = __aiShippingWarmQueue.shift();
+  // Use the same shipping resolver the storefront does. 'low'
+  // priority means it won't elbow ahead of user-initiated CJ calls.
+  Promise.resolve()
+    .then(() => getProductShippingUsd(pid, 'low'))
+    .catch(err => {
+      // Quietly drop — the AI already responded with an estimate.
+      // Only log at debug level to keep prod logs clean.
+      if (process.env.DEBUG_AI_WARM) {
+        console.warn('[ai warm]', pid, 'shipping fetch failed:', err.message);
+      }
+    })
+    .finally(() => {
+      setTimeout(aiShippingWarmTick, 600);
+    });
 }
 const __aiChat = aiAssistant.buildChat({
   catalog,
@@ -1108,6 +1171,16 @@ app.post('/api/ai/chat', async (req, res) => {
   try {
     const result = await __aiChat({ messages });
     res.json(result);
+    // After responding, kick off real-shipping fetches for any PIDs
+    // we just showed that don't yet have a cached quote. Next time
+    // the AI surfaces the same product, the cached number is exact.
+    const pids = [];
+    for (const g of result?.productGroups || []) {
+      for (const p of g?.products || []) {
+        if (p?.pid && !shippingCache[p.pid]) pids.push(p.pid);
+      }
+    }
+    if (pids.length) aiWarmShippingFor(pids);
   } catch (err) {
     console.error('[ai] chat error:', err.message);
     res.status(500).json({
