@@ -484,64 +484,97 @@
 
   // Cache the picked voice so we don't re-scan on every utterance.
   let __pickedVoice = null;
-  let __voicesLoaded = false;
-  // Ordered preference list — soft, female, English (Indian where
-  // available). On most phones at least one of these is present.
-  // The list runs top-down; first match wins.
-  const PREFERRED_VOICES = [
-    // Google's en-IN female voice (warm, soft)
-    { lang: 'en-IN', female: true, contains: ['google'] },
-    // Microsoft Heera (Hindi-English, female, soft on Android/Windows)
-    { contains: ['heera'] },
-    // Microsoft Aditi (Indian English, female)
-    { contains: ['aditi'] },
-    // Samantha — iOS / Mac default Siri-like
-    { contains: ['samantha'] },
-    // Microsoft Zira (Windows, female, soft)
-    { contains: ['zira'] },
-    // Google UK English Female — fallback if no Indian voice
-    { lang: 'en-GB', female: true, contains: ['female'] },
-    // Any en-IN voice that names itself female
-    { lang: 'en-IN', female: true },
-    // Any English voice that names itself female
+  // Comprehensive list of known female voice names across platforms.
+  // This is the reliable signal — most TTS voices don't include
+  // "female" or "woman" in their name (Samantha, Veena, Zira, etc),
+  // and gender isn't exposed by the Web Speech API.
+  const FEMALE_VOICE_NAMES = [
+    // Apple (macOS / iOS Siri-flavoured)
+    'samantha', 'karen', 'tessa', 'veena', 'moira', 'fiona', 'susan',
+    'allison', 'ava', 'kate', 'serena', 'siri', 'zoe', 'martha',
+    'monica', 'paulina', 'rishi', 'sangeeta',
+    // Microsoft (Windows / Edge / older Android Cortana TTS)
+    'zira', 'aria', 'jenny', 'eva', 'salli', 'kendra', 'joanna',
+    'sara', 'ivy', 'heera', 'aditi', 'priya', 'swara', 'kalpana',
+    'neerja', 'raveena',
+    // Google (Chrome / Android Google TTS)
+    'female', 'woman',
+    // Indian female names common in Google's en-IN voice catalog
+    'isha', 'ananya', 'kavya', 'aanya', 'meera', 'sneha',
+  ];
+  function looksFemale(v) {
+    const name = (v.name || '').toLowerCase();
+    if (!name) return false;
+    return FEMALE_VOICE_NAMES.some(n => name.includes(n));
+  }
+
+  // Ordered preference list — first match wins. Combines locale +
+  // female heuristic + specific known voice names.
+  const VOICE_PREFERENCES = [
+    // 1. Indian-English female voices (priority — matches the
+    //    en-IN locale most Indian customers expect)
+    { langExact: 'en-IN', female: true },
+    // 2. Specific high-quality female voices, regardless of locale
+    { nameContains: 'google', female: true, langStartsWith: 'en' },
+    { nameContains: 'samantha' },     // Apple US-Eng female (Siri-like)
+    { nameContains: 'karen' },        // Apple AU-Eng female
+    { nameContains: 'veena' },        // Apple IN-Eng female (very Indian)
+    { nameContains: 'tessa' },        // Apple ZA-Eng female
+    { nameContains: 'moira' },        // Apple IE-Eng female
+    { nameContains: 'heera' },        // Microsoft IN-Eng female
+    { nameContains: 'aditi' },        // Microsoft IN-Eng female
+    { nameContains: 'zira' },         // Microsoft US-Eng female
+    { nameContains: 'aria' },         // Microsoft US-Eng female (newer)
+    { nameContains: 'jenny' },        // Microsoft US-Eng female (Azure)
+    // 3. Any female English voice
     { female: true, langStartsWith: 'en' },
-    // Any en-IN voice
-    { lang: 'en-IN' },
-    // Last resort: any English voice
+    // 4. Any en-IN voice (even if name doesn't trigger our heuristic)
+    { langExact: 'en-IN' },
+    // 5. Any English voice as final fallback
     { langStartsWith: 'en' },
   ];
 
   function pickVoice() {
     if (__pickedVoice) return __pickedVoice;
-    const voices = window.speechSynthesis?.getVoices?.() || [];
+    const voices = (window.speechSynthesis?.getVoices?.() || []);
     if (!voices.length) return null;
-    const looksFemale = (v) => /female|woman|samantha|zira|heera|aditi|priya|swara|isha|aria/i.test(v.name || '');
-    for (const pref of PREFERRED_VOICES) {
+    for (const pref of VOICE_PREFERENCES) {
       const match = voices.find(v => {
-        if (pref.lang && (v.lang || '').toLowerCase() !== pref.lang.toLowerCase()) return false;
-        if (pref.langStartsWith && !(v.lang || '').toLowerCase().startsWith(pref.langStartsWith)) return false;
+        const vlang = (v.lang || '').replace('_', '-').toLowerCase();
+        if (pref.langExact && vlang !== pref.langExact.toLowerCase()) return false;
+        if (pref.langStartsWith && !vlang.startsWith(pref.langStartsWith.toLowerCase())) return false;
         if (pref.female && !looksFemale(v)) return false;
-        if (pref.contains && pref.contains.length) {
-          const lname = (v.name || '').toLowerCase();
-          if (!pref.contains.every(c => lname.includes(c.toLowerCase()))) return false;
-        }
+        if (pref.nameContains && !((v.name || '').toLowerCase().includes(pref.nameContains.toLowerCase()))) return false;
         return true;
       });
-      if (match) { __pickedVoice = match; return match; }
+      if (match) {
+        __pickedVoice = match;
+        // Debug — comment out for production. Helps explain why
+        // a particular voice was picked when you open devtools.
+        try { console.debug('[Miki voice] picked:', match.name, '(', match.lang, ')'); } catch {}
+        return match;
+      }
     }
-    // Absolute last resort — first voice of any kind
     __pickedVoice = voices[0];
     return __pickedVoice;
   }
-  // Voices load asynchronously on most browsers — re-pick when available
+
+  // Voices load asynchronously on most browsers. Re-pick whenever
+  // they change. ALSO trigger a manual re-pick on the first speak()
+  // call as a safety net (some Safari versions never fire
+  // voiceschanged even though voices are populated).
   if (window.speechSynthesis) {
-    window.speechSynthesis.addEventListener?.('voiceschanged', () => {
-      __pickedVoice = null;
-      pickVoice();
-      __voicesLoaded = true;
-    });
-    // Kick off an initial getVoices() — some browsers populate synchronously
-    setTimeout(() => { pickVoice(); __voicesLoaded = true; }, 100);
+    try {
+      window.speechSynthesis.addEventListener?.('voiceschanged', () => {
+        __pickedVoice = null;
+        pickVoice();
+      });
+    } catch {}
+    // Kick off a few delayed attempts — voices often arrive 50-500ms
+    // after page load on Android Chrome.
+    setTimeout(() => pickVoice(), 100);
+    setTimeout(() => { __pickedVoice = null; pickVoice(); }, 600);
+    setTimeout(() => { __pickedVoice = null; pickVoice(); }, 1500);
   }
 
   // True when we're inside the Expo WebView so we can hand TTS off to
@@ -569,7 +602,14 @@
     try {
       window.speechSynthesis.cancel();
       utterance = new SpeechSynthesisUtterance(clean);
-      const voice = pickVoice();
+      // Safety net: if we never managed to pick a voice during the
+      // delayed-init attempts (Safari sometimes never fires
+      // voiceschanged), re-pick right before speaking.
+      if (!__pickedVoice) {
+        const v = window.speechSynthesis?.getVoices?.();
+        if (v && v.length) pickVoice();
+      }
+      const voice = __pickedVoice;
       if (voice) {
         utterance.voice = voice;
         utterance.lang = voice.lang || 'en-IN';
