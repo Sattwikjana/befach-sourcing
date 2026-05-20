@@ -1780,8 +1780,11 @@ function mountGoogleSignInButton() {
       // verify it, set the cookie, and 302 back to the original page.
       // FedCM (Chrome's native API) is used when available — works
       // without third-party cookies.
-      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent || '');
-      const ux_mode = isSafari ? 'redirect' : 'popup';
+      // Always use redirect mode — Chrome's recent third-party-cookie
+      // and popup restrictions silently break the popup flow on many
+      // setups (button click did nothing), while the redirect flow
+      // works reliably in Safari, Chrome, Firefox, Edge.
+      const ux_mode = 'redirect';
       // Stash the page we were on so the server can redirect us back
       // after the Google round-trip. Can't append it to login_uri as
       // a query string — Google requires EXACT match against the
