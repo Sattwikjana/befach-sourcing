@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '9.02';
+const APP_VERSION = '9.03';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '9.02'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '9.03'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -1610,6 +1610,87 @@ const DEFAULT_META_IMAGE = `${SITE_URL}/img/globalshopper.png`;
 const PRODUCT_SITEMAPS_ENABLED = process.env.PRODUCT_SITEMAPS_ENABLED !== 'false';
 const PRODUCT_SITEMAP_DIR = process.env.PRODUCT_SITEMAP_DIR || path.join(__dirname, 'data', 'sitemaps');
 const PRODUCT_SITEMAP_MANIFEST_PATH = path.join(PRODUCT_SITEMAP_DIR, 'manifest.json');
+
+// ──────────────────────────────────────────────────────────────────
+//  In-process weekly sitemap regeneration
+//  ─────────────────────────────────────────────────────────────────
+//  Render Cron Jobs run in a SEPARATE service with its own (empty)
+//  filesystem — they can't read our SQLite catalog or write to our
+//  persistent disk. So we schedule regeneration inside the main web
+//  service via child_process.spawn:
+//    1. 60 seconds after boot, regenerate if manifest is missing or
+//       older than 6 days (handles cold starts + restarts).
+//    2. Every 7 days thereafter, regenerate again.
+//    3. Output streamed to the main service's log so failures are
+//       visible in the Render Logs tab.
+//  The subprocess writes to the same persistent disk this server
+//  reads from, so the new files are picked up by /sitemap.xml on
+//  the next request — no restart needed.
+// ──────────────────────────────────────────────────────────────────
+const SITEMAP_REGEN_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;     // weekly
+const SITEMAP_STALE_THRESHOLD_MS = 6 * 24 * 60 * 60 * 1000;    // older than 6d → regen on boot
+let __sitemapRegenRunning = false;
+
+function isProductSitemapStale() {
+  try {
+    if (!fs.existsSync(PRODUCT_SITEMAP_MANIFEST_PATH)) return true;
+    const stat = fs.statSync(PRODUCT_SITEMAP_MANIFEST_PATH);
+    return (Date.now() - stat.mtimeMs) > SITEMAP_STALE_THRESHOLD_MS;
+  } catch {
+    return true;
+  }
+}
+
+function regenerateProductSitemapsAsync(reason = 'scheduled') {
+  if (__sitemapRegenRunning) {
+    console.log(`[sitemap] regen skipped (${reason}) — previous run still in progress`);
+    return;
+  }
+  const scriptPath = path.join(__dirname, 'scripts', 'generateProductSitemaps.js');
+  if (!fs.existsSync(scriptPath)) {
+    console.warn('[sitemap] regen skipped — script not found at', scriptPath);
+    return;
+  }
+  __sitemapRegenRunning = true;
+  const startedAt = Date.now();
+  console.log(`[sitemap] regenerating (${reason}) ...`);
+  const { spawn } = require('child_process');
+  const proc = spawn(process.execPath, [scriptPath], {
+    cwd: __dirname,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: process.env,
+  });
+  let stdout = '';
+  proc.stdout?.on('data', chunk => { stdout += chunk.toString(); });
+  proc.stderr?.on('data', chunk => { process.stderr.write(`[sitemap] ${chunk}`); });
+  proc.on('error', err => {
+    __sitemapRegenRunning = false;
+    console.warn('[sitemap] regen failed to spawn:', err.message);
+  });
+  proc.on('close', code => {
+    __sitemapRegenRunning = false;
+    const elapsedMs = Date.now() - startedAt;
+    console.log(`[sitemap] regen finished with code ${code} in ${Math.round(elapsedMs / 1000)}s`);
+    if (stdout) console.log(`[sitemap] regen output: ${stdout.trim()}`);
+  });
+}
+
+if (PRODUCT_SITEMAPS_ENABLED) {
+  // First check after 60s — gives the main server time to settle.
+  setTimeout(() => {
+    if (isProductSitemapStale()) {
+      regenerateProductSitemapsAsync('boot-stale');
+    } else {
+      console.log('[sitemap] manifest fresh (<6 days old), skipping boot regen');
+    }
+  }, 60_000);
+
+  // Then weekly. Render keeps the process alive 24/7 on paid plans,
+  // so the interval fires reliably.
+  setInterval(() => {
+    regenerateProductSitemapsAsync('weekly-tick');
+  }, SITEMAP_REGEN_INTERVAL_MS);
+}
 const FAQ_SEO_ITEMS = [
   {
     question: 'How long does Global Shopper delivery take in India?',
