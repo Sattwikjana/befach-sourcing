@@ -5925,17 +5925,58 @@ body {
   -webkit-user-drag: none;
 }
 
-/* Desktop: keep the slide at the source 16:9 (so the banner image is
-   shown in full — no cropping) but cap the carousel's overall width so
-   the hero is shorter without losing any of the artwork. Centered in
-   the main column with neutral space on either side. Mobile is
-   untouched — narrow screens already render the carousel at a
-   reasonable height. */
+/* Desktop: show THREE banners side-by-side (Flipkart-style multi-tile
+   hero). With 6 source slides we get 2 pages of 3, paginated by the
+   carousel JS. Carousel is wider (1240px instead of 900px) to give
+   each tile a comfortable width.
+
+   Each tile is exactly 33.333% wide so a translate of 100% × pageIndex
+   moves the track by one full viewport — which is exactly 3 slides.
+   No gap on the track (would break the page-snap math); separation
+   between tiles comes from a small inset white border and rounded
+   corners on the slide images themselves.
+
+   Mobile is untouched: 1 banner per page at 100% width, looks
+   identical to before. */
 @media (min-width: 861px) {
   .home-usp-carousel {
-    max-width: 900px;
+    max-width: 1240px;
     margin-left: auto;
     margin-right: auto;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .home-usp-viewport {
+    background: transparent;
+  }
+  .home-usp-slide {
+    flex: 0 0 33.3333%;
+    min-width: 33.3333%;
+    /* Inner spacing creates visual gap between tiles WITHOUT breaking
+       the carousel math (gap on the flex track would offset pages). */
+    padding: 0 6px;
+    background: transparent;
+    box-sizing: border-box;
+    /* Slimmer tiles look better at a shorter ratio than 16:9 */
+    aspect-ratio: 4 / 3;
+  }
+  .home-usp-slide img {
+    border-radius: 16px;
+    box-shadow: 0 14px 28px rgba(15, 6, 40, 0.16);
+    /* When showing 3 at once, cover (crop) reads better than contain
+       since the source banners were designed for full-width. */
+    object-fit: cover;
+  }
+  /* No outer chrome on the multi-tile carousel — each tile has its
+     own shadow + rounded corners. */
+  .home-usp-track {
+    gap: 0;
+  }
+  /* Dots stay below; tighter margin since we have only 2 instead of 6. */
+  .home-usp-dots {
+    margin-top: 14px;
   }
 }
 

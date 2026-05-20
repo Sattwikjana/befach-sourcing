@@ -2573,7 +2573,13 @@ function initHomeUspCarousel() {
   if (!track || slides.length < 2) return;
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let activeIndex = 0;
+  // Desktop shows multiple banners side-by-side (Flipkart-style). The
+  // carousel paginates through "pages" of slidesPerPage banners. On
+  // mobile we keep 1-per-page so banners stay big and tappable.
+  const desktopMq = window.matchMedia('(min-width: 861px)');
+  const slidesPerPage = desktopMq.matches ? 3 : 1;
+  const pageCount = Math.max(1, Math.ceil(slides.length / slidesPerPage));
+  let activeIndex = 0; // page index, 0..pageCount-1
   let timer = null;
   let pointerStartX = 0;
   let pointerStartY = 0;
@@ -2590,6 +2596,17 @@ function initHomeUspCarousel() {
   let didDrag = false;
   const viewport = root.querySelector('.home-usp-viewport') || track;
 
+  // Regenerate dots to match pageCount (slides are still 6, but on
+  // desktop the carousel only needs 2 dots — one per page of 3).
+  const dotsContainer = root.querySelector('.home-usp-dots');
+  if (dotsContainer && dots.length !== pageCount) {
+    dotsContainer.innerHTML = Array.from({ length: pageCount }, (_, i) => `
+      <button class="home-usp-dot${i === 0 ? ' is-active' : ''}" type="button" role="tab" aria-selected="${i === 0 ? 'true' : 'false'}" aria-label="Show banner group ${i + 1}" data-usp-dot="${i}"></button>
+    `).join('');
+    dots.length = 0;
+    Array.from(dotsContainer.querySelectorAll('.home-usp-dot')).forEach(d => dots.push(d));
+  }
+
   const stopTimer = () => {
     if (timer) window.clearInterval(timer);
     timer = null;
@@ -2602,12 +2619,18 @@ function initHomeUspCarousel() {
   };
 
   const setSlide = (nextIndex) => {
-    activeIndex = (nextIndex + slides.length) % slides.length;
+    // activeIndex is now a PAGE index, not a slide index. Translation
+    // is one viewport-width per page (slidesPerPage slides at once).
+    activeIndex = ((nextIndex % pageCount) + pageCount) % pageCount;
     track.style.transform = `translate3d(${-activeIndex * 100}%, 0, 0)`;
+    // Mark visible slides — the ones inside the active page.
+    const pageStart = activeIndex * slidesPerPage;
+    const pageEnd = pageStart + slidesPerPage;
     slides.forEach((slide, index) => {
-      slide.classList.toggle('is-active', index === activeIndex);
-      slide.setAttribute('aria-hidden', index === activeIndex ? 'false' : 'true');
-      slide.tabIndex = index === activeIndex ? 0 : -1;
+      const visible = index >= pageStart && index < pageEnd;
+      slide.classList.toggle('is-active', visible);
+      slide.setAttribute('aria-hidden', visible ? 'false' : 'true');
+      slide.tabIndex = visible ? 0 : -1;
     });
     dots.forEach((dot, index) => {
       dot.classList.toggle('is-active', index === activeIndex);
