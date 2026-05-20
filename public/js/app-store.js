@@ -1782,7 +1782,14 @@ function mountGoogleSignInButton() {
       // without third-party cookies.
       const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent || '');
       const ux_mode = isSafari ? 'redirect' : 'popup';
-      const next = encodeURIComponent(location.pathname || '/account');
+      // Stash the page we were on so the server can redirect us back
+      // after the Google round-trip. Can't append it to login_uri as
+      // a query string — Google requires EXACT match against the
+      // Authorised redirect URIs list and any unregistered query
+      // string fails with redirect_uri_mismatch.
+      try {
+        sessionStorage.setItem('gs_google_return', location.pathname || '/account');
+      } catch {}
       window.google.accounts.id.initialize({
         client_id: googleClientId(),
         callback: onGoogleCredentialResponse,
@@ -1791,9 +1798,11 @@ function mountGoogleSignInButton() {
         ux_mode,
         // Used when ux_mode is 'redirect' (Safari, or if a browser
         // blocks the popup). Google POSTs the credential here as
-        // form-encoded data. Our server then verifies + sets a
-        // session cookie + 302 redirects back.
-        login_uri: location.origin + '/api/auth/google/callback?next=' + next,
+        // form-encoded data. Our server verifies, sets a session
+        // cookie, and 302 redirects back to /account. MUST exactly
+        // match one of the Authorised redirect URIs in Google Cloud
+        // — no query strings, no extra path segments.
+        login_uri: location.origin + '/api/auth/google/callback',
         // Chrome 117+ native auth API — bypasses popup blockers and
         // third-party cookie restrictions. Falls back gracefully when
         // not supported.

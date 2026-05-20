@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.96';
+const APP_VERSION = '8.97';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.96'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.97'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -911,11 +911,12 @@ app.post('/api/auth/google/callback',
       });
       const token = auth.createSessionFor(user.id);
       auth.setSessionCookie(res, token);
-      // Where to land after sign-in. ?next= can be set by the client
-      // before kicking off the flow; otherwise default to /account.
-      const next = (req.query && typeof req.query.next === 'string') ? req.query.next : '/account';
-      const safe = next.startsWith('/') ? next : '/account';
-      res.redirect(302, safe);
+      // Always redirect to /account — the URI Google calls must be
+      // identical to one registered in the Console, with NO extra
+      // query strings, so we can't carry a `next=` here. The client
+      // stashes the previous page in sessionStorage; we could read
+      // that on /account if we want a smarter post-login landing.
+      res.redirect(302, '/account');
     } catch (err) {
       console.warn('[google-auth/callback] failed:', err.message);
       res.redirect(302, '/login?google_error=verify');
