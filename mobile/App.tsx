@@ -34,11 +34,19 @@ const HOME_URL = `${SITE_URL}/`;
 
 const APP_VERSION = '0.2.1';
 
-// Web Client ID for Google Sign-In, baked into the build. Public —
-// Client IDs are not secrets. Pulled from app.json extras so it can
-// be swapped without code changes.
+// Google OAuth Client IDs for Sign-In. Public — Client IDs are not
+// secrets. Pulled from app.json extras so they can be swapped without
+// touching code.
+//   • Web Client ID    → used as `webClientId` (sets the id_token
+//                        audience so our server can verify the token)
+//   • Android Client ID → used as `androidClientId` (links to the
+//                        package + SHA-1 in Google Cloud so the
+//                        reverse-DNS redirect scheme is accepted by
+//                        Google's OAuth servers)
 const GOOGLE_WEB_CLIENT_ID =
   String(Constants.expoConfig?.extra?.googleWebClientId || '');
+const GOOGLE_ANDROID_CLIENT_ID =
+  String(Constants.expoConfig?.extra?.googleAndroidClientId || GOOGLE_WEB_CLIENT_ID);
 const APP_USER_AGENT = `GlobalShopperAndroid/${APP_VERSION}`;
 
 Notifications.setNotificationHandler({
@@ -122,10 +130,12 @@ export default function App() {
   // expo-auth-session, get the ID token back, and inject it into the
   // WebView, which then POSTs to /api/auth/google like the web flow.
   const [googleRequest, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
-    clientId: GOOGLE_WEB_CLIENT_ID,
-    iosClientId: GOOGLE_WEB_CLIENT_ID,
-    androidClientId: GOOGLE_WEB_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
     webClientId: GOOGLE_WEB_CLIENT_ID,
+    // iOS would need its own OAuth client; falling back to Web ID
+    // here so the build still compiles. Add an iOS Client ID later
+    // if we ship an App Store build.
+    iosClientId: GOOGLE_WEB_CLIENT_ID,
     scopes: ['profile', 'email', 'openid'],
   });
 
