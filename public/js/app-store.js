@@ -1189,11 +1189,23 @@ async function renderAdmin() {
 
   try {
     const stats = await adminFetch('/api/admin/dashboard');
+    // Signup mix — Google vs email-only — plus a "new this week"
+    // sub-label so you can spot acceleration after launching Google
+    // Sign-In. Percentages help visualise adoption without pulling
+    // up a separate chart.
+    const totalU = stats.totalUsers || 0;
+    const googleU = stats.googleUsers || 0;
+    const emailU = stats.emailOnlyUsers || 0;
+    const googlePct = totalU > 0 ? Math.round((googleU / totalU) * 100) : 0;
+    const emailPct = totalU > 0 ? Math.round((emailU / totalU) * 100) : 0;
     document.getElementById('adminStats').innerHTML = `
       <div class="stat-card"><div class="stat-label">Orders</div><div class="stat-value">${stats.totalOrders}</div></div>
       <div class="stat-card"><div class="stat-label">Revenue</div><div class="stat-value">${fmtINR(stats.totalRevenue)}</div></div>
       <div class="stat-card"><div class="stat-label">CJ cost</div><div class="stat-value">${fmtINR(stats.totalCost)}</div></div>
       <div class="stat-card stat-profit"><div class="stat-label">Profit</div><div class="stat-value">${fmtINR(stats.totalProfit)}</div><div class="stat-label">${esc(stats.profitMargin)} margin</div></div>
+      <div class="stat-card"><div class="stat-label">Total customers</div><div class="stat-value">${totalU.toLocaleString('en-IN')}</div><div class="stat-label">${stats.signups7d || 0} new this week</div></div>
+      <div class="stat-card"><div class="stat-label">Google sign-in</div><div class="stat-value">${googleU.toLocaleString('en-IN')} <span class="muted small">· ${googlePct}%</span></div><div class="stat-label">${stats.googleSignups7d || 0} new this week</div></div>
+      <div class="stat-card"><div class="stat-label">Email / password</div><div class="stat-value">${emailU.toLocaleString('en-IN')} <span class="muted small">· ${emailPct}%</span></div><div class="stat-label">remaining ${100 - googlePct}% of customers</div></div>
     `;
   } catch (err) {
     if (err.message === 'Unauthorized') return renderAdminLogin();
