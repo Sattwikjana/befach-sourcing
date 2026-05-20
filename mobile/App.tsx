@@ -24,7 +24,7 @@ const DEFAULT_SITE_URL = 'https://www.globalshopper.in';
 const SITE_URL = String(Constants.expoConfig?.extra?.siteUrl || DEFAULT_SITE_URL).replace(/\/+$/, '');
 const HOME_URL = `${SITE_URL}/`;
 
-const APP_VERSION = '0.1.8';
+const APP_VERSION = '0.1.9';
 const APP_USER_AGENT = `GlobalShopperAndroid/${APP_VERSION}`;
 
 Notifications.setNotificationHandler({
@@ -219,15 +219,69 @@ export default function App() {
       webViewRef.current?.injectJavaScript(`
         (function () {
           try {
+            // ── 1. Miki's chat panel takes precedence ──────────────
+            // If the assistant is open, the back button should close
+            // it BEFORE anything else (including the "press again to
+            // exit" prompt on the home page). Pop our pushed history
+            // state so the assistant's own popstate listener handles
+            // the close cleanly. If for some reason no state was
+            // pushed, fall back to clicking the X.
+            var aiPanel = document.getElementById('aiPanel');
+            if (aiPanel && aiPanel.classList.contains('is-open')) {
+              if (window.history && window.history.state && window.history.state.aiPanel) {
+                window.history.back();
+              } else {
+                var closeBtn = document.getElementById('aiPanelClose');
+                if (closeBtn) closeBtn.click();
+              }
+              return;
+            }
+
+            // ── 2. Normal SPA back navigation ──────────────────────
             var path = (window.location.pathname || '/') +
                        (window.location.search || '') +
                        (window.location.hash || '');
             var isHome = path === '/' || path === '' || path === '/index.html';
+
             if (isHome) {
-              if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-                window.ReactNativeWebView.postMessage('GS_BACK_EXIT');
+              // 3. Two-press-to-exit (Flipkart/Amazon pattern). First
+              //    back press arms a 2-second timer + shows a toast.
+              //    Second press within the window exits the app. The
+              //    flag auto-clears so the customer can't accidentally
+              //    exit on a stale back press an hour later.
+              if (window.__gsPendingExit) {
+                window.__gsPendingExit = false;
+                if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+                  window.ReactNativeWebView.postMessage('GS_BACK_EXIT');
+                }
+                return;
               }
-            } else if (window.history && window.history.length > 1) {
+              window.__gsPendingExit = true;
+              if (typeof window.showToast === 'function') {
+                window.showToast('Press back again to exit', 1800);
+              } else {
+                var existing = document.getElementById('__gsExitToast');
+                if (existing) existing.remove();
+                var t = document.createElement('div');
+                t.id = '__gsExitToast';
+                t.style.cssText = 'position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:rgba(15,6,40,0.92);color:#fff;padding:11px 20px;border-radius:24px;z-index:99999;font-size:14px;font-weight:600;box-shadow:0 12px 32px rgba(0,0,0,0.35);font-family:system-ui,-apple-system,sans-serif;letter-spacing:0.01em;animation:gsToastIn 200ms ease-out';
+                t.textContent = 'Press back again to exit';
+                document.body.appendChild(t);
+                setTimeout(function(){
+                  var el = document.getElementById('__gsExitToast');
+                  if (el) el.remove();
+                }, 1800);
+              }
+              clearTimeout(window.__gsPendingExitTimer);
+              window.__gsPendingExitTimer = setTimeout(function () {
+                window.__gsPendingExit = false;
+              }, 2000);
+              return;
+            }
+
+            // 4. Not home — pop one SPA history entry, or hard-redirect
+            //    to home if there's nothing to pop (deep-link entry).
+            if (window.history && window.history.length > 1) {
               window.history.back();
             } else {
               window.location.href = '/';

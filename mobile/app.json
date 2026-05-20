@@ -3,7 +3,7 @@
     "name": "Global Shopper",
     "slug": "global-shopper",
     "scheme": "globalshopper",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -26,7 +26,7 @@
     },
     "android": {
       "package": "in.globalshopper.app",
-      "versionCode": 12,
+      "versionCode": 13,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2b0b5a"
