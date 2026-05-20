@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '9.01';
+const APP_VERSION = '9.02';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '9.01'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '9.02'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -2034,6 +2034,44 @@ function getRouteSeo(req) {
     };
   }
 
+  // About — brand awareness landing page. MUST be indexable so the
+  // site ranks for "global shopper india" / "befach" brand queries.
+  // Previously fell into the catch-all noindex at the bottom of this
+  // function, which silently de-indexed the company's most important
+  // trust-building page.
+  if (pathname === '/about') {
+    const canonical = absoluteUrl('/about');
+    return {
+      title: 'About Global Shopper | One World. Endless Choices.',
+      description: 'Global Shopper is a Befach venture bringing 2M+ premium products from artisans and ateliers in 200+ countries to your doorstep in India in 10-15 days, with all-inclusive pricing and a 100% money-back guarantee.',
+      canonical,
+      image: DEFAULT_META_IMAGE,
+      type: 'website',
+      robots: 'index,follow',
+      schemas: [
+        breadcrumbSchema([{ name: 'Home', url: SITE_URL }, { name: 'About', url: canonical }]),
+        // Organization schema — helps Google build a brand knowledge
+        // panel and surface site-links in search results.
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'Global Shopper',
+          alternateName: 'Befach Global Shopper',
+          url: SITE_URL,
+          logo: DEFAULT_META_IMAGE,
+          sameAs: [],
+          contactPoint: [{
+            '@type': 'ContactPoint',
+            email: 'help@globalshopper.in',
+            contactType: 'customer support',
+            areaServed: 'IN',
+            availableLanguage: ['en', 'hi'],
+          }],
+        },
+      ],
+    };
+  }
+
   if (pathname === '/privacy') {
     const canonical = absoluteUrl('/privacy');
     return {
@@ -2053,6 +2091,15 @@ function getRouteSeo(req) {
     return noindexSeo(req, title);
   }
 
+  // Catch-all for any path we haven't explicitly handled above. We
+  // deliberately default to noindex here — better that a random
+  // unknown path doesn't show up in Google as a "no content found"
+  // page than to leak half-built routes into search results.
+  //
+  // ⚠ When adding a NEW public, indexable page (like /about), add an
+  // explicit handler ABOVE this fallthrough with robots: 'index,follow'.
+  // Otherwise it'll silently get noindex'd here and the page won't
+  // rank — that's how /about got missed before.
   if (pathname !== '/') {
     return noindexSeo(req, 'Global Shopper - One World. Endless Choices.');
   }
