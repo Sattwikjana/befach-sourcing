@@ -2577,7 +2577,10 @@ function initHomeUspCarousel() {
   // carousel paginates through "pages" of slidesPerPage banners. On
   // mobile we keep 1-per-page so banners stay big and tappable.
   const desktopMq = window.matchMedia('(min-width: 861px)');
-  const slidesPerPage = desktopMq.matches ? 3 : 1;
+  // 2 banners per page on desktop — keeps the source 16:9 aspect so
+  // nothing gets cropped (3-up at 4:3 was cutting the artwork). With
+  // 6 source slides we now have 3 pages of 2 tiles each.
+  const slidesPerPage = desktopMq.matches ? 2 : 1;
   const pageCount = Math.max(1, Math.ceil(slides.length / slidesPerPage));
   let activeIndex = 0; // page index, 0..pageCount-1
   let timer = null;
