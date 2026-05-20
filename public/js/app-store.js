@@ -1780,36 +1780,40 @@ function mountGoogleSignInButton() {
       // verify it, set the cookie, and 302 back to the original page.
       // FedCM (Chrome's native API) is used when available — works
       // without third-party cookies.
-      // Always use redirect mode — Chrome's recent third-party-cookie
-      // and popup restrictions silently break the popup flow on many
-      // setups (button click did nothing), while the redirect flow
-      // works reliably in Safari, Chrome, Firefox, Edge.
+      // Always use redirect mode — works reliably across Safari,
+      // Chrome, Firefox, Edge. Popup mode fights with modern
+      // third-party-cookie restrictions and silently fails in Chrome.
       const ux_mode = 'redirect';
-      // Stash the page we were on so the server can redirect us back
-      // after the Google round-trip. Can't append it to login_uri as
-      // a query string — Google requires EXACT match against the
-      // Authorised redirect URIs list and any unregistered query
-      // string fails with redirect_uri_mismatch.
+      // Stash the current page so the server can redirect us back
+      // after the round-trip. Can't put it in login_uri — Google
+      // requires login_uri to exactly match a registered redirect
+      // URI (no extra query strings).
       try {
         sessionStorage.setItem('gs_google_return', location.pathname || '/account');
       } catch {}
+      // ALWAYS use the canonical www host — even if the customer is
+      // browsing the apex (`globalshopper.in`). Reason: Render +
+      // Cloudflare 301-redirect apex → www, and a 301 strips POST
+      // bodies. Google's credential POST to the apex would arrive at
+      // www as an empty GET, so verification would fail. By hard-
+      // coding www here we send Google's POST straight to the
+      // canonical host and avoid the redirect entirely.
+      // Only `https://www.globalshopper.in/api/auth/google/callback`
+      // needs to be registered in Google Cloud.
       window.google.accounts.id.initialize({
         client_id: googleClientId(),
         callback: onGoogleCredentialResponse,
         auto_select: false,
         cancel_on_tap_outside: true,
         ux_mode,
-        // Used when ux_mode is 'redirect' (Safari, or if a browser
-        // blocks the popup). Google POSTs the credential here as
-        // form-encoded data. Our server verifies, sets a session
-        // cookie, and 302 redirects back to /account. MUST exactly
-        // match one of the Authorised redirect URIs in Google Cloud
-        // — no query strings, no extra path segments.
-        login_uri: location.origin + '/api/auth/google/callback',
-        // Chrome 117+ native auth API — bypasses popup blockers and
-        // third-party cookie restrictions. Falls back gracefully when
-        // not supported.
-        use_fedcm_for_prompt: true,
+        login_uri: 'https://www.globalshopper.in/api/auth/google/callback',
+        // FedCM was forcing a different OAuth flow on Chrome that has
+        // its own redirect-URI requirements unrelated to login_uri,
+        // causing redirect_uri_mismatch even when our URI was
+        // registered. Disable it — standard redirect flow works in
+        // every browser without FedCM.
+        use_fedcm_for_prompt: false,
+        itp_support: true,
       });
       window.google.accounts.id.renderButton(host, {
         theme: 'outline',
