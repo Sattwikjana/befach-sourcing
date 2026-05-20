@@ -1736,6 +1736,113 @@ function authLink(path) {
   return redirect ? `${path}?redirect=${encodeURIComponent(redirect)}` : path;
 }
 
+// ──────────────────────────────────────────────────────────────
+//  Google Sign-In — Web (browser) path
+//  ──────────────────────────────────────────────────────────────
+//  Drops the official Google Identity Services button into the
+//  login/register pages and posts the returned ID token to
+//  /api/auth/google. Auto-hides when:
+//    • GOOGLE_CLIENT_ID env var isn't set on the server
+//    • Running inside the Expo WebView (Google blocks GSI in WebViews;
+//      a future native bridge will replace this)
+// ──────────────────────────────────────────────────────────────
+function googleClientId() {
+  return (state.config && state.config.googleClientId) || '';
+}
+function googleSignInAvailable() {
+  if (!googleClientId()) return false;
+  // Google explicitly blocks the GSI button inside Android WebView
+  // (security policy). Hide it in the app — a native bridge ships
+  // later. ReactNativeWebView is the Expo WebView's bridge object.
+  if (window.ReactNativeWebView) return false;
+  return true;
+}
+function renderGoogleSignInBlock() {
+  if (!googleSignInAvailable()) return '';
+  return `
+    <div class="auth-google-block">
+      <div id="googleSignInButton" class="auth-google-button"></div>
+      <div class="auth-divider"><span>or sign in with email</span></div>
+    </div>
+  `;
+}
+function mountGoogleSignInButton() {
+  if (!googleSignInAvailable()) return;
+  const host = document.getElementById('googleSignInButton');
+  if (!host) return;
+  loadGoogleIdentityScript().then(() => {
+    if (!window.google || !window.google.accounts) return;
+    try {
+      window.google.accounts.id.initialize({
+        client_id: googleClientId(),
+        callback: onGoogleCredentialResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        // Modern UX uses a popup window; falls back to a redirect
+        // on devices that block popups.
+        ux_mode: 'popup',
+      });
+      window.google.accounts.id.renderButton(host, {
+        theme: 'outline',
+        size: 'large',
+        type: 'standard',
+        shape: 'pill',
+        text: 'continue_with',
+        logo_alignment: 'left',
+        width: Math.min(360, host.parentElement?.clientWidth || 320),
+      });
+    } catch (err) {
+      console.warn('[google sign-in] init failed:', err.message);
+      host.style.display = 'none';
+    }
+  }).catch(err => {
+    console.warn('[google sign-in] script load failed:', err.message);
+    host.style.display = 'none';
+  });
+}
+let __gsiScriptPromise = null;
+function loadGoogleIdentityScript() {
+  if (__gsiScriptPromise) return __gsiScriptPromise;
+  __gsiScriptPromise = new Promise((resolve, reject) => {
+    if (window.google && window.google.accounts) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    s.defer = true;
+    s.onload = () => resolve();
+    s.onerror = (e) => reject(new Error('Could not load Google Identity script'));
+    document.head.appendChild(s);
+  });
+  return __gsiScriptPromise;
+}
+async function onGoogleCredentialResponse(response) {
+  if (!response || !response.credential) {
+    showToast('Google sign-in was cancelled');
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ idToken: response.credential }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.user) throw new Error(data.error || 'Sign-in failed');
+    state.user = data.user;
+    if (typeof updateAuthSlot === 'function') updateAuthSlot();
+    if (typeof refreshMobilePushTokenRegistration === 'function') refreshMobilePushTokenRegistration();
+    if (typeof window.syncCartFromServer === 'function')     await window.syncCartFromServer().catch(() => {});
+    if (typeof window.syncWishlistFromServer === 'function') await window.syncWishlistFromServer().catch(() => {});
+    showToast(`Welcome, ${(data.user.name || '').split(' ')[0] || 'shopper'}!`);
+    navigate(requestedAuthRedirect('/account'));
+  } catch (err) {
+    showToast('Google sign-in failed: ' + err.message, 5000);
+  }
+}
+// Expose so plain HTML onclick handlers (if any) can reach them.
+window.onGoogleCredentialResponse = onGoogleCredentialResponse;
+
 function renderLogin() {
   if (state.user) return navigate(requestedAuthRedirect('/account'));
   const registerHref = authLink('/register');
@@ -1744,6 +1851,7 @@ function renderLogin() {
       <div class="auth-card">
         <h1>Sign in to Global Shopper</h1>
         <p class="muted">New here? <a href="${registerHref}">Create an account</a></p>
+        ${renderGoogleSignInBlock()}
         <form id="loginForm" class="auth-form">
           <label>Email
             <input type="email" name="email" required autocomplete="email" autofocus />
@@ -1757,6 +1865,7 @@ function renderLogin() {
       </div>
     </div>
   `;
+  mountGoogleSignInButton();
   document.getElementById('loginForm').onsubmit = async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target).entries());
@@ -1789,6 +1898,7 @@ function renderRegister() {
       <div class="auth-card">
         <h1>Create your Global Shopper account</h1>
         <p class="muted">Already have one? <a href="${loginHref}">Sign in</a></p>
+        ${renderGoogleSignInBlock()}
         <form id="registerForm" class="auth-form">
           <label>Full name
             <input type="text" name="name" required autocomplete="name" autofocus />
@@ -1809,6 +1919,7 @@ function renderRegister() {
       </div>
     </div>
   `;
+  mountGoogleSignInButton();
   document.getElementById('registerForm').onsubmit = async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target).entries());

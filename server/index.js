@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.94';
+const APP_VERSION = '8.95';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.94'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.95'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -843,6 +843,99 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
+// ──────────────────────────────────────────────────────────────────
+//  Sign in / sign up with Google
+//  ────────────────────────────────────────────────────────────────
+//  Client sends { idToken } from Google Identity Services. We verify
+//  the JWT against Google's public keys with google-auth-library —
+//  if it's valid (issued by Google, not expired, audience matches
+//  OUR Client ID), we extract the verified email / name / sub and
+//  hand it to auth.findOrCreateGoogleUser.
+//
+//  Required env var:
+//    GOOGLE_CLIENT_ID — your "OAuth 2.0 Web Client ID" from
+//                      Google Cloud Console → APIs & Services →
+//                      Credentials. The SAME id used on the client.
+//  Optional env var:
+//    GOOGLE_CLIENT_IDS_EXTRA — comma-separated list of additional
+//                              client ids (e.g. iOS / Android) that
+//                              are also allowed as the token audience.
+// ──────────────────────────────────────────────────────────────────
+let __googleAuthClient = null;
+function getGoogleAuthClient() {
+  if (__googleAuthClient) return __googleAuthClient;
+  try {
+    const { OAuth2Client } = require('google-auth-library');
+    __googleAuthClient = new OAuth2Client();
+    return __googleAuthClient;
+  } catch (err) {
+    console.error('[google-auth] google-auth-library not installed:', err.message);
+    return null;
+  }
+}
+app.post('/api/auth/google', async (req, res) => {
+  const idToken = req.body && typeof req.body.idToken === 'string' ? req.body.idToken : '';
+  if (!idToken) return res.status(400).json({ error: 'Missing idToken' });
+
+  const clientId = process.env.GOOGLE_CLIENT_ID || '';
+  if (!clientId) {
+    return res.status(503).json({
+      error: 'Google sign-in is not configured on this server. Please contact support.',
+      code: 'GOOGLE_NOT_CONFIGURED',
+    });
+  }
+  // Build the set of acceptable audiences (Web Client ID + optional
+  // mobile-app client ids). When verifying, google-auth-library
+  // requires the token's `aud` to match one of these exactly.
+  const audiences = [clientId];
+  if (process.env.GOOGLE_CLIENT_IDS_EXTRA) {
+    for (const id of process.env.GOOGLE_CLIENT_IDS_EXTRA.split(',')) {
+      const t = id.trim();
+      if (t) audiences.push(t);
+    }
+  }
+
+  const client = getGoogleAuthClient();
+  if (!client) {
+    return res.status(500).json({ error: 'Google auth library unavailable on server' });
+  }
+
+  let payload;
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: audiences,
+    });
+    payload = ticket.getPayload();
+  } catch (err) {
+    console.warn('[google-auth] token verify failed:', err.message);
+    return res.status(401).json({ error: 'Invalid Google token' });
+  }
+  if (!payload || !payload.email || !payload.sub) {
+    return res.status(401).json({ error: 'Google token missing email' });
+  }
+  // Google flags `email_verified: false` for accounts that haven't
+  // confirmed their email — refuse those (rare but real).
+  if (payload.email_verified === false) {
+    return res.status(401).json({ error: 'Please verify your Google account email first' });
+  }
+
+  try {
+    const user = await auth.findOrCreateGoogleUser({
+      email: payload.email,
+      name: payload.name || payload.given_name || '',
+      googleId: payload.sub,
+      picture: payload.picture || '',
+    });
+    const token = auth.createSessionFor(user.id);
+    auth.setSessionCookie(res, token);
+    res.json({ user, token });
+  } catch (err) {
+    console.error('[google-auth] sign-in failed:', err.message);
+    res.status(500).json({ error: err.message || 'Could not sign in' });
+  }
+});
+
 app.get('/api/auth/me', (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not signed in' });
   res.json({ user: req.user });
@@ -1273,6 +1366,11 @@ app.get('/api/store/config', (req, res) => {
     shipFrom: DEFAULT_SHIP_FROM,
     shippingMethods: SHIPPING_METHODS_PRIORITY,
     shippingNote: 'Shipping included in price',
+    // Google Sign-In Web Client ID. When set, the login/register
+    // pages render a "Sign in with Google" button. Public — Client
+    // IDs are not secrets (the Client SECRET is, and we never expose
+    // it; the ID-token flow doesn't need it server-side either).
+    googleClientId: process.env.GOOGLE_CLIENT_ID || '',
   });
 });
 

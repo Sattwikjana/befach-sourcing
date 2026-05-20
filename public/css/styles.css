@@ -6676,6 +6676,47 @@ body.page-home .feedback-fab {
 
 
 /* ═══════════════════════════════════════════════════════════════
+   GOOGLE SIGN-IN — Web button + divider
+   Inserted at the top of /login and /register cards above the
+   email/password form. Hidden when no client ID is configured or
+   when running inside the Expo WebView (Google blocks GSI there).
+   ═══════════════════════════════════════════════════════════════ */
+.auth-google-block {
+  margin: 4px 0 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.auth-google-button {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 14px;
+  /* Google's button has its own internal width — center via flex */
+}
+.auth-divider {
+  position: relative;
+  width: 100%;
+  text-align: center;
+  margin: 6px 0 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: calc(50% - 90px);
+  height: 1px;
+  background: rgba(46, 16, 101, 0.12);
+}
+.auth-divider::before { left: 0; }
+.auth-divider::after  { right: 0; }
+.auth-divider span { padding: 0 10px; background: transparent; }
+
+/* ═══════════════════════════════════════════════════════════════
    PRODUCT-PAGE DISCOVERY RAILS
    "Similar products" + "Recently viewed" carousels that appear
    below the description on every product detail page.

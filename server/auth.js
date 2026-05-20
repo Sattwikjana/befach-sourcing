@@ -218,6 +218,53 @@ function clearSessionCookie(res) {
   res.clearCookie(COOKIE_NAME, { path: '/' });
 }
 
+// ── Sign in / sign up with Google ──
+//   Idempotent. Three cases:
+//     a) Existing user with matching googleId  → return them
+//     b) Existing user with matching email     → link Google to it
+//     c) No match                              → create new Google-only account
+//
+//   Called by /api/auth/google after the server has verified the
+//   Google ID token (so we trust the email, name, picture, sub).
+async function findOrCreateGoogleUser({ email, name, googleId, picture }) {
+  email = (email || '').trim().toLowerCase();
+  name = (name || '').trim();
+  googleId = String(googleId || '').trim();
+  if (!email || !googleId) throw new Error('Missing Google account details');
+  if (!validEmail(email)) throw new Error('Google returned an invalid email');
+
+  // (a) Already linked
+  let user = users.find(u => u.googleId === googleId);
+  if (user) return publicUser(user);
+
+  // (b) Email exists but not linked yet → adopt Google identity onto it
+  user = users.find(u => u.email === email);
+  if (user) {
+    user.googleId = googleId;
+    if (!user.name && name) user.name = name;
+    if (picture) user.picture = picture;
+    saveJson(USERS_FILE, users);
+    return publicUser(user);
+  }
+
+  // (c) Brand new account — no password, Google-only
+  user = {
+    id: 'U-' + crypto.randomBytes(6).toString('hex').toUpperCase(),
+    email,
+    name: name || email.split('@')[0],
+    phone: '',
+    passwordHash: '', // Empty — login via Google only. Customer can
+                     // add a password later from their account page if
+                     // we ship a "set password" flow.
+    googleId,
+    picture: picture || '',
+    createdAt: new Date().toISOString(),
+  };
+  users.push(user);
+  saveJson(USERS_FILE, users);
+  return publicUser(user);
+}
+
 // ── Delete account ──
 //   • Removes the user record from data/users.json
 //   • Revokes ALL of this user's sessions (any other devices get
@@ -247,6 +294,21 @@ function deleteUser(userId) {
   return true;
 }
 
+// ── Create a session for a known user (Google flow uses this) ──
+//   The standard login() path embeds the bcrypt check + session
+//   issue. For Google sign-in we've already verified the identity
+//   via Google's ID token, so we just need to mint a session.
+function createSessionFor(userId) {
+  if (!userId) throw new Error('Missing user id');
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions[token] = {
+    userId,
+    expiresAt: Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000,
+  };
+  persistSessions();
+  return token;
+}
+
 module.exports = {
   register,
   login,
@@ -254,6 +316,8 @@ module.exports = {
   userForToken,
   updateProfile,
   deleteUser,
+  findOrCreateGoogleUser,
+  createSessionFor,
   getUserCart,
   setUserCart,
   getUserWishlist,
