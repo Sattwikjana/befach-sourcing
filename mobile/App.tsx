@@ -32,7 +32,7 @@ const DEFAULT_SITE_URL = 'https://www.globalshopper.in';
 const SITE_URL = String(Constants.expoConfig?.extra?.siteUrl || DEFAULT_SITE_URL).replace(/\/+$/, '');
 const HOME_URL = `${SITE_URL}/`;
 
-const APP_VERSION = '0.2.1';
+const APP_VERSION = '0.2.2';
 
 // Google OAuth Client IDs for Sign-In. Public — Client IDs are not
 // secrets. Pulled from app.json extras so they can be swapped without
