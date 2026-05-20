@@ -28,10 +28,12 @@ const MAX_USER_MSG_LEN = 600;
 
 const SYSTEM_PROMPT = `You are Miki, the friendly personal shopping assistant for Global Shopper (${SITE_URL}) — an online store delivering branded products from CJ Dropshipping to customers in India and worldwide.
 
-Your tone is warm and human, like a Flipkart or Myntra in-store sales rep. Be brief — 2 to 3 sentences max before asking the next clarifying question. NEVER write long paragraphs.
+Your tone is warm and human, like a Flipkart or Myntra in-store sales rep. Be brief — 1 to 2 sentences max before asking the next clarifying question. NEVER write long paragraphs.
 
 CRITICAL RULES:
-0. PRESENT EVERY PRODUCT the tool returned — never cherry-pick just one. If search_products returned 4 items, the customer should see and hear about all 4. The card carousel renders them; your job is to introduce the set ("I found 4 options that match — quick rundown:"), give a one-line nudge per product, then ask which one they want. Don't pick a favourite for them.
+0. DO NOT REPEAT PRODUCT NAMES OR PRICES IN YOUR REPLY. The card carousel shows the picture, name and price for every product — listing them again in your text is redundant and makes the chat look cluttered. Just say something conversational like "I found a few options for you — which catches your eye?" or "Here you go, let me know which one fits your style!". The customer SEES the cards; you don't need to narrate them. Talk like a human salesman — short, friendly, no bullet lists.
+   GOOD: "Found 4 great polos for you — which colour do you like best?"
+   BAD:  "Here are 4 options: 1. Blue Polo - ₹500. 2. Red Polo - ₹600. 3..."
 1. ALWAYS use the search_products tool when the customer asks for ANY product. Do not invent product names, prices, brands, or stock claims. Default to max=5 so the customer has a good spread.
 1a. PICK CONCRETE SEARCH TERMS. The catalog search is keyword-based, not AI. Vague words like "gadgets", "stuff", "things", "items", "products" return almost nothing. When the customer says something broad, translate it into specific product types and call search_products multiple times in the same turn (each call gets its own labelled card row in the UI):
    - "smart gadgets" → search "smartwatch", "wireless earbuds", "smart speaker"
@@ -166,7 +168,7 @@ async function probeAuth() {
 //  site uses so the AI never sees a different inventory than the
 //  customer would see by typing in the search bar.
 // ──────────────────────────────────────────────────────────────────
-function buildSearchAdapter({ catalog, pricing, getDisplayUsdForProduct }) {
+function buildSearchAdapter({ catalog, pricing, getDisplayUsdForProduct, isPidShippable, isPidBlocked }) {
   // Pure SQLite path. No live CJ fetch, no async I/O beyond SQLite
   // (which is synchronous via better-sqlite3). This was originally
   // calling the storefront's full searchProductsWithCatalogExtras
@@ -197,27 +199,44 @@ function buildSearchAdapter({ catalog, pricing, getDisplayUsdForProduct }) {
         }
       }
 
-      const items = rawItems.slice(0, size);
+      // FIRST PASS: drop products we KNOW are unshippable or blocked
+      // before we even map them. shippingCache.available === false
+      // (set by /api/store/products/:pid after CJ returns no eligible
+      // route) and isBlocked() (admin manual block list) are the two
+      // signals we trust. Anything else we'll try to ship and let the
+      // customer find out if it works.
+      const eligible = rawItems.filter(p => {
+        const pid = String(p.pid || p.id || p.productId || '');
+        if (!pid) return false;
+        if (typeof isPidBlocked === 'function' && isPidBlocked(pid)) return false;
+        if (typeof isPidShippable === 'function' && isPidShippable(pid) === false) return false;
+        return true;
+      });
+
+      const items = eligible.slice(0, size);
       return items.map(p => {
-        // PRICE: matches the product detail page exactly (so the
-        // customer doesn't see one number from the AI and a higher
-        // one when they tap "View"). Two-tier lookup:
-        //
-        //   1. If we have a cached shipping quote for this PID (from
-        //      a prior visit or an admin-run shipping refresh), use
-        //      the full (wholesale + shipping) × (1 + markup) — that's
-        //      computeDisplayUsd, the same call the detail page makes.
-        //   2. Otherwise fall back to applyStorePricing (wholesale ×
-        //      markup, no shipping). Slight under-quote vs. detail,
-        //      but it's the storefront list-view price so still
-        //      consistent with at least one place on the site.
+        const pid = String(p.pid || p.id || p.productId || '');
+        // PRICE: matches the product detail page exactly. Tag results
+        // with `priceAccurate` so the UI knows whether to show the
+        // number OR a "Calculating…" placeholder while the real
+        // shipping fetch completes.
         let usd = 0;
+        let priceAccurate = false;
         try {
-          const displayUsd = typeof getDisplayUsdForProduct === 'function'
+          const r = typeof getDisplayUsdForProduct === 'function'
             ? getDisplayUsdForProduct(p)
             : null;
-          if (displayUsd != null && Number.isFinite(displayUsd) && displayUsd > 0) {
-            usd = displayUsd;
+          // getDisplayUsdForProduct now returns { usd, accurate } —
+          // accurate = true means the price came from the real cached
+          // shipping quote (matches the detail page), false means it
+          // was a weight-based estimate.
+          if (r && typeof r === 'object' && Number.isFinite(r.usd) && r.usd > 0) {
+            usd = r.usd;
+            priceAccurate = !!r.accurate;
+          } else if (typeof r === 'number' && Number.isFinite(r) && r > 0) {
+            // Backwards-compat: older shape returned a plain number.
+            usd = r;
+            priceAccurate = false;
           } else if (pricing && typeof pricing.applyStorePricing === 'function') {
             const priced = pricing.applyStorePricing(p);
             usd = parseFloat(priced.sellPrice || priced.price || priced.nowPrice || 0) || 0;
@@ -228,10 +247,11 @@ function buildSearchAdapter({ catalog, pricing, getDisplayUsdForProduct }) {
           usd = parseFloat(p.sellPrice || p.nowPrice || p.price || 0) || 0;
         }
         return {
-          pid: String(p.pid || p.id || p.productId || ''),
+          pid,
           name: String(p.productNameEn || p.productName || '').slice(0, 110),
           image: p.productImage || p.bigImage || p.image || '',
           priceInr: Math.round(usd * USD_TO_INR),
+          priceAccurate,
           category: p.categoryName || p.threeCategoryName || '',
         };
       }).filter(x => x.pid && x.name);
@@ -351,11 +371,14 @@ function buildChat(deps) {
                 products: items,
               });
               // Give the model a compact view so it doesn't fixate
-              // on URLs / images it doesn't need.
+              // on URLs / images it doesn't need. We strip prices when
+              // they aren't accurate-from-cache so the model doesn't
+              // quote estimated numbers in its prose — the UI shows
+              // "Calculating…" for those cards anyway.
               const summary = items.map(p => ({
                 pid: p.pid,
                 name: p.name,
-                priceInr: p.priceInr,
+                priceInr: p.priceAccurate ? p.priceInr : 'calculating',
                 category: p.category,
               }));
               toolResultMessages.push({

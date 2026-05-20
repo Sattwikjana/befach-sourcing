@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.89';
+const APP_VERSION = '8.90';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.89'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.90'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -1093,41 +1093,56 @@ function estimateShippingFromWeight(grams) {
   const est = 4 + (g * 0.02);
   return Math.min(25, Math.max(5, est));
 }
+// Returns { usd: number, accurate: boolean }. accurate=true only when
+// the price came from cached real shipping (matches the detail page).
+// When accurate=false the AI panel shows "Calculating…" while the real
+// shipping fetch completes in the background.
 function aiGetDisplayUsd(p) {
   const pid = String(p?.pid || p?.id || p?.productId || '');
   const wholesaleFromRow = parseFloat(p?.sellPrice || p?.price || p?.nowPrice || 0) || 0;
-  if (pid && shippingCache[pid]) {
+  if (pid && shippingCache[pid] && shippingCache[pid].available !== false) {
     const c = shippingCache[pid];
-    // 1a. We already computed the full display price → use it.
+    // 1a. We already computed the full display price → exact.
     const cached = parseFloat(c.displayUsd);
-    if (Number.isFinite(cached) && cached > 0) return cached;
-    // 1b. We have shipping but not yet displayUsd → compute now.
+    if (Number.isFinite(cached) && cached > 0) return { usd: cached, accurate: true };
+    // 1b. We have shipping but not yet displayUsd → compute now (exact).
     const ship = parseFloat(c.usd);
     const wholesale = parseFloat(c.wholesaleUsd || wholesaleFromRow);
     if (Number.isFinite(ship) && ship > 0 && Number.isFinite(wholesale) && wholesale > 0) {
-      return computeDisplayUsd(wholesale, ship);
+      try { return { usd: computeDisplayUsd(wholesale, ship), accurate: true }; } catch {}
     }
   }
-  // 2. No cached shipping yet. Use a weight-based estimate so the AI
-  //    quote is in the same ballpark as the detail-page price.
-  //    Catalog stores productWeight (grams) per row when CJ supplies
-  //    it — much better than a flat $8 across all products.
+  // 2. No cached shipping yet — weight-based estimate. Marked NOT
+  //    accurate so the UI shows "Calculating…" and triggers a real
+  //    backfill instead of displaying a possibly-wrong number.
   if (wholesaleFromRow > 0) {
     try {
       const weight = parseFloat(p?.productWeight || p?.weight || 0);
       const estShip = weight > 0
         ? estimateShippingFromWeight(weight)
         : AI_FALLBACK_SHIPPING_USD;
-      return computeDisplayUsd(wholesaleFromRow, estShip);
+      return { usd: computeDisplayUsd(wholesaleFromRow, estShip), accurate: false };
     } catch {}
   }
   // 3. Last resort — markup-only via applyStorePricing.
   try {
     const priced = pricing.applyStorePricing(p);
-    return parseFloat(priced.sellPrice || priced.price || 0) || 0;
+    const v = parseFloat(priced.sellPrice || priced.price || 0) || 0;
+    return { usd: v, accurate: false };
   } catch {
-    return wholesaleFromRow;
+    return { usd: wholesaleFromRow, accurate: false };
   }
+}
+
+// Returns false when shippingCache has confirmed the product can't
+// ship to India (so the AI never recommends "Not available in your
+// region" items). Returns true/null otherwise — null means unknown
+// (no cache yet); we still show those because most products DO ship
+// and the AI shouldn't withhold them just for being uncached.
+function aiIsPidShippable(pid) {
+  const c = shippingCache[pid];
+  if (!c) return null;
+  return c.available !== false;
 }
 
 // Background cache warming. After the AI responds, fire-and-forget
@@ -1180,6 +1195,11 @@ const __aiChat = aiAssistant.buildChat({
   catalog,
   pricing,
   getDisplayUsdForProduct: aiGetDisplayUsd,
+  // Returns false ONLY when shippingCache has confirmed the product
+  // can't reach India. Unknown PIDs (null) and confirmed-shippable
+  // ones (true) both pass the adapter's `=== false` check.
+  isPidShippable: aiIsPidShippable,
+  isPidBlocked: (pid) => isBlocked(pid),
 });
 // Simple per-IP token bucket (10 requests / minute). Resets on
 // restart — fine because the limit is mostly to stop a tab from

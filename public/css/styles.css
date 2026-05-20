@@ -7040,6 +7040,18 @@ body.page-cart .ai-float-btn {
   font-weight: 700;
   color: #2E1065;
 }
+.ai-product-price-calc {
+  font-weight: 600;
+  font-size: 11.5px;
+  color: #6D5BAD;
+  letter-spacing: 0.02em;
+  /* Subtle pulse so the customer can tell it's working, not stuck */
+  animation: aiPriceCalcPulse 1.4s ease-in-out infinite;
+}
+@keyframes aiPriceCalcPulse {
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 1; }
+}
 .ai-product-cta {
   margin-top: auto;
   display: inline-block;

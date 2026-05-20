@@ -205,6 +205,9 @@
     host.querySelectorAll('[data-ai-action]').forEach(btn => {
       btn.addEventListener('click', onProductAction);
     });
+    // Replace "Calculating…" placeholders with real prices, and drop
+    // any card CJ says isn't shippable to India. Runs async.
+    setTimeout(() => backfillAIProductPrices(host), 80);
   }
 
   function renderMessageHtml(msg) {
@@ -236,19 +239,74 @@
   }
 
   function renderProductCardHtml(p) {
-    const price = p.priceInr ? `₹${formatNumber(p.priceInr)}` : '';
+    const priceText = p.priceInr ? `₹${formatNumber(p.priceInr)}` : '';
+    const accurate = p.priceAccurate === true;
+    // When the server didn't have a real cached shipping quote for
+    // this PID, render "Calculating…" instead of an estimate. The
+    // backfill call (kicked off below in backfillAIProductPrices)
+    // will swap in the real price within ~500 ms-2 s.
+    const priceHtml = priceText
+      ? (accurate
+          ? `<div class="ai-product-price" data-card-price>${priceText}</div>`
+          : `<div class="ai-product-price ai-product-price-calc" data-card-price>Calculating…</div>`)
+      : '<div class="ai-product-price ai-product-price-calc" data-card-price>Calculating…</div>';
     return `
-      <div class="ai-product-card">
+      <div class="ai-product-card" data-pid="${escapeAttr(p.pid)}" data-accurate="${accurate ? '1' : '0'}">
         <a class="ai-product-image" href="/product/${encodeURIComponent(p.pid)}" data-ai-action="view" data-pid="${escapeAttr(p.pid)}">
           <img src="${escapeAttr(imgProxyUrl(p.image))}" alt="${escapeAttr(p.name)}" loading="lazy" onerror="this.src='/img/globalshopper.png'" />
         </a>
         <div class="ai-product-body">
           <a class="ai-product-name" href="/product/${encodeURIComponent(p.pid)}" data-ai-action="view" data-pid="${escapeAttr(p.pid)}">${escapeHtml(p.name)}</a>
-          ${price ? `<div class="ai-product-price">${price}</div>` : ''}
+          ${priceHtml}
           <a class="ai-product-cta" href="/product/${encodeURIComponent(p.pid)}" data-ai-action="view" data-pid="${escapeAttr(p.pid)}">View</a>
         </div>
       </div>
     `;
+  }
+
+  // Polls /api/store/shipping-for for any product card in the chat
+  // that's currently showing "Calculating…", then swaps the placeholder
+  // with the exact INR price (or removes the card if CJ says it's not
+  // shippable to India). Rate-limited so we don't burst the API.
+  let aiBackfillBusy = false;
+  let aiBackfillQueue = [];
+  async function backfillAIProductPrices(scope) {
+    const root = scope || document.getElementById('aiMessages');
+    if (!root) return;
+    const pending = Array.from(root.querySelectorAll('.ai-product-card[data-accurate="0"]'))
+      .map(card => ({ card, pid: card.getAttribute('data-pid') }))
+      .filter(x => x.pid);
+    if (!pending.length) return;
+    aiBackfillQueue.push(...pending);
+    if (aiBackfillBusy) return;
+    aiBackfillBusy = true;
+    while (aiBackfillQueue.length) {
+      const { card, pid } = aiBackfillQueue.shift();
+      if (!card.isConnected) continue;
+      try {
+        const res = await fetch(`/api/store/shipping-for/${encodeURIComponent(pid)}`);
+        if (!res.ok) continue;
+        const data = await res.json().catch(() => ({}));
+        if (!card.isConnected) continue;
+        // Unshippable → remove the card entirely so the customer
+        // never clicks through to "Not available in your region".
+        if (data.available === false) { card.remove(); continue; }
+        if (data.displayUsd) {
+          const usd = parseFloat(data.displayUsd);
+          const inr = Math.round(usd * 85);
+          const priceEl = card.querySelector('[data-card-price]');
+          if (priceEl) {
+            priceEl.textContent = '₹' + (inr.toLocaleString ? inr.toLocaleString('en-IN') : String(inr));
+            priceEl.classList.remove('ai-product-price-calc');
+          }
+          card.setAttribute('data-accurate', '1');
+        }
+      } catch {}
+      // Gentle throttle so we don't pile concurrent shipping calls
+      // (each one hits CJ in the worst case).
+      await new Promise(r => setTimeout(r, 250));
+    }
+    aiBackfillBusy = false;
   }
 
   function onProductAction(e) {
