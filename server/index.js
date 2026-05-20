@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '8.95';
+const APP_VERSION = '8.96';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.95'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '8.96'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -873,6 +873,56 @@ function getGoogleAuthClient() {
     return null;
   }
 }
+// Redirect-mode callback. Google posts an x-www-form-urlencoded body
+// here with `credential` (the JWT) when ux_mode is 'redirect' (which
+// browsers like Safari force when popups are blocked). We verify it,
+// set the session cookie, and 302 redirect the user back to the page
+// they came from. This URL must be added to the OAuth Client's
+// "Authorised redirect URIs" in Google Cloud Console.
+app.post('/api/auth/google/callback',
+  express.urlencoded({ extended: false }),
+  async (req, res) => {
+    const credential = req.body && typeof req.body.credential === 'string' ? req.body.credential : '';
+    const clientId = process.env.GOOGLE_CLIENT_ID || '';
+    if (!credential || !clientId) {
+      return res.redirect(302, '/login?google_error=1');
+    }
+    const client = getGoogleAuthClient();
+    if (!client) {
+      return res.redirect(302, '/login?google_error=lib');
+    }
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken: credential,
+        audience: [clientId, ...((process.env.GOOGLE_CLIENT_IDS_EXTRA || '').split(',').map(s => s.trim()).filter(Boolean))],
+      });
+      const payload = ticket.getPayload();
+      if (!payload || !payload.email || !payload.sub) {
+        return res.redirect(302, '/login?google_error=payload');
+      }
+      if (payload.email_verified === false) {
+        return res.redirect(302, '/login?google_error=unverified');
+      }
+      const user = await auth.findOrCreateGoogleUser({
+        email: payload.email,
+        name: payload.name || payload.given_name || '',
+        googleId: payload.sub,
+        picture: payload.picture || '',
+      });
+      const token = auth.createSessionFor(user.id);
+      auth.setSessionCookie(res, token);
+      // Where to land after sign-in. ?next= can be set by the client
+      // before kicking off the flow; otherwise default to /account.
+      const next = (req.query && typeof req.query.next === 'string') ? req.query.next : '/account';
+      const safe = next.startsWith('/') ? next : '/account';
+      res.redirect(302, safe);
+    } catch (err) {
+      console.warn('[google-auth/callback] failed:', err.message);
+      res.redirect(302, '/login?google_error=verify');
+    }
+  }
+);
+
 app.post('/api/auth/google', async (req, res) => {
   const idToken = req.body && typeof req.body.idToken === 'string' ? req.body.idToken : '';
   if (!idToken) return res.status(400).json({ error: 'Missing idToken' });

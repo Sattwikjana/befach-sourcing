@@ -1773,14 +1773,31 @@ function mountGoogleSignInButton() {
   loadGoogleIdentityScript().then(() => {
     if (!window.google || !window.google.accounts) return;
     try {
+      // Decide UX mode at runtime. Safari and some Chrome configurations
+      // block third-party popups, which leaves the popup flow staring
+      // at a blank accounts.google.com page. The redirect flow works
+      // everywhere — Google POSTs the credential to our server, we
+      // verify it, set the cookie, and 302 back to the original page.
+      // FedCM (Chrome's native API) is used when available — works
+      // without third-party cookies.
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent || '');
+      const ux_mode = isSafari ? 'redirect' : 'popup';
+      const next = encodeURIComponent(location.pathname || '/account');
       window.google.accounts.id.initialize({
         client_id: googleClientId(),
         callback: onGoogleCredentialResponse,
         auto_select: false,
         cancel_on_tap_outside: true,
-        // Modern UX uses a popup window; falls back to a redirect
-        // on devices that block popups.
-        ux_mode: 'popup',
+        ux_mode,
+        // Used when ux_mode is 'redirect' (Safari, or if a browser
+        // blocks the popup). Google POSTs the credential here as
+        // form-encoded data. Our server then verifies + sets a
+        // session cookie + 302 redirects back.
+        login_uri: location.origin + '/api/auth/google/callback?next=' + next,
+        // Chrome 117+ native auth API — bypasses popup blockers and
+        // third-party cookie restrictions. Falls back gracefully when
+        // not supported.
+        use_fedcm_for_prompt: true,
       });
       window.google.accounts.id.renderButton(host, {
         theme: 'outline',
@@ -1800,6 +1817,28 @@ function mountGoogleSignInButton() {
     host.style.display = 'none';
   });
 }
+
+// On page load, surface any error returned from the redirect callback
+// so the customer knows why their Google sign-in didn't work.
+function showGoogleRedirectErrorIfAny() {
+  try {
+    const params = new URLSearchParams(location.search);
+    const err = params.get('google_error');
+    if (!err) return;
+    const messages = {
+      '1': 'Google sign-in was cancelled or returned no credential.',
+      'lib': 'Google sign-in is misconfigured on our server. Please try again later.',
+      'payload': "Google didn't return your email. Please try again.",
+      'unverified': 'Please verify your Google account email first.',
+      'verify': 'We could not verify your Google identity. Please try again.',
+    };
+    showToast(messages[err] || 'Google sign-in failed. Please try again.', 5000);
+    // Clean the URL so a refresh doesn't re-show the toast.
+    const clean = location.pathname;
+    history.replaceState(null, '', clean);
+  } catch {}
+}
+window.showGoogleRedirectErrorIfAny = showGoogleRedirectErrorIfAny;
 let __gsiScriptPromise = null;
 function loadGoogleIdentityScript() {
   if (__gsiScriptPromise) return __gsiScriptPromise;
@@ -1866,6 +1905,7 @@ function renderLogin() {
     </div>
   `;
   mountGoogleSignInButton();
+  showGoogleRedirectErrorIfAny();
   document.getElementById('loginForm').onsubmit = async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target).entries());
@@ -1920,6 +1960,7 @@ function renderRegister() {
     </div>
   `;
   mountGoogleSignInButton();
+  showGoogleRedirectErrorIfAny();
   document.getElementById('registerForm').onsubmit = async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target).entries());
