@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
+import * as Speech from 'expo-speech';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -24,7 +25,7 @@ const DEFAULT_SITE_URL = 'https://www.globalshopper.in';
 const SITE_URL = String(Constants.expoConfig?.extra?.siteUrl || DEFAULT_SITE_URL).replace(/\/+$/, '');
 const HOME_URL = `${SITE_URL}/`;
 
-const APP_VERSION = '0.1.9';
+const APP_VERSION = '0.2.0';
 const APP_USER_AGENT = `GlobalShopperAndroid/${APP_VERSION}`;
 
 Notifications.setNotificationHandler({
@@ -389,8 +390,32 @@ export default function App() {
             // the user can't navigate further back from.
             onMessage={event => {
               const msg = event?.nativeEvent?.data;
+              if (!msg) return;
               if (msg === 'GS_BACK_EXIT') {
                 BackHandler.exitApp();
+                return;
+              }
+              // Miki's text-to-speech bridge. Android WebView's
+              // built-in speechSynthesis is unreliable (voices often
+              // don't load, speak() fails silently). Hand it off to
+              // expo-speech which uses the device's native TTS engine
+              // and the locale's default female voice. Picks Indian
+              // English where available.
+              if (msg.startsWith('GS_SPEAK:')) {
+                const text = msg.slice('GS_SPEAK:'.length);
+                if (text) {
+                  try { Speech.stop(); } catch {}
+                  Speech.speak(text, {
+                    language: 'en-IN',
+                    rate: 0.96,
+                    pitch: 1.05,
+                  });
+                }
+                return;
+              }
+              if (msg === 'GS_SPEAK_STOP') {
+                try { Speech.stop(); } catch {}
+                return;
               }
             }}
             onNavigationStateChange={handleNavChange}

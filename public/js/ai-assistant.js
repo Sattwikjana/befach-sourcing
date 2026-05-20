@@ -177,7 +177,8 @@
     panel.setAttribute('aria-hidden', 'true');
     document.documentElement.classList.remove('ai-panel-open');
     if (listening) toggleListening();
-    if (utterance) { window.speechSynthesis?.cancel(); utterance = null; }
+    utterance = null;
+    stopSpeaking();
 
     // If the close was initiated by the user (X button / backdrop tap /
     // navigate-to-product card click), pop our pushed history state so
@@ -465,7 +466,7 @@
     voiceModeOn = !voiceModeOn;
     saveVoicePref();
     updateVoiceToggleUI();
-    if (!voiceModeOn) window.speechSynthesis?.cancel();
+    if (!voiceModeOn) stopSpeaking();
   }
   function updateVoiceToggleUI() {
     const btn = document.getElementById('aiVoiceToggle');
@@ -481,16 +482,115 @@
     btn.innerHTML = listening ? ICONS.micOff : ICONS.mic;
   }
 
+  // Cache the picked voice so we don't re-scan on every utterance.
+  let __pickedVoice = null;
+  let __voicesLoaded = false;
+  // Ordered preference list — soft, female, English (Indian where
+  // available). On most phones at least one of these is present.
+  // The list runs top-down; first match wins.
+  const PREFERRED_VOICES = [
+    // Google's en-IN female voice (warm, soft)
+    { lang: 'en-IN', female: true, contains: ['google'] },
+    // Microsoft Heera (Hindi-English, female, soft on Android/Windows)
+    { contains: ['heera'] },
+    // Microsoft Aditi (Indian English, female)
+    { contains: ['aditi'] },
+    // Samantha — iOS / Mac default Siri-like
+    { contains: ['samantha'] },
+    // Microsoft Zira (Windows, female, soft)
+    { contains: ['zira'] },
+    // Google UK English Female — fallback if no Indian voice
+    { lang: 'en-GB', female: true, contains: ['female'] },
+    // Any en-IN voice that names itself female
+    { lang: 'en-IN', female: true },
+    // Any English voice that names itself female
+    { female: true, langStartsWith: 'en' },
+    // Any en-IN voice
+    { lang: 'en-IN' },
+    // Last resort: any English voice
+    { langStartsWith: 'en' },
+  ];
+
+  function pickVoice() {
+    if (__pickedVoice) return __pickedVoice;
+    const voices = window.speechSynthesis?.getVoices?.() || [];
+    if (!voices.length) return null;
+    const looksFemale = (v) => /female|woman|samantha|zira|heera|aditi|priya|swara|isha|aria/i.test(v.name || '');
+    for (const pref of PREFERRED_VOICES) {
+      const match = voices.find(v => {
+        if (pref.lang && (v.lang || '').toLowerCase() !== pref.lang.toLowerCase()) return false;
+        if (pref.langStartsWith && !(v.lang || '').toLowerCase().startsWith(pref.langStartsWith)) return false;
+        if (pref.female && !looksFemale(v)) return false;
+        if (pref.contains && pref.contains.length) {
+          const lname = (v.name || '').toLowerCase();
+          if (!pref.contains.every(c => lname.includes(c.toLowerCase()))) return false;
+        }
+        return true;
+      });
+      if (match) { __pickedVoice = match; return match; }
+    }
+    // Absolute last resort — first voice of any kind
+    __pickedVoice = voices[0];
+    return __pickedVoice;
+  }
+  // Voices load asynchronously on most browsers — re-pick when available
+  if (window.speechSynthesis) {
+    window.speechSynthesis.addEventListener?.('voiceschanged', () => {
+      __pickedVoice = null;
+      pickVoice();
+      __voicesLoaded = true;
+    });
+    // Kick off an initial getVoices() — some browsers populate synchronously
+    setTimeout(() => { pickVoice(); __voicesLoaded = true; }, 100);
+  }
+
+  // True when we're inside the Expo WebView so we can hand TTS off to
+  // the native expo-speech bridge (Android WebView's speechSynthesis
+  // is flaky — voices often don't load and speech fails silently).
+  const isInExpoApp = () => !!(
+    window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function'
+  );
+
   function speak(text) {
+    const clean = String(text || '').trim();
+    if (!clean) return;
+    // Inside the Expo WebView → ask the native side to speak via
+    // expo-speech (uses the device's system TTS engine, picks a
+    // proper female voice, and actually produces sound — unlike
+    // Android WebView's speechSynthesis which is unreliable).
+    if (isInExpoApp()) {
+      try {
+        window.ReactNativeWebView.postMessage('GS_SPEAK:' + clean.slice(0, 800));
+      } catch {}
+      return;
+    }
+    // Browser path — Web Speech API
     if (!window.speechSynthesis) return;
     try {
       window.speechSynthesis.cancel();
-      utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-IN';
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
+      utterance = new SpeechSynthesisUtterance(clean);
+      const voice = pickVoice();
+      if (voice) {
+        utterance.voice = voice;
+        utterance.lang = voice.lang || 'en-IN';
+      } else {
+        utterance.lang = 'en-IN';
+      }
+      // Warm, conversational delivery — slightly slower than default
+      // and a touch higher pitch (Siri/Alexa style cadence).
+      utterance.rate = 0.96;
+      utterance.pitch = 1.05;
+      utterance.volume = 1.0;
       window.speechSynthesis.speak(utterance);
     } catch {}
+  }
+
+  function stopSpeaking() {
+    if (isInExpoApp()) {
+      try { window.ReactNativeWebView.postMessage('GS_SPEAK_STOP'); } catch {}
+      return;
+    }
+    try { window.speechSynthesis?.cancel(); } catch {}
   }
 
   function showInlineError(msg) {
