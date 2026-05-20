@@ -3,7 +3,7 @@
     "name": "Global Shopper",
     "slug": "global-shopper",
     "scheme": "globalshopper",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -26,7 +26,7 @@
     },
     "android": {
       "package": "in.globalshopper.app",
-      "versionCode": 14,
+      "versionCode": 15,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2b0b5a"
@@ -79,6 +79,7 @@
     "extra": {
       "siteUrl": "https://www.globalshopper.in",
       "privacyPolicyUrl": "https://www.globalshopper.in/privacy",
+      "googleWebClientId": "81124282042-hds19dnh7d5s9lqm5rsq3ejqtlkljukg.apps.googleusercontent.com",
       "eas": {
         "projectId": "9b559855-8a99-4d52-8127-4f5d8a112bc8"
       }

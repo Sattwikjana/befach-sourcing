@@ -1,9 +1,16 @@
+import * as Google from 'expo-auth-session/providers/google';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
 import * as Speech from 'expo-speech';
 import * as SplashScreen from 'expo-splash-screen';
+import * as WebBrowser from 'expo-web-browser';
+
+// Required by expo-auth-session — completes the auth flow when the
+// system browser redirects back to the app. Safe to call at module
+// scope (idempotent if already finished).
+WebBrowser.maybeCompleteAuthSession();
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -25,7 +32,13 @@ const DEFAULT_SITE_URL = 'https://www.globalshopper.in';
 const SITE_URL = String(Constants.expoConfig?.extra?.siteUrl || DEFAULT_SITE_URL).replace(/\/+$/, '');
 const HOME_URL = `${SITE_URL}/`;
 
-const APP_VERSION = '0.2.0';
+const APP_VERSION = '0.2.1';
+
+// Web Client ID for Google Sign-In, baked into the build. Public —
+// Client IDs are not secrets. Pulled from app.json extras so it can
+// be swapped without code changes.
+const GOOGLE_WEB_CLIENT_ID =
+  String(Constants.expoConfig?.extra?.googleWebClientId || '');
 const APP_USER_AGENT = `GlobalShopperAndroid/${APP_VERSION}`;
 
 Notifications.setNotificationHandler({
@@ -100,6 +113,63 @@ export default function App() {
   const [canGoBack, setCanGoBack] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pushToken, setPushToken] = useState<string | null>(null);
+
+  // ── Google Sign-In native bridge ────────────────────────────────
+  // Google blocks the regular GSI button inside Android WebView for
+  // security reasons. So in the app, the web's "Continue with Google"
+  // button posts a `GS_GOOGLE_SIGNIN_REQUEST` message instead of
+  // running GSI inline; we open the system browser via
+  // expo-auth-session, get the ID token back, and inject it into the
+  // WebView, which then POSTs to /api/auth/google like the web flow.
+  const [googleRequest, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
+    clientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: GOOGLE_WEB_CLIENT_ID,
+    androidClientId: GOOGLE_WEB_CLIENT_ID,
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    scopes: ['profile', 'email', 'openid'],
+  });
+
+  useEffect(() => {
+    if (!googleResponse) return;
+    if (googleResponse.type === 'success') {
+      // expo-auth-session returns an `id_token` for the OpenID Connect
+      // flow. Inject into the WebView so the existing client-side
+      // sign-in handler can POST it to /api/auth/google — same as
+      // the web GSI flow on the server side.
+      const idToken =
+        (googleResponse as any)?.params?.id_token ||
+        (googleResponse as any)?.authentication?.idToken ||
+        '';
+      if (idToken && webViewRef.current) {
+        const safe = JSON.stringify(idToken);
+        webViewRef.current.injectJavaScript(`
+          (function () {
+            try {
+              if (typeof window.__handleGoogleSignInToken === 'function') {
+                window.__handleGoogleSignInToken(${safe});
+              } else if (typeof window.showToast === 'function') {
+                window.showToast('Google sign-in handler not ready, please retry');
+              }
+            } catch (e) {}
+          })();
+          true;
+        `);
+      }
+    } else if (googleResponse.type === 'error' || googleResponse.type === 'dismiss' || googleResponse.type === 'cancel') {
+      // User dismissed or auth errored — let the WebView know so it
+      // can re-enable the button. Silent if no toast available.
+      webViewRef.current?.injectJavaScript(`
+        (function () {
+          try {
+            if (typeof window.showToast === 'function') {
+              window.showToast('Google sign-in was cancelled');
+            }
+          } catch (e) {}
+        })();
+        true;
+      `);
+    }
+  }, [googleResponse]);
 
   const injectedJavaScript = useMemo(() => `
     window.__GLOBAL_SHOPPER_APP__ = true;
@@ -415,6 +485,25 @@ export default function App() {
               }
               if (msg === 'GS_SPEAK_STOP') {
                 try { Speech.stop(); } catch {}
+                return;
+              }
+              // Google Sign-In bridge — web pops this when the
+              // customer taps "Continue with Google" inside the app.
+              if (msg === 'GS_GOOGLE_SIGNIN_REQUEST') {
+                if (!GOOGLE_WEB_CLIENT_ID) {
+                  webViewRef.current?.injectJavaScript(`
+                    if (typeof window.showToast === 'function') {
+                      window.showToast('Google sign-in not configured in this build');
+                    }
+                    true;
+                  `);
+                  return;
+                }
+                if (googleRequest && promptGoogleAsync) {
+                  promptGoogleAsync().catch(err => {
+                    console.warn('[google] prompt failed:', err?.message);
+                  });
+                }
                 return;
               }
             }}
