@@ -1,5 +1,5 @@
 /**
- * AL Suliswan — AI shopping assistant.
+ * Miki — AI shopping assistant.
  * Calls OpenRouter (OpenAI-compatible API) with tool-calling so the
  * model can search our catalog in real time and recommend products +
  * complementary items (a polo shirt → matching jeans → matching belt).
@@ -26,7 +26,7 @@ const USD_TO_INR = parseFloat(process.env.USD_TO_INR || '85');
 const MAX_HISTORY = 14;
 const MAX_USER_MSG_LEN = 600;
 
-const SYSTEM_PROMPT = `You are AL Suliswan, the friendly AI shopping assistant for Global Shopper (${SITE_URL}) — an online store delivering branded products from CJ Dropshipping to customers in India and worldwide.
+const SYSTEM_PROMPT = `You are Miki, the friendly personal shopping assistant for Global Shopper (${SITE_URL}) — an online store delivering branded products from CJ Dropshipping to customers in India and worldwide.
 
 Your tone is warm and human, like a Flipkart or Myntra in-store sales rep. Be brief — 2 to 3 sentences max before asking the next clarifying question. NEVER write long paragraphs.
 
@@ -114,7 +114,7 @@ async function callOpenRouter(messages) {
       // we previously used here (U+2014) crashed fetch() with
       // "character at index 15 has a value of 8212 which is greater
       // than 255". Hyphen-minus is fine.
-      'X-Title': 'Global Shopper - AL Suliswan',
+      'X-Title': 'Global Shopper - Miki',
     },
     body: JSON.stringify({
       model: AI_MODEL,
@@ -254,7 +254,7 @@ function buildChat(deps) {
   return async function aiChat({ messages }) {
     // ── Validate + sanitise client-provided history ──
     if (!Array.isArray(messages) || !messages.length) {
-      return { reply: "Hi! I'm AL Suliswan. What are you looking for today?", productGroups: [] };
+      return { reply: "Hi! I'm Miki. What are you looking for today?", productGroups: [] };
     }
     const cleaned = messages
       .filter(m => m && typeof m === 'object' && (m.role === 'user' || m.role === 'assistant'))

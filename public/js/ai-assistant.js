@@ -29,7 +29,20 @@
 
   const HISTORY_KEY = 'gs_ai_chat_v1';
   const VOICE_KEY = 'gs_ai_voice_v1';
-  const WELCOME = "Hi! I'm AL Suliswan, your shopping assistant. What are you looking for today? I can find products, suggest matching outfits and accessories, and help you order. 🛍️";
+  const WELCOME = "Hi, I'm Miki — your personal shopping assistant. Tell me what you're looking for and I'll find matching products, suggest outfits, accessories, and help you place the order.";
+
+  // Inline SVG icon library — replaces the emoji glyphs (🎤 🔈 🔊 ➤)
+  // that didn't match our brand polish. All icons use currentColor
+  // so CSS controls fill/stroke.
+  const ICONS = {
+    mic: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="9" y1="22" x2="15" y2="22"/></svg>',
+    micOff: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="3" x2="21" y2="21"/><path d="M9 7v3a3 3 0 0 0 5.12 2.12"/><path d="M15 9.34V5a3 3 0 0 0-5.94-.6"/><path d="M5 11a7 7 0 0 0 12 4.65"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="9" y1="22" x2="15" y2="22"/></svg>',
+    volumeOn: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>',
+    volumeOff: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>',
+    send: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l14-7-7 14-2-5-5-2z"/></svg>',
+    close: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+    dot: '<span class="ai-dot"></span>',
+  };
 
   let history = [];
   let isOpen = false;
@@ -65,11 +78,11 @@
     btn.id = 'aiFloatBtn';
     btn.type = 'button';
     btn.className = 'ai-float-btn';
-    btn.setAttribute('aria-label', 'Chat with AL Suliswan, your AI shopping assistant');
+    btn.setAttribute('aria-label', 'Chat with Miki, your shopping assistant');
     btn.innerHTML = `
       <span class="ai-float-pulse" aria-hidden="true"></span>
-      <img src="/img/salesrobot.png?v=20260519-ai" alt="" />
-      <span class="ai-float-tip" aria-hidden="true">Ask AL!</span>
+      <img src="/img/salesrobot.png?v=20260519-miki" alt="" />
+      <span class="ai-float-tip" aria-hidden="true">Ask Miki</span>
     `;
     btn.addEventListener('click', openPanel);
     document.body.appendChild(btn);
@@ -85,30 +98,29 @@
     panel.className = 'ai-panel';
     panel.setAttribute('aria-hidden', 'true');
     panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-label', 'AI Shopping Assistant');
+    panel.setAttribute('aria-label', 'Miki — shopping assistant');
     panel.innerHTML = `
       <header class="ai-panel-header">
         <div class="ai-panel-avatar">
-          <img src="/img/salesrobot.png?v=20260519-ai" alt="" />
+          <span class="ai-avatar-ring" aria-hidden="true"></span>
+          <img src="/img/salesrobot.png?v=20260519-miki" alt="" />
         </div>
         <div class="ai-panel-title">
-          <strong>AL Suliswan</strong>
-          <span class="ai-panel-sub">AI shopping assistant • online</span>
+          <strong>Miki</strong>
+          <span class="ai-panel-sub"><span class="ai-status-dot" aria-hidden="true"></span> Personal shopping assistant</span>
         </div>
         <button type="button" class="ai-panel-icon" id="aiVoiceToggle" aria-label="Toggle spoken replies" title="Toggle spoken replies">
-          <span class="ai-icon-speaker"></span>
+          ${ICONS.volumeOff}
         </button>
-        <button type="button" class="ai-panel-icon" id="aiPanelClose" aria-label="Close chat">✕</button>
+        <button type="button" class="ai-panel-icon ai-panel-close-btn" id="aiPanelClose" aria-label="Close chat">${ICONS.close}</button>
       </header>
       <div class="ai-messages" id="aiMessages" aria-live="polite"></div>
       <form class="ai-input-bar" id="aiInputForm" autocomplete="off">
-        <button type="button" class="ai-mic-btn" id="aiMicBtn" aria-label="Voice input (tap and speak)" title="Voice input">
-          <span class="ai-icon-mic"></span>
-        </button>
-        <input type="text" id="aiInput" placeholder="Ask me anything…" maxlength="500" />
-        <button type="submit" class="ai-send-btn" id="aiSendBtn" aria-label="Send">
-          <span class="ai-icon-send"></span>
-        </button>
+        <button type="button" class="ai-mic-btn" id="aiMicBtn" aria-label="Voice input (tap and speak)" title="Voice input">${ICONS.mic}</button>
+        <div class="ai-input-wrap">
+          <input type="text" id="aiInput" placeholder="Ask me anything…" maxlength="500" />
+        </div>
+        <button type="submit" class="ai-send-btn" id="aiSendBtn" aria-label="Send">${ICONS.send}</button>
       </form>
     `;
     document.body.appendChild(panel);
@@ -128,11 +140,23 @@
   }
 
   function openPanel() {
+    if (isOpen) return;
     isOpen = true;
     const panel = document.getElementById('aiPanel');
     panel.classList.add('is-open');
     panel.setAttribute('aria-hidden', 'false');
     document.documentElement.classList.add('ai-panel-open');
+
+    // Push a marker into the browser history so the hardware back
+    // button (Android) closes Miki FIRST instead of navigating away
+    // from the SPA. The popstate listener (installed in boot()) pops
+    // it back when fired. We never call history.pushState on subsequent
+    // re-opens of the same instance — only when transitioning from
+    // closed → open — so the back stack stays clean.
+    try {
+      window.history.pushState({ aiPanel: true }, '');
+    } catch {}
+
     // Show welcome on first open
     if (!history.length) {
       addAssistantMessage(WELCOME, []);
@@ -143,7 +167,10 @@
       scrollToBottom();
     }, 60);
   }
-  function closePanel() {
+  // skipHistory=true when popstate is unwinding our own pushed state
+  // (don't call history.back() in that case — we're already going back).
+  function closePanel(skipHistory) {
+    if (!isOpen) return;
     isOpen = false;
     const panel = document.getElementById('aiPanel');
     panel.classList.remove('is-open');
@@ -151,6 +178,18 @@
     document.documentElement.classList.remove('ai-panel-open');
     if (listening) toggleListening();
     if (utterance) { window.speechSynthesis?.cancel(); utterance = null; }
+
+    // If the close was initiated by the user (X button / backdrop tap /
+    // navigate-to-product card click), pop our pushed history state so
+    // hitting back AGAIN doesn't replay the open/close cycle. When
+    // popstate fired and called us, skipHistory=true and we skip this.
+    if (!skipHistory) {
+      try {
+        if (window.history.state && window.history.state.aiPanel) {
+          window.history.back();
+        }
+      } catch {}
+    }
   }
   function togglePanel() { isOpen ? closePanel() : openPanel(); }
 
@@ -361,6 +400,7 @@
     if (!btn) return;
     btn.classList.toggle('is-listening', listening);
     btn.setAttribute('aria-pressed', listening ? 'true' : 'false');
+    updateMicIcon();
   }
 
   function toggleVoiceMode() {
@@ -375,6 +415,12 @@
     btn.classList.toggle('is-on', voiceModeOn);
     btn.setAttribute('aria-pressed', voiceModeOn ? 'true' : 'false');
     btn.title = voiceModeOn ? 'Spoken replies: ON' : 'Spoken replies: OFF';
+    btn.innerHTML = voiceModeOn ? ICONS.volumeOn : ICONS.volumeOff;
+  }
+  function updateMicIcon() {
+    const btn = document.getElementById('aiMicBtn');
+    if (!btn) return;
+    btn.innerHTML = listening ? ICONS.micOff : ICONS.mic;
   }
 
   function speak(text) {
@@ -464,5 +510,18 @@
   // app.js dispatches a custom 'gs:route' event on every handleRoute(),
   // and we also listen to popstate as a fallback.
   window.addEventListener('gs:route', rebootIfNeeded);
-  window.addEventListener('popstate', rebootIfNeeded);
+
+  // Hardware back button (Android) and browser back arrow both fire
+  // popstate. If Miki's panel is open, intercept it: close the panel
+  // and bail out of any further routing. We also let rebootIfNeeded
+  // run for normal SPA route changes when the panel ISN'T open.
+  window.addEventListener('popstate', (event) => {
+    if (isOpen) {
+      // Pass skipHistory=true so closePanel doesn't double-pop the
+      // stack (we're already in a popstate handler).
+      closePanel(true);
+      return;
+    }
+    rebootIfNeeded(event);
+  });
 })();
