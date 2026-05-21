@@ -31,7 +31,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const APP_VERSION = '9.04';
+const APP_VERSION = '9.05';
 const SITE_URL = (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || 'https://www.globalshopper.in').replace(/\/+$/, '');
 const SITE_NAME = 'Global Shopper';
 const MOBILE_PUSH_TOKENS_FILE = path.join(__dirname, 'data', 'mobile-push-tokens.json');
@@ -88,7 +88,7 @@ process.on('uncaughtException', (err) => {
 // Payload includes status + version so our deploy-polling tooling
 // can still verify which build is live. Pre-computed once (version
 // is a const) so the GET handler does zero JSON work per request.
-const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '9.04'}"}`;
+const __HEALTH_PAYLOAD = `{"status":"ok","version":"${process.env.APP_VERSION_OVERRIDE || '9.05'}"}`;
 app.get('/api/live', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -2266,6 +2266,20 @@ function buildSeoFallback(seo) {
   ].filter(Boolean).join('\n');
 }
 
+// Returns the H1 text we want crawlers to see for this route.
+// Prefers a route-specific heading (defined in fallback.heading on
+// the SEO object), then falls back to the page title with any
+// " | Global Shopper" suffix stripped — so the H1 reads naturally,
+// e.g. "About" not "About Global Shopper | One World..." .
+function seoH1Text(seo) {
+  const fallbackHeading = seo && seo.fallback && seo.fallback.heading
+    ? seo.fallback.heading
+    : null;
+  if (fallbackHeading) return fallbackHeading;
+  const t = (seo && seo.title) || 'Global Shopper';
+  return String(t).replace(/\s+\|\s+Global Shopper.*$/i, '').trim() || 'Global Shopper';
+}
+
 function renderSeoHtml(req) {
   const seo = getRouteSeo(req);
   const title = htmlEscape(seo.title || 'Global Shopper');
@@ -2274,10 +2288,20 @@ function renderSeoHtml(req) {
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`)
     .replace(/<meta\s+name=["']description["']\s+content=["'][^"']*["']\s*\/?>/i, `<meta name="description" content="${description}" />`);
   html = html.replace(/<\/head>/i, `${buildSeoTags(seo)}\n</head>`);
+
+  // Server-render an H1 outside <noscript> so crawlers — both with
+  // and without JS — see exactly one H1 per page. Bing's first-pass
+  // crawler reads server HTML without executing JS, and was reporting
+  // "H1 tag missing" because the SPA's H1 only appeared after the
+  // bundle ran. Marking the tag with class="sr-only-seo" keeps it
+  // visually hidden (positioned off-screen) without breaking
+  // accessibility — screen readers still announce it.
+  // CSS lives in public/css/styles.css.
+  const h1Html = `<h1 class="sr-only-seo" aria-hidden="false">${htmlEscape(seoH1Text(seo))}</h1>`;
+
   const fallback = buildSeoFallback(seo);
-  return fallback
-    ? html.replace(/<body([^>]*)>/i, `<body$1>\n${fallback}`)
-    : html;
+  const bodyInject = `${h1Html}${fallback ? `\n${fallback}` : ''}`;
+  return html.replace(/<body([^>]*)>/i, `<body$1>\n${bodyInject}`);
 }
 
 function flattenSeoCategoriesFromTree(tree) {

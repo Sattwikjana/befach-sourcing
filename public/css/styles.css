@@ -6676,6 +6676,25 @@ body.page-home .feedback-fab {
 
 
 /* ═══════════════════════════════════════════════════════════════
+   SR-only SEO H1
+   Server-rendered, route-specific H1 placed outside <noscript> so
+   crawlers without JS (like Bing's first-pass scanner) ALWAYS see
+   exactly one H1 per page. Visually hidden — but screen readers
+   and search-engine bots both pick it up.
+   ═══════════════════════════════════════════════════════════════ */
+.sr-only-seo {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    GOOGLE SIGN-IN — Web button + divider
    Inserted at the top of /login and /register cards above the
    email/password form. Hidden when no client ID is configured or
